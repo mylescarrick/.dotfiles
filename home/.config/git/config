@@ -29,6 +29,9 @@
 [gpg]
 	format = "ssh"
 
+[gpg "ssh"]
+	allowedSignersFile = "~/.ssh/allowed_signers"
+
 [init]
 	defaultBranch = "main"
 
@@ -50,7 +53,7 @@
 [user]
 	email = "mylescarrick@gmail.com"
 	name = "Myles Carrick"
-	signingKey = "~/.ssh/key.pub"
+	signingKey = "~/.ssh/id_ed25519_gmail.pub"
 
 [includeIf "gitdir:~/Code/work/"]
 	path = "~/.config/git/work_config"

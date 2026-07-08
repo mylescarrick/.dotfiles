@@ -120,6 +120,7 @@ TOOL_REGISTRY=(
     "Bun               ;; bun  ;; curl -fsSL https://bun.sh/install | bash      ;; true  ;; -         ;; true"
     "Vite+             ;; vp   ;; curl -fsSL https://vite.plus | bash           ;; true  ;; -         ;; true"
     "pi                ;; pi   ;; vp install -g @mariozechner/pi-coding-agent   ;; true  ;; -         ;; true"
+    "Pi extension deps ;; -    ;; fn:_install_pi_extension_deps                 ;; false ;; -         ;; false"
     "SSH key           ;; -    ;; fn:_generate_ssh_key                          ;; false ;; SKIP_SSH  ;; false"
     "Nerd Font         ;; -    ;; brew install --cask font-hack-nerd-font       ;; false ;; SKIP_FONT ;; false"
     "oh-my-zsh         ;; -    ;; fn:_install_oh_my_zsh                         ;; false ;; -         ;; false"
@@ -529,6 +530,28 @@ EOF
     print_success "SSH key generation complete!"
 }
 
+_install_pi_extension_deps() {
+    local pi_dir="${HOME}/.pi"
+
+    if [[ ! -f "${pi_dir}/package.json" ]]; then
+        print_warning "No pi workspace found at ${pi_dir}; skipping extension deps"
+        return 0
+    fi
+
+    if ! command_exists bun; then
+        print_error "bun is not installed; cannot install pi extension dependencies"
+        return 1
+    fi
+
+    print_info "Installing pi extension dependencies..."
+    if (cd "$pi_dir" && bun install); then
+        print_success "pi extension dependencies installed"
+    else
+        print_error "Failed to install pi extension dependencies"
+        return 1
+    fi
+}
+
 _install_oh_my_zsh() {
 
     if [[ -d "${HOME}/.oh-my-zsh" ]]; then
@@ -595,6 +618,9 @@ cmd_update() {
     if confirm "Re-stow dotfiles?" "y"; then
         _stow_dotfiles
     fi
+
+    # Keep pi extension deps in sync in case any extension's package.json changed
+    _install_pi_extension_deps
 
     # Update pi and its configured packages.
     if command_exists pi; then

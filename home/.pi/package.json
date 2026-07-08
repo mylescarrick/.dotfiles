@@ -2,7 +2,7 @@
   "name": ".pi",
   "private": true,
   "type": "module",
-  "packageManager": "npm@11.11.0",
+  "packageManager": "bun@1.3.14",
   "workspaces": [
     "agent/extensions/*"
   ],

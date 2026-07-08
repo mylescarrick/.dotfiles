@@ -4,21 +4,21 @@ A comprehensive, automated dotfiles management system for macOS development envi
 
 ## Overview
 
-This repository contains my personal development environment configuration, managed through a custom CLI tool called `dot`. It uses GNU Stow for symlink management, Homebrew for package installation, and includes configurations for Fish shell, Neovim, Herdr, Git, and other essential development tools.
+This repository contains my personal development environment configuration, managed through a custom CLI tool called `dot`. It uses GNU Stow for symlink management, Homebrew for package installation, and includes configurations for Fish shell, Git, and AI coding agent tooling (`pi`, Claude Code).
 
 ### Key Features
 
 - 🚀 **One-command setup** - Complete development environment in minutes
-- 🤖 **AI Integration** - pi for AI assistance
+- 🤖 **AI Integration** - `pi` and Claude Code, with a shared agent-skills library
 - 📦 **Resilient Package Management** - Continues installation even if packages fail
 - 🔍 **Health Monitoring** - Comprehensive environment diagnostics
-- 🛠️ **Modular Design** - Separate work and personal configurations
+- 🪪 **Personal/Work Identity Split** - Automatic Git identity switching by directory
 
 ## Quick Start
 
 ```bash
 # Clone the repository
-git clone https://github.com/dmmulroy/.dotfiles.git ~/.dotfiles
+git clone https://github.com/mylescarrick/.dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
 
 # Full setup (installs everything)
@@ -35,20 +35,36 @@ After installation, the `dot` command will be available globally for ongoing man
 ```
 ~/.dotfiles/
 ├── dot                 # Main CLI tool
-├── home/              # Configuration files (stowed to ~)
+├── home/               # Configuration files (stowed to ~)
 │   ├── .config/
-│   │   ├── fish/      # Fish shell configuration
-│   │   ├── git/       # Git configuration
-│   │   ├── nvim/      # Neovim configuration
-│   │   ├── herdr/     # Herdr configuration
-│   │   └── ...
-│   └── .ideavimrc     # IntelliJ IDEA Vim config
+│   │   ├── fish/       # Fish shell configuration
+│   │   ├── git/        # Git configuration (personal + work)
+│   │   ├── ghostty/    # Terminal
+│   │   ├── ripgrep/    # rg config
+│   │   └── starship.toml
+│   ├── .agents/skills/ # Canonical agent-skills library (shared across agents)
+│   ├── .pi/            # pi agent workspace (extensions, settings, skill symlinks)
+│   └── .local/bin/     # Personal scripts
 ├── packages/
-│   ├── bundle         # Base Brewfile
-│   └── bundle.work    # Work-specific packages
-├── CLAUDE.md          # Instructions for AI assistants
-└── README.md          # This file
+│   └── bundle          # Base Brewfile
+├── AGENTS.md           # Instructions for AI assistants
+└── README.md           # This file
 ```
+
+## Git Identity
+
+Git identity switches automatically based on directory, via a conditional include:
+
+- **Default** (everywhere): personal identity, set in `home/.config/git/config`
+- **Work override**: anything under `~/Code/work/` picks up `home/.config/git/work_config` instead
+
+If you have a pre-existing `~/.gitconfig`, be aware it takes priority over the XDG `~/.config/git/config` for any values it sets — remove or empty it so the conditional include actually takes effect.
+
+## Agent Skills
+
+`home/.agents/skills/` is the canonical store for agent skills (mostly vendored from [mattpocock/skills](https://github.com/mattpocock/skills), plus a few local ones). Skills installed here globally (via the [`skills`](https://skills.sh) CLI, `skills add <source> -g`) are shared across every agent whose global skills directory is `~/.agents/skills/` directly (cline, warp, zed, etc.).
+
+For agents with their own global skills directory — `pi` (`~/.pi/agent/skills/`) and Claude Code (`~/.claude/skills/`) — this repo mirrors each canonical skill in as a relative symlink back to `.agents/skills/`, matching exactly how the `skills` CLI's own symlink install mode works. Because this repo is stowed straight into `$HOME`, running `skills add`/`skills update` globally writes directly into this git repo — no separate export step needed.
 
 ## The `dot` CLI Tool
 
@@ -75,12 +91,12 @@ dot init --skip-ssh --skip-font
 
 **What it does:**
 1. Installs Homebrew (if not present)
-2. Installs packages from Brewfiles
+2. Installs packages from the Brewfile
 3. Creates symlinks with GNU Stow
 4. Installs Bun runtime
 5. Installs pi via the Vite+ tool registry
 6. Generates SSH key for GitHub (optional)
-7. Installs MonoLisa font (optional)
+7. Installs a Nerd Font via Homebrew cask (optional)
 8. Sets up Fish shell with plugins
 
 ### Maintenance Commands
@@ -89,11 +105,10 @@ dot init --skip-ssh --skip-font
 ```bash
 dot update
 ```
-- Pulls latest dotfiles changes (auto-detects jj vs git)
+- Pulls latest dotfiles changes
 - Updates Homebrew packages
 - Re-stows configuration files
 - Runs `pi update` to update pi and its configured packages
-- Runs pi headlessly with `/skill:sync-pocock-skills` and waits for the checked-in Matt Pocock skills sync to complete
 
 #### `dot doctor` - Health Check
 ```bash
@@ -101,7 +116,7 @@ dot doctor
 ```
 Comprehensive diagnostics including:
 - ✅ Homebrew installation
-- ✅ Essential tools (git, herdr, nvim, node, etc.)
+- ✅ Essential tools (git, node, npm, etc.)
 - ✅ pi installation and core development tools
 - ✅ Fish shell configuration
 - ✅ PATH configuration
@@ -112,7 +127,7 @@ Comprehensive diagnostics including:
 ```bash
 dot check-packages
 ```
-Shows which packages are installed vs. missing from your Brewfiles.
+Shows which packages are installed vs. missing from your Brewfile.
 
 #### `dot retry-failed` - Retry Failed Installations
 ```bash
@@ -178,7 +193,7 @@ Generates comprehensive Fish shell completions for the `dot` command, including:
 ```bash
 dot edit
 ```
-Opens the dotfiles directory in your default editor (defined by `$EDITOR`).
+Opens the dotfiles directory in your default editor (defined by `$EDITOR`, defaults to `code -w`).
 
 #### `dot stow` - Update Dotfiles Symlinks
 ```bash
@@ -201,57 +216,36 @@ Makes the `dot` command available from any directory by creating a symlink in `/
 
 ### Package Management
 
-The system provides comprehensive package management through the `dot package` command and uses two Brewfiles for different contexts:
+The system provides comprehensive package management through the `dot package` command.
 
 #### Package Commands
 
 ```bash
 # List packages
 dot package list              # List all packages
-dot package list base         # List base packages only
-dot package list work         # List work packages only
 
 # Add packages
 dot package add git           # Add git formula to base bundle
-dot package add docker cask   # Add docker cask to base bundle  
-dot package add kubectl brew work  # Add kubectl to work bundle
+dot package add docker cask   # Add docker cask to base bundle
 
 # Update packages
 dot package update            # Update all installed packages
 dot package update git        # Update specific package
-dot package update all base   # Update only base bundle packages
-dot package update all work   # Update only work bundle packages
 
 # Remove packages
-dot package remove git        # Remove git from any bundle
-dot package remove docker base  # Remove docker from base bundle only
+dot package remove git        # Remove git from the bundle
 ```
-
-#### Package Files
-
-**`packages/bundle`** - Base packages for all machines:
-- Development tools: neovim, herdr, fish, git
-- CLI utilities: ripgrep, fd, fzf, starship
-- Applications: Arc browser, Raycast, OrbStack
-- AI tools: aider
-
-**`packages/bundle.work`** - Work-specific additions:
-- AWS/Kubernetes tools
-- Enterprise development tools
 
 #### Package Features
 
 - **Auto-detection**: Package type (brew vs cask) automatically detected
 - **Sorted maintenance**: Packages kept alphabetically sorted within each type
 - **Installation integration**: Adding packages installs them immediately
-- **Update flexibility**: Can update all packages, specific packages, or by bundle
 - **Cleanup included**: Update command includes Homebrew refresh and optional cleanup
 
 ### Key Configurations
 
 - **Fish Shell**: Custom functions, environment variables, and plugin management via Fisher
-- **Neovim**: Lua-based configuration with lazy.nvim plugin manager
-- **Herdr**: Terminal-native workspaces, tabs, panes, and coding-agent integration
 - **Git**: Conditional work configuration, custom aliases, GPG signing
 
 ### Architecture Highlights
@@ -259,9 +253,8 @@ dot package remove docker base  # Remove docker from base bundle only
 - **GNU Stow**: Manages symlinks from `home/` to `~`
 - **Modular Design**: Separate configs for different tools
 - **Conditional Loading**: Work-specific Git config for `~/Code/work/`
-- **Plugin Managers**: Each tool uses its own where applicable (lazy.nvim, Fisher)
+- **Plugin Managers**: Each tool uses its own where applicable (Fisher)
 - **Error Resilience**: Package installation continues despite individual failures
-- **jj Support**: Auto-detects jj-managed repos and uses appropriate update commands
 
 ## Environment Setup
 
@@ -275,7 +268,7 @@ dot package remove docker base  # Remove docker from base bundle only
 
 1. **Clone repository:**
    ```bash
-   git clone https://github.com/dmmulroy/.dotfiles.git ~/.dotfiles
+   git clone https://github.com/mylescarrick/.dotfiles.git ~/.dotfiles
    cd ~/.dotfiles
    ```
 
@@ -303,16 +296,13 @@ dot package remove docker base  # Remove docker from base bundle only
 
 **Method 1: Using package commands (recommended):**
 ```bash
-# Add package using the package command
-dot package add new-tool             # Adds to base bundle
-dot package add new-app cask         # Adds cask to base bundle
-dot package add work-tool brew work  # Adds to work bundle
+dot package add new-tool             # Adds to the bundle
+dot package add new-app cask         # Adds cask to the bundle
 ```
 
 **Method 2: Manual editing:**
-Edit `packages/bundle` or `packages/bundle.work`:
+Edit `packages/bundle`:
 ```ruby
-# Add to packages/bundle
 brew "new-tool"
 cask "new-app"
 ```
@@ -359,6 +349,12 @@ dot doctor
 
 # Re-create symlinks
 dot stow
+```
+
+**Git identity resolving unexpectedly:**
+```bash
+# Check for a competing ~/.gitconfig that overrides home/.config/git/config
+cat ~/.gitconfig
 ```
 
 **pi installation issues:**
@@ -408,9 +404,6 @@ dot init --skip-ssh --skip-font
 
 # Check what's missing
 dot check-packages
-
-# Install work packages later
-brew bundle --file=./packages/bundle.work
 ```
 
 ### Shell Completions
@@ -432,5 +425,6 @@ This repository is for personal use. Feel free to fork and adapt for your own ne
 
 - [GNU Stow](https://www.gnu.org/software/stow/) for symlink management
 - [Homebrew](https://brew.sh/) for package management
-- pi for AI assistance
+- [mattpocock/skills](https://github.com/mattpocock/skills) and [skills.sh](https://skills.sh) for the agent-skills library
+- pi and Claude Code for AI assistance
 - The dotfiles community for inspiration and best practices

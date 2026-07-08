@@ -13,7 +13,7 @@
 	gpgSign = true
 
 [core]
-	editor = "nvim"
+	editor = "code -w"
 	fsmonitor = true
 
 [fetch]
@@ -35,6 +35,9 @@
 [pull]
 	rebase = true
 
+[push]
+	autoSetupRemote = true
+
 [rebase]
 	updateRefs = true
 
@@ -45,8 +48,8 @@
 	gpgSign = true
 
 [user]
-	email = "dillon.mulroy@gmail.com"
-	name = "Dillon Mulroy"
+	email = "mylescarrick@gmail.com"
+	name = "Myles Carrick"
 	signingKey = "~/.ssh/key.pub"
 
 [includeIf "gitdir:~/Code/work/"]

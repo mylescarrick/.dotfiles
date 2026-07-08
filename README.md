@@ -4,7 +4,7 @@ A comprehensive, automated dotfiles management system for macOS development envi
 
 ## Overview
 
-This repository contains my personal development environment configuration, managed through a custom CLI tool called `dot`. It uses GNU Stow for symlink management, Homebrew for package installation, and includes configurations for Fish shell, Git, and AI coding agent tooling (`pi`, Claude Code).
+This repository contains my personal development environment configuration, managed through a custom CLI tool called `dot`. It uses GNU Stow for symlink management, Homebrew for package installation, and includes configurations for Zsh (oh-my-zsh), Git, and AI coding agent tooling (`pi`, Claude Code).
 
 ### Key Features
 
@@ -37,13 +37,14 @@ After installation, the `dot` command will be available globally for ongoing man
 ├── dot                 # Main CLI tool
 ├── home/               # Configuration files (stowed to ~)
 │   ├── .config/
-│   │   ├── fish/       # Fish shell configuration
 │   │   ├── git/        # Git configuration (personal + work)
 │   │   ├── ghostty/    # Terminal
 │   │   ├── ripgrep/    # rg config
 │   │   └── starship.toml
 │   ├── .agents/skills/ # Canonical agent-skills library (shared across agents)
 │   ├── .pi/            # pi agent workspace (extensions, settings, skill symlinks)
+│   ├── .oh-my-zsh/custom/ # Custom zsh functions/aliases (git, worktrees, utils)
+│   ├── .zshrc / .zprofile
 │   └── .local/bin/     # Personal scripts
 ├── packages/
 │   └── bundle          # Base Brewfile
@@ -97,7 +98,7 @@ dot init --skip-ssh --skip-font
 5. Installs pi via the Vite+ tool registry
 6. Generates SSH key for GitHub (optional)
 7. Installs a Nerd Font via Homebrew cask (optional)
-8. Sets up Fish shell with plugins
+8. Installs oh-my-zsh if not already present
 
 ### Maintenance Commands
 
@@ -118,7 +119,7 @@ Comprehensive diagnostics including:
 - ✅ Homebrew installation
 - ✅ Essential tools (git, node, npm, etc.)
 - ✅ pi installation and core development tools
-- ✅ Fish shell configuration
+- ✅ oh-my-zsh installation and default shell
 - ✅ PATH configuration
 - ⚠️ Broken symlinks detection
 - ⚠️ Missing dependencies
@@ -135,59 +136,7 @@ dot retry-failed
 ```
 Attempts to reinstall packages that failed during initial setup.
 
-### Performance & Development Tools
-
-#### `dot benchmark-shell` - Fish Shell Performance Benchmarking
-```bash
-# Run 10 benchmarks (default)
-dot benchmark-shell
-
-# Run specific number of benchmarks
-dot benchmark-shell -r 20
-
-# Show verbose output with individual timings  
-dot benchmark-shell -v
-
-# Combine options
-dot benchmark-shell -r 15 -v
-```
-
-Measures Fish shell startup performance with detailed analysis:
-- **High-precision timing** via Python3 or Perl
-- **Performance assessment** with color-coded results (excellent ≤50ms, good ≤100ms, fair ≤200ms)
-- **Optimization tips** for slow performance
-- **Statistical analysis** including average, min, max, and range
-- **Profiling guidance** for detailed bottleneck identification
-
-**Example Output:**
-```
-=> Fish Shell Startup Benchmark Results
-
-Configuration:
-  Shell: fish, version 4.0.2
-  Runs: 10
-  Test: Empty script execution
-
-Performance Results:
-  Average time: 0.061 seconds
-  Fastest time: 0.048 seconds
-  Slowest time: 0.078 seconds
-  Time range:   0.030 seconds
-
-Performance Assessment:
-✓ Good startup performance (≤100ms)
-```
-
 ### Utility Commands
-
-#### `dot completions` - Generate Fish Shell Completions
-```bash
-dot completions
-```
-Generates comprehensive Fish shell completions for the `dot` command, including:
-- All commands and subcommands
-- Dynamic completions for installed packages
-- Option completions with descriptions
 
 #### `dot edit` - Open in Editor
 ```bash
@@ -245,7 +194,7 @@ dot package remove git        # Remove git from the bundle
 
 ### Key Configurations
 
-- **Fish Shell**: Custom functions, environment variables, and plugin management via Fisher
+- **Zsh**: oh-my-zsh with custom functions/aliases in `home/.oh-my-zsh/custom/` (git helpers, worktree management, general utilities)
 - **Git**: Conditional work configuration, custom aliases, GPG signing
 
 ### Architecture Highlights
@@ -253,7 +202,7 @@ dot package remove git        # Remove git from the bundle
 - **GNU Stow**: Manages symlinks from `home/` to `~`
 - **Modular Design**: Separate configs for different tools
 - **Conditional Loading**: Work-specific Git config for `~/Code/work/`
-- **Plugin Managers**: Each tool uses its own where applicable (Fisher)
+- **Plugin Managers**: oh-my-zsh plugin list in `home/.zshrc`
 - **Error Resilience**: Package installation continues despite individual failures
 
 ## Environment Setup
@@ -277,10 +226,9 @@ dot package remove git        # Remove git from the bundle
    ./dot init
    ```
 
-3. **Restart shell or source Fish config:**
+3. **Restart shell or source Zsh config:**
    ```bash
-   # In Fish shell
-   source ~/.config/fish/config.fish
+   source ~/.zshrc
    
    # Or restart terminal
    ```
@@ -326,10 +274,10 @@ The system automatically applies work-specific Git configuration for repositorie
 
 **Command not found: `dot`**
 ```bash
-# Source Fish configuration
-source ~/.config/fish/config.fish
+# Source Zsh configuration
+source ~/.zshrc
 
-# Or add to PATH manually
+# Or add to PATH manually (belongs in ~/.zprofile for login shells)
 export PATH="$HOME/.dotfiles:$PATH"
 ```
 
@@ -404,17 +352,6 @@ dot init --skip-ssh --skip-font
 
 # Check what's missing
 dot check-packages
-```
-
-### Shell Completions
-
-```bash
-# Generate Fish shell completions
-dot completions
-
-# Completions include dynamic suggestions for:
-# - Package names when using package remove/update
-# - All commands, subcommands, and options
 ```
 
 ## License

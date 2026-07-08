@@ -5,11 +5,11 @@ theme = Catppuccin Macchiato
 auto-update-channel = tip
 
 # Shell integrations
-shell-integration = fish
+shell-integration = zsh
 quit-after-last-window-closed = true
 
 # Font family
-font-family = MonoLisa
+font-family = Hack Nerd Font Mono
 font-style = Regular
 font-style-italic = Regular Italic
 font-style-bold = Bold

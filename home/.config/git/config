@@ -1,6 +1,6 @@
 [alias]
-	fomo = "!fish -c 'git fetch origin $(__git.default_branch) && git rebase origin/$(__git.default_branch) --autostash'"
-	lg = "!fish -c 'git_log_n $argv'"
+	fomo = "!branch=$(git config --get init.defaultBranch); if [ -z \"$branch\" ] || ! git show-ref --verify --quiet refs/heads/$branch; then if git show-ref --verify --quiet refs/heads/main; then branch=main; else branch=master; fi; fi; git fetch origin $branch && git rebase origin/$branch --autostash"
+	lg = "log --graph --pretty=format:'%C(yellow)%h%Creset -%C(red)%d%Creset %s %C(green)(%cr) %C(blue)<%an>%Creset' --abbrev-commit"
 	nuke = "!git add --all && git stash && git stash clear"
 
 [branch]

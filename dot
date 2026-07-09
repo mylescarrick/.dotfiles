@@ -1559,9 +1559,8 @@ cmd_help() {
     echo "    - Package installation is resilient to failures"
     echo "    - Failed packages are logged and can be retried later"
     echo "    - SHA verification is disabled for better reliability"
-    echo "    - pi CLI installed via the Vite+ tool registry"
+    echo "    - pi CLI installed globally via bun"
     echo "    - Doctor command checks all critical development tools"
-    echo "    - Summary command uses AI to analyze and summarize git commits"
     echo ""
 }
 

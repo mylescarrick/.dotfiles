@@ -110,8 +110,14 @@ dot skills link                                    # wire local skills (mc-pr, �
 
 Vendored (third-party) skills are tracked in `home/.agents/.skill-lock.json`;
 local skills (`mc-pr`, `mc-commit`, `bro`) are hand-authored under
-`home/.agents/skills/` and wired into agents with `dot skills link`. Commit the
-resulting diff, then `dot stow` from `~/.dotfiles` on `main` to publish it.
+`home/.agents/skills/` and wired into agents with `dot skills link`.
+
+Skills changes follow the normal flow: commit the diff and open a PR. Once it's
+merged, publish to `$HOME` with `dot update` (pulls `main` + re-stows) — or, if
+you'd rather skip the Homebrew/pi prompts, `git -C ~/.dotfiles pull && dot stow`.
+A bare `dot stow` only re-links what's already checked out, so it won't pick up a
+merged PR on its own. (If you edit directly in `~/.dotfiles` instead of via a
+branch, `dot stow` alone is enough.)
 
 > **Don't** call `skills add -g` / `skills update` directly — from a worktree it
 > writes into `~/.dotfiles` (your `main` checkout), on the canonical checkout it

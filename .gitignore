@@ -47,6 +47,10 @@ home/.local/share/pi/mcp-auth.json
 # pi extensions node_modules
 home/.pi/agent/extensions/**/node_modules/
 
+# pi bun lockfile — bun install rewrites it via rename, breaking the stow
+# symlink; let bun own it locally instead of stowing it
+home/.pi/bun.lock
+
 
 !home/.pi/agent/tsconfig.json
 !home/.pi/agent/package.json

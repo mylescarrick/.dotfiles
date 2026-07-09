@@ -83,6 +83,37 @@ confirm() {
     esac
 }
 
+# Guard for commands that mutate $HOME (stow) or the canonical checkout
+# (update). Confirms before running from a non-canonical checkout, which
+# would stow a worktree over your home directory, or when the canonical
+# checkout has drifted off its default branch and is serving stale dotfiles.
+_guard_mutation() {
+    local canonical="${HOME}/.dotfiles"
+
+    if [[ "$DOTFILES_DIR" != "$canonical" ]]; then
+        print_warning "Not the canonical dotfiles checkout"
+        print_info "Running from: $DOTFILES_DIR"
+        print_info "This stows that tree over \$HOME, repointing live symlinks away from $canonical"
+        confirm "Continue anyway?" "n"
+        return
+    fi
+
+    if command_exists git && git -C "$DOTFILES_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        local branch default
+        branch="$(git -C "$DOTFILES_DIR" branch --show-current 2>/dev/null)"
+        default="$(git -C "$DOTFILES_DIR" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
+        default="${default:-main}"
+        if [[ -n "$branch" && "$branch" != "$default" ]]; then
+            print_warning "Canonical checkout is on '$branch', not '$default'"
+            print_info "You may be operating on stale dotfiles"
+            print_info "Switch with: git -C $canonical checkout $default"
+            confirm "Continue on '$branch'?" "n"
+            return
+        fi
+    fi
+    return 0
+}
+
 check_dependencies() {
     local deps=("$@")
     local missing=()
@@ -569,12 +600,14 @@ _install_oh_my_zsh() {
 
 # Command functions
 cmd_init() {
+    _guard_mutation || return 1
     print_header "Initializing dotfiles"
     run_init_steps || return 1
     print_header "Initialization complete! 🎉"
 }
 
 cmd_update() {
+    _guard_mutation || return 1
     print_header "Updating dotfiles"
     
     # Pull latest changes
@@ -795,6 +828,7 @@ cmd_unlink() {
 }
 
 cmd_stow() {
+    _guard_mutation || return 1
     print_header "Stowing dotfiles"
     
     if ! command_exists stow; then

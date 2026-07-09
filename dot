@@ -580,16 +580,7 @@ cmd_update() {
     # Pull latest changes
     print_info "Pulling latest changes..."
     
-    # Check if jj is managing this repo (colocated mode)
-    if [[ -d "${DOTFILES_DIR}/.jj" ]] && command_exists jj; then
-        print_info "Detected jj-managed repository"
-        if jj git fetch -R "$DOTFILES_DIR" && jj -R "$DOTFILES_DIR" rebase -d 'trunk()'; then
-            print_success "Repository updated via jj"
-        else
-            print_error "Failed to update repository via jj"
-            return 1
-        fi
-    elif git -C "$DOTFILES_DIR" pull; then
+    if git -C "$DOTFILES_DIR" pull; then
         print_success "Repository updated"
     else
         print_error "Failed to update repository"
@@ -1559,9 +1550,8 @@ cmd_help() {
     echo "    - Package installation is resilient to failures"
     echo "    - Failed packages are logged and can be retried later"
     echo "    - SHA verification is disabled for better reliability"
-    echo "    - pi CLI installed via the Vite+ tool registry"
+    echo "    - pi CLI installed globally via bun"
     echo "    - Doctor command checks all critical development tools"
-    echo "    - Summary command uses AI to analyze and summarize git commits"
     echo ""
 }
 

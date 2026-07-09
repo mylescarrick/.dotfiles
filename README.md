@@ -94,8 +94,29 @@ ones). Agents whose global skills dir is `~/.agents/skills/` share it directly.
 Agents with their own global dir — `pi` (`~/.pi/agent/skills/`) and Claude Code
 (`~/.claude/skills/`) — get each skill mirrored in as a relative symlink back to
 `.agents/skills/`, matching the [`skills`](https://skills.sh) CLI's own install
-mode. Because the repo is stowed into `$HOME`, `skills add -g` / `skills update`
-write straight into this repo — no export step.
+mode.
+
+Manage them with `dot skills`, which wraps the CLI so it always writes into the
+current checkout — never the live `~` symlinks, the wrong worktree, or 50+
+unrelated agent dirs — and keeps its cache/config out of the stow tree:
+
+```bash
+dot skills list                                   # vendored vs local
+dot skills add mattpocock/skills wayfinder to-spec  # vendor third-party skills
+dot skills update                                 # update all vendored skills
+dot skills remove tech-spec                        # drop a skill
+dot skills link                                    # wire local skills (mc-pr, …) into agents
+```
+
+Vendored (third-party) skills are tracked in `home/.agents/.skill-lock.json`;
+local skills (`mc-pr`, `mc-commit`, `bro`) are hand-authored under
+`home/.agents/skills/` and wired into agents with `dot skills link`. Commit the
+resulting diff, then `dot stow` from `~/.dotfiles` on `main` to publish it.
+
+> **Don't** call `skills add -g` / `skills update` directly — from a worktree it
+> writes into `~/.dotfiles` (your `main` checkout), on the canonical checkout it
+> pollutes the stow tree via `~/.config`, and without `-a pi claude-code` it
+> fans out to every known agent. `dot skills` handles all three.
 
 ## Packages
 

@@ -17,6 +17,11 @@ __pycache__/
 # jj
 .jj
 
+# skills CLI config/state — written when the `skills` CLI runs on the canonical
+# checkout (~/.config is stowed). `dot skills` redirects it away, but guard the
+# stow tree against raw `skills` invocations too.
+home/.config/skills/
+
 # opencode
 home/.config/opencode/node_modules/
 home/.config/opencode/plugins/git-ai.ts

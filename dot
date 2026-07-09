@@ -1526,6 +1526,191 @@ cmd_package_help() {
     echo ""
 }
 
+# ─── Skills ───────────────────────────────────────────────────────────────────
+# Agent skills: canonical copies live in home/.agents/skills; pi and claude-code
+# get relative symlinks back to it. These wrappers run the `skills` CLI scoped to
+# THIS checkout (HOME repointed at the tracked home/ tree) so it writes into the
+# repo, never the live ~ symlinks or the wrong worktree, and redirect the CLI's
+# cache/config to a throwaway dir so nothing leaks into the stow tree.
+readonly SKILLS_CANON="${HOME_DIR}/.agents/skills"
+readonly SKILLS_LOCK="${HOME_DIR}/.agents/.skill-lock.json"
+readonly SKILLS_PI_DIR="${HOME_DIR}/.pi/agent/skills"
+readonly SKILLS_CLAUDE_DIR="${HOME_DIR}/.claude/skills"
+# agents the store is scoped to — keeps `skills` from fanning out to 50+ agent dirs
+readonly SKILLS_AGENTS=(pi claude-code)
+
+_skills_cli() {
+    if ! command_exists bunx; then
+        print_error "bunx not found — install bun first (${SCRIPT_NAME} init)"
+        return 1
+    fi
+    local sink rc
+    sink="$(mktemp -d)"
+    HOME="${HOME_DIR}" \
+    XDG_CONFIG_HOME="${sink}/config" \
+    XDG_CACHE_HOME="${sink}/cache" \
+    XDG_DATA_HOME="${sink}/data" \
+    BUN_INSTALL_CACHE_DIR="${sink}/bun" \
+        bunx skills@latest "$@" && rc=0 || rc=$?
+    rm -rf "${sink}"
+    return $rc
+}
+
+_skills_link_one() {
+    local link="$1" target="$2"
+    if [[ -L "$link" ]]; then
+        [[ "$(readlink "$link")" == "$target" ]] && return 0
+        rm -f "$link"
+    elif [[ -e "$link" ]]; then
+        print_warning "Not a symlink, leaving alone: ${link/#$HOME_DIR/home}"
+        return 0
+    fi
+    ln -s "$target" "$link"
+}
+
+# (Re)create per-agent symlinks for every canonical skill — vendored or local
+# (mc-pr, mc-commit, …) — and prune links whose canonical skill is gone.
+cmd_skills_link() {
+    print_header "Linking skills into agent dirs"
+    mkdir -p "$SKILLS_PI_DIR" "$SKILLS_CLAUDE_DIR"
+    local d name made=0
+    for d in "$SKILLS_CANON"/*/; do
+        [[ -d "$d" ]] || continue
+        name="$(basename "$d")"
+        # respect .gitignore (e.g. the ephemeral ui/ skill)
+        if git -C "$DOTFILES_DIR" check-ignore -q "home/.agents/skills/$name" 2>/dev/null; then
+            continue
+        fi
+        _skills_link_one "$SKILLS_PI_DIR/$name" "../../../.agents/skills/$name"
+        _skills_link_one "$SKILLS_CLAUDE_DIR/$name" "../../.agents/skills/$name"
+        made=$((made + 1))
+    done
+    local pruned=0 l agentdir
+    for agentdir in "$SKILLS_PI_DIR" "$SKILLS_CLAUDE_DIR"; do
+        for l in "$agentdir"/*; do
+            [[ -L "$l" && ! -e "$l" ]] || continue
+            rm -f "$l"
+            pruned=$((pruned + 1))
+        done
+    done
+    print_success "Linked $made skill(s) into pi + claude-code (pruned $pruned dangling)"
+}
+
+cmd_skills_add() {
+    local repo="${1:-}"
+    shift || true
+    if [[ -z "$repo" || "$#" -eq 0 ]]; then
+        print_error "usage: ${SCRIPT_NAME} skills add <owner/repo> <skill> [skill...]"
+        print_info "e.g. ${SCRIPT_NAME} skills add mattpocock/skills wayfinder to-spec"
+        return 1
+    fi
+    print_header "Adding skills from $repo"
+    if ! _skills_cli add "$repo" -g -y -s "$@" -a "${SKILLS_AGENTS[@]}"; then
+        print_error "skills add failed"
+        return 1
+    fi
+    cmd_skills_link
+    print_success "Added: $* — review the diff, then commit"
+}
+
+cmd_skills_update() {
+    print_header "Updating vendored skills to latest"
+    if ! _skills_cli update -g -y; then
+        print_error "skills update failed"
+        return 1
+    fi
+    cmd_skills_link
+    print_success "Updated — review the diff, then commit"
+}
+
+cmd_skills_remove() {
+    if [[ "$#" -eq 0 ]]; then
+        print_error "usage: ${SCRIPT_NAME} skills remove <skill> [skill...]"
+        return 1
+    fi
+    print_header "Removing skills: $*"
+    # Clear lockfile entries + tracked copies via the CLI when tracked…
+    _skills_cli remove -g -y -a "${SKILLS_AGENTS[@]}" -s "$@" >/dev/null 2>&1 || true
+    # …then hard-remove any leftovers (covers skills predating the lockfile).
+    local s
+    for s in "$@"; do
+        [[ -n "$s" ]] || continue
+        rm -rf "${SKILLS_CANON:?}/$s"
+        rm -f "${SKILLS_PI_DIR}/$s" "${SKILLS_CLAUDE_DIR}/$s"
+    done
+    print_success "Removed: $* — review the diff, then commit"
+}
+
+cmd_skills_list() {
+    print_header "Agent skills"
+    if [[ ! -d "$SKILLS_CANON" ]]; then
+        print_info "No skills installed"
+        return 0
+    fi
+    local d name vendored=0 locals=0
+    for d in "$SKILLS_CANON"/*/; do
+        [[ -d "$d" ]] || continue
+        name="$(basename "$d")"
+        if [[ -f "$SKILLS_LOCK" ]] && grep -q "\"$name\": {" "$SKILLS_LOCK" 2>/dev/null; then
+            echo -e "  ${GREEN}●${RESET} $name ${CYAN}(vendored)${RESET}"
+            vendored=$((vendored + 1))
+        else
+            echo -e "  ${YELLOW}◆${RESET} $name ${YELLOW}(local)${RESET}"
+            locals=$((locals + 1))
+        fi
+    done
+    echo ""
+    print_info "$vendored vendored, $locals local"
+}
+
+cmd_skills_help() {
+    echo -e "${BOLD}${SCRIPT_NAME} skills${RESET} - Manage agent skills (canonical store + agent symlinks)"
+    echo ""
+    echo -e "${BOLD}USAGE:${RESET}"
+    echo "    ${SCRIPT_NAME} skills [SUBCOMMAND] [ARGS]"
+    echo ""
+    echo -e "${BOLD}SUBCOMMANDS:${RESET}"
+    echo "    add <repo> <skill...>   Vendor third-party skills (e.g. mattpocock/skills)"
+    echo "    update                  Update all vendored skills to latest"
+    echo "    remove <skill...>       Remove skills (vendored or local)"
+    echo "    link                    Re-create agent symlinks for every canonical skill"
+    echo "    list                    List skills, marking vendored vs local (default)"
+    echo "    help                    Show this help message"
+    echo ""
+    echo -e "${BOLD}EXAMPLES:${RESET}"
+    echo "    ${SCRIPT_NAME} skills add mattpocock/skills wayfinder to-spec to-tickets"
+    echo "    ${SCRIPT_NAME} skills update"
+    echo "    ${SCRIPT_NAME} skills remove coding-standards"
+    echo "    ${SCRIPT_NAME} skills link      # after hand-authoring a local skill (e.g. mc-pr)"
+    echo "    ${SCRIPT_NAME} skills list"
+    echo ""
+    echo -e "${BOLD}NOTES:${RESET}"
+    echo "    - Canonical copies live in home/.agents/skills/; pi + claude-code get relative symlinks"
+    echo "    - Vendored (third-party) skills are tracked in home/.agents/.skill-lock.json"
+    echo "    - Local skills (mc-pr, mc-commit, …) are hand-authored; 'link' wires them into agents"
+    echo "    - Writes into THIS checkout only — safe from any worktree, never touches live ~ symlinks"
+    echo "    - Run '${SCRIPT_NAME} stow' (from ~/.dotfiles on main) to publish changes to \$HOME"
+    echo ""
+}
+
+cmd_skills() {
+    local subcommand="${1:-list}"
+    shift || true
+    case "$subcommand" in
+        add) cmd_skills_add "$@" ;;
+        update|upgrade) cmd_skills_update "$@" ;;
+        remove|rm) cmd_skills_remove "$@" ;;
+        link|sync) cmd_skills_link "$@" ;;
+        list|ls) cmd_skills_list "$@" ;;
+        -h|--help|help) cmd_skills_help ;;
+        *)
+            print_error "Unknown skills subcommand: $subcommand"
+            print_info "Run '${SCRIPT_NAME} skills help' for usage"
+            return 1
+            ;;
+    esac
+}
+
 cmd_help() {
     echo -e "${BOLD}${SCRIPT_NAME}${RESET} - Dotfiles management tool"
     echo "Version: ${VERSION}"
@@ -1540,6 +1725,7 @@ cmd_help() {
     echo "    update              Update dotfiles, packages, and pi"
     echo "    doctor              Run diagnostics and check installation"
     echo "    package             Package management commands (add, remove, list)"
+    echo "    skills              Manage agent skills (add, update, remove, link, list)"
     echo "    check-packages      Check which packages are installed/missing"
     echo "    retry-failed        Retry failed package installations"
     echo "    gen-ssh-key         Generate SSH key for GitHub/GitLab with email"
@@ -1566,6 +1752,9 @@ cmd_help() {
     echo "    ${SCRIPT_NAME} package add git           # Add git package to base bundle"
     echo "    ${SCRIPT_NAME} package update            # Update all packages"
     echo "    ${SCRIPT_NAME} package remove docker     # Remove docker from bundles"
+    echo "    ${SCRIPT_NAME} skills add mattpocock/skills wayfinder  # Vendor a third-party skill"
+    echo "    ${SCRIPT_NAME} skills update              # Update vendored skills to latest"
+    echo "    ${SCRIPT_NAME} skills link                # Wire local skills into agent dirs"
     echo "    ${SCRIPT_NAME} check-packages            # See package installation status"
     echo "    ${SCRIPT_NAME} retry-failed              # Retry any failed installations"
     echo "    ${SCRIPT_NAME} gen-ssh-key               # Generate SSH key (prompts for email)"
@@ -1633,6 +1822,9 @@ main() {
             ;;
         package)
             cmd_package "$@"
+            ;;
+        skills)
+            cmd_skills "$@"
             ;;
         check-packages)
             cmd_check_packages "$@"

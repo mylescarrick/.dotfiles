@@ -33,11 +33,6 @@ truncation_length = 18
 [git_state]
 # disabled = true
 
-# [custom.scm]
-# when = "jj-starship detect"
-# shell = ["jj-starship", "--strip-bookmark-prefix", "dmmulroy/", "--truncate-name", "20", "--bookmarks-display-limit", "1"]
-# format = "$output "
-
 [golang]
 symbol = " "
 

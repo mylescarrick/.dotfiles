@@ -1,6 +1,6 @@
 [alias]
-	fomo = "!fish -c 'git fetch origin $(__git.default_branch) && git rebase origin/$(__git.default_branch) --autostash'"
-	lg = "!fish -c 'git_log_n $argv'"
+	fomo = "!branch=$(git config --get init.defaultBranch); if [ -z \"$branch\" ] || ! git show-ref --verify --quiet refs/heads/$branch; then if git show-ref --verify --quiet refs/heads/main; then branch=main; else branch=master; fi; fi; git fetch origin $branch && git rebase origin/$branch --autostash"
+	lg = "log --graph --pretty=format:'%C(yellow)%h%Creset -%C(red)%d%Creset %s %C(green)(%cr) %C(blue)<%an>%Creset' --abbrev-commit"
 	nuke = "!git add --all && git stash && git stash clear"
 
 [branch]
@@ -13,7 +13,7 @@
 	gpgSign = true
 
 [core]
-	editor = "nvim"
+	editor = "code -w"
 	fsmonitor = true
 
 [fetch]
@@ -29,11 +29,17 @@
 [gpg]
 	format = "ssh"
 
+[gpg "ssh"]
+	allowedSignersFile = "~/.ssh/allowed_signers"
+
 [init]
 	defaultBranch = "main"
 
 [pull]
 	rebase = true
+
+[push]
+	autoSetupRemote = true
 
 [rebase]
 	updateRefs = true
@@ -45,9 +51,9 @@
 	gpgSign = true
 
 [user]
-	email = "dillon.mulroy@gmail.com"
-	name = "Dillon Mulroy"
-	signingKey = "~/.ssh/key.pub"
+	email = "mylescarrick@gmail.com"
+	name = "Myles Carrick"
+	signingKey = "~/.ssh/id_ed25519_gmail.pub"
 
 [includeIf "gitdir:~/Code/work/"]
 	path = "~/.config/git/work_config"

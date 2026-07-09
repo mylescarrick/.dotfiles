@@ -118,8 +118,7 @@ TOOL_REGISTRY=(
     "Brewfile packages ;; -    ;; fn:_install_packages                          ;; true  ;; -         ;; false"
     "Stow dotfiles     ;; -    ;; fn:_stow_dotfiles                             ;; true  ;; -         ;; false"
     "Bun               ;; bun  ;; curl -fsSL https://bun.sh/install | bash      ;; true  ;; -         ;; true"
-    "Vite+             ;; vp   ;; curl -fsSL https://vite.plus | bash           ;; true  ;; -         ;; true"
-    "pi                ;; pi   ;; vp install -g @mariozechner/pi-coding-agent   ;; true  ;; -         ;; true"
+    "pi                ;; pi   ;; bun install -g @mariozechner/pi-coding-agent  ;; true  ;; -         ;; true"
     "Pi extension deps ;; -    ;; fn:_install_pi_extension_deps                 ;; false ;; -         ;; false"
     "SSH key           ;; -    ;; fn:_generate_ssh_key                          ;; false ;; SKIP_SSH  ;; false"
     "Nerd Font         ;; -    ;; brew install --cask font-hack-nerd-font       ;; false ;; SKIP_FONT ;; false"
@@ -670,31 +669,6 @@ cmd_doctor() {
         ((++issues))
     fi
     
-    # Check jj (Jujutsu)
-    if command_exists jj; then
-        print_success "jj (Jujutsu) installed"
-        
-        # Check if jj config exists
-        local jj_config="${HOME}/.config/jj/config.toml"
-        if [[ -f "$jj_config" ]]; then
-            print_success "jj config found"
-            
-            # Check if user is configured
-            if grep -q "^\[user\]" "$jj_config" && grep -q "email" "$jj_config"; then
-                print_success "jj user configured"
-            else
-                print_warning "jj user not configured in config.toml"
-                print_info "Add [user] section with name and email"
-            fi
-        else
-            print_warning "jj config not found at $jj_config"
-            print_info "Run 'jj config edit --user' to configure"
-        fi
-    else
-        print_warning "jj (Jujutsu) not installed"
-        print_info "Install with: brew install jj"
-    fi
-    
     # Check symlinks
     local broken_links=0
     while IFS= read -r -d '' link; do
@@ -709,11 +683,17 @@ cmd_doctor() {
         print_warning "Found $broken_links broken symlinks"
     fi
     
-    # Check SSH key
-    if [[ -f "$GITHUB_KEY_PATH" ]]; then
-        print_success "GitHub SSH key exists"
+    # Check SSH signing keys referenced by git config (personal + work)
+    local ssh_keys=("id_ed25519_gmail.pub" "id_ed25519_knox.pub")
+    local found_keys=0
+    for key in "${ssh_keys[@]}"; do
+        [[ -f "${HOME}/.ssh/${key}" ]] && ((++found_keys))
+    done
+    if [[ $found_keys -eq ${#ssh_keys[@]} ]]; then
+        print_success "SSH signing keys present (${found_keys} of ${#ssh_keys[@]})"
     else
-        print_warning "GitHub SSH key not found"
+        print_warning "SSH signing keys: ${found_keys} of ${#ssh_keys[@]} found"
+        print_info "Generate missing keys with 'dot gen-ssh-key <email>'"
     fi
     
     # Check key development tools (from registry + extras installed via brew)

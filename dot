@@ -684,17 +684,33 @@ cmd_init() {
 cmd_update() {
     _guard_mutation || return 1
     print_header "Updating dotfiles"
-    
-    # Pull latest changes
-    print_info "Pulling latest changes..."
-    
-    if git -C "$DOTFILES_DIR" pull; then
-        print_success "Repository updated"
+
+    # Pull latest changes. If the dot command itself changed, re-exec the
+    # freshly pulled script before doing mutating steps such as stow.
+    if [[ "${DOT_UPDATE_SKIP_PULL:-}" != "true" ]]; then
+        local old_rev new_rev
+        old_rev="$(git -C "$DOTFILES_DIR" rev-parse HEAD 2>/dev/null || true)"
+
+        print_info "Pulling latest changes..."
+
+        if git -C "$DOTFILES_DIR" pull; then
+            print_success "Repository updated"
+        else
+            print_error "Failed to update repository"
+            return 1
+        fi
+
+        new_rev="$(git -C "$DOTFILES_DIR" rev-parse HEAD 2>/dev/null || true)"
+        if [[ -z "${DOT_UPDATE_REEXECED:-}" && -n "$old_rev" && -n "$new_rev" && "$old_rev" != "$new_rev" ]]; then
+            if ! git -C "$DOTFILES_DIR" diff --quiet "$old_rev" "$new_rev" -- dot; then
+                print_info "dot command changed; restarting update with the new version..."
+                DOT_UPDATE_SKIP_PULL=true DOT_UPDATE_REEXECED=true exec "$DOTFILES_DIR/dot" update
+            fi
+        fi
     else
-        print_error "Failed to update repository"
-        return 1
+        print_info "Repository already updated; continuing with refreshed dot command"
     fi
-    
+
     # Update packages
     if confirm "Update Homebrew packages?" "y"; then
         print_info "Updating Homebrew..."

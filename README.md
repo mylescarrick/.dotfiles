@@ -154,6 +154,8 @@ git -C ~/.dotfiles checkout main && dot update
 
 **Package install failures** — `dot check-packages`, then `dot retry-failed`.
 
+**Stow conflicts with an existing live file** — `dot stow` now backs up real files that collide with tracked dotfiles into `backups/stow-conflicts/<timestamp>/` before creating the symlink. Review the backup, then delete it when no longer needed.
+
 **Broken symlinks** — `dot doctor` reports them; `dot stow` re-creates links.
 
 **Git identity is wrong** — check for a competing `~/.gitconfig`:

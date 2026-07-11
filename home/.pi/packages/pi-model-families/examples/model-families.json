@@ -1,0 +1,157 @@
+{
+  "defaultFamily": "copilot-budget",
+  "autoRoute": true,
+  "returnRole": "delivery",
+  "families": {
+    "open-weight-cloudflare": {
+      "description": "Open-weight-ish models via Cloudflare Workers AI / AI Gateway: GLM for research and architecture, Kimi Code for delivery.",
+      "roles": {
+        "research": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/zai-org/glm-5.2",
+          "thinkingLevel": "high"
+        },
+        "architecture": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/zai-org/glm-5.2",
+          "thinkingLevel": "high"
+        },
+        "planning": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/zai-org/glm-5.2",
+          "thinkingLevel": "high"
+        },
+        "delivery": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "low"
+        },
+        "verification": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "low"
+        }
+      }
+    },
+    "copilot-gpt-5.6": {
+      "description": "GitHub Copilot GPT-5.6 family: Sol/Terra for planning and architecture, Luna for delivery.",
+      "roles": {
+        "research": {
+          "provider": "github-copilot",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "architecture": {
+          "provider": "github-copilot",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "planning": {
+          "provider": "github-copilot",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "high"
+        },
+        "delivery": {
+          "provider": "github-copilot",
+          "model": "gpt-5.6-luna",
+          "thinkingLevel": "medium"
+        },
+        "verification": {
+          "provider": "github-copilot",
+          "model": "gpt-5.6-luna",
+          "thinkingLevel": "low"
+        }
+      }
+    },
+    "copilot-budget": {
+      "description": "Budget Copilot defaults: GPT-5.5 for planning/architecture, MAI-Code for delivery.",
+      "roles": {
+        "research": {
+          "provider": "github-copilot",
+          "model": "gpt-5.5",
+          "thinkingLevel": "high"
+        },
+        "architecture": {
+          "provider": "github-copilot",
+          "model": "gpt-5.5",
+          "thinkingLevel": "high"
+        },
+        "planning": {
+          "provider": "github-copilot",
+          "model": "gpt-5.5",
+          "thinkingLevel": "high"
+        },
+        "delivery": {
+          "provider": "github-copilot",
+          "model": "mai-code-1-flash-picker",
+          "thinkingLevel": "low"
+        },
+        "verification": {
+          "provider": "github-copilot",
+          "model": "mai-code-1-flash-picker",
+          "thinkingLevel": "low"
+        }
+      }
+    },
+    "claude-fable": {
+      "description": "Claude Bridge Fable for planning/architecture, Opus 4.8 for building.",
+      "roles": {
+        "research": {
+          "provider": "claude-bridge",
+          "model": "claude-fable-5",
+          "thinkingLevel": "high"
+        },
+        "architecture": {
+          "provider": "claude-bridge",
+          "model": "claude-fable-5",
+          "thinkingLevel": "high"
+        },
+        "planning": {
+          "provider": "claude-bridge",
+          "model": "claude-fable-5",
+          "thinkingLevel": "high"
+        },
+        "delivery": {
+          "provider": "claude-bridge",
+          "model": "claude-opus-4-8",
+          "thinkingLevel": "medium"
+        },
+        "verification": {
+          "provider": "claude-bridge",
+          "model": "claude-opus-4-8",
+          "thinkingLevel": "low"
+        }
+      }
+    },
+    "claude-main": {
+      "description": "Claude Bridge mainline: Opus 4.8 for planning/architecture, Sonnet 5 for building.",
+      "roles": {
+        "research": {
+          "provider": "claude-bridge",
+          "model": "claude-opus-4-8",
+          "thinkingLevel": "high"
+        },
+        "architecture": {
+          "provider": "claude-bridge",
+          "model": "claude-opus-4-8",
+          "thinkingLevel": "high"
+        },
+        "planning": {
+          "provider": "claude-bridge",
+          "model": "claude-opus-4-8",
+          "thinkingLevel": "high"
+        },
+        "delivery": {
+          "provider": "claude-bridge",
+          "model": "claude-sonnet-5",
+          "thinkingLevel": "medium"
+        },
+        "verification": {
+          "provider": "claude-bridge",
+          "model": "claude-sonnet-5",
+          "thinkingLevel": "low"
+        }
+      }
+    }
+  }
+}

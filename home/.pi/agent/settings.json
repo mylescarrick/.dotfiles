@@ -1,0 +1,12 @@
+{
+  "theme": "dark",
+  "defaultProvider": "github-copilot",
+  "defaultModel": "gpt-5.4-mini",
+  "defaultThinkingLevel": "low",
+  "packages": [
+    "npm:pi-claude-bridge",
+    "npm:pine-of-glass",
+    "../packages/pi-model-families",
+    "../packages/pi-herdr-agents"
+  ]
+}

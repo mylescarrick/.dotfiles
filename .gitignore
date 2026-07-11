@@ -59,11 +59,14 @@ home/.pi/bun.lock
 
 !home/.pi/agent/tsconfig.json
 !home/.pi/agent/package.json
+!home/.pi/agent/settings.json
+!home/.pi/agent/model-families.json
 !home/.pi/agent/cloak.json
 !home/.pi/agent/themes/
 !home/.pi/agent/themes/*.json
 !home/.pi/agent/extensions/
 !home/.pi/agent/extensions/**
+home/.pi/agent/extensions/herdr-agent-state.ts
 !home/.pi/agent/mcp.json
 !home/.pi/agent/APPEND_SYSTEM.md
 !home/.pi/agent/skills/

@@ -1,0 +1,41 @@
+{
+  "name": "pi-herdr-agents",
+  "version": "0.1.0",
+  "description": "Visible Herdr-managed worker agents for the Pi coding agent",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "herdr",
+    "agents"
+  ],
+  "scripts": {
+    "check": "npm run check --workspace=pi-herdr-orchestrator-extension"
+  },
+  "workspaces": [
+    "extensions/*"
+  ],
+  "files": [
+    "README.md",
+    "extensions/herdr-orchestrator",
+    "skills/herdr-agents"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/herdr-orchestrator"
+    ],
+    "skills": [
+      "./skills/herdr-agents"
+    ]
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}

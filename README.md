@@ -29,7 +29,7 @@ After `init`, `dot` is on your PATH globally. Restart the shell (or
 | Command | What it does |
 |---------|--------------|
 | `dot init [--skip-ssh] [--skip-font]` | Full setup (see steps below) |
-| `dot update` | Pull, upgrade Homebrew, re-stow, run `pi update` |
+| `dot update` | Pull, upgrade Homebrew, re-stow, refresh Herdr/Pi integration, run `pi update --all` |
 | `dot doctor` | Environment health check |
 | `dot check-packages` | Show installed vs. missing Brewfile packages |
 | `dot retry-failed` | Reinstall packages that failed during setup |
@@ -109,8 +109,10 @@ dot skills link                                    # wire local skills (mc-pr, â
 ```
 
 Vendored (third-party) skills are tracked in `home/.agents/.skill-lock.json`;
-local skills (`mc-pr`, `mc-commit`, `bro`) are hand-authored under
-`home/.agents/skills/` and wired into agents with `dot skills link`.
+local shared skills (`mc-pr`, `mc-commit`, `bro`, `harness-routing`) are hand-authored under
+`home/.agents/skills/` and wired into agents with `dot skills link`. Pi-only skills live inside Pi packages under `home/.pi/packages/*/skills/` so Claude Code does not auto-discover Pi-specific behavior.
+
+For skill-writing conventions, see `docs/skills-maintenance.md`. For the overall agent stack, see `docs/agent-workflow.md`.
 
 Skills changes follow the normal flow: commit the diff and open a PR. Once it's
 merged, publish to `$HOME` with `dot update` (pulls `main` + re-stows) â€” or, if

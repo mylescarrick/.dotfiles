@@ -22,6 +22,7 @@ readonly PACKAGES_DIR="${DOTFILES_DIR}/packages"
 readonly HOME_DIR="${DOTFILES_DIR}/home"
 readonly GITHUB_EMAIL="mylescarrick@gmail.com"
 readonly GITHUB_KEY_PATH="${HOME}/.ssh/key.pub"
+readonly STOW_IGNORE_REGEX='node_modules|dist|out|coverage|logs|\.cache|build|\.DS_Store|\.tsbuildinfo'
 
 # Progress indicators
 CURRENT_STEP=0
@@ -130,6 +131,12 @@ check_dependencies() {
     fi
     
     return 0
+}
+
+# Stow the home package while ignoring generated dependency trees that are
+# intentionally not part of the symlinked dotfiles.
+_stow_home_package() {
+    stow -R -v --ignore="$STOW_IGNORE_REGEX" -d "${DOTFILES_DIR}" -t "${HOME}" home
 }
 
 # ─── Tool Registry ────────────────────────────────────────────────────────────
@@ -380,7 +387,7 @@ _stow_dotfiles() {
     
     print_info "Stowing files from ${HOME_DIR} to ${HOME}..."
     
-    if stow -R -v -d "${DOTFILES_DIR}" -t "${HOME}" home; then
+    if _stow_home_package; then
         print_success "Dotfiles stowed successfully"
     else
         print_error "Failed to stow dotfiles"
@@ -839,7 +846,7 @@ cmd_stow() {
     
     print_info "Creating symlinks for dotfiles..."
     
-    if stow -R -v -d "${DOTFILES_DIR}" -t "${HOME}" home; then
+    if _stow_home_package; then
         print_success "Dotfiles stowed successfully"
         print_info "Configuration files are now symlinked to your home directory"
     else

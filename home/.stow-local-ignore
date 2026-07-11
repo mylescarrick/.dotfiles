@@ -1,0 +1,11 @@
+# Ignore generated dependency trees and build artifacts so stow doesn't try to
+# manage files that pi/npm/TypeScript can recreate in place.
+node_modules
+dist
+out
+coverage
+logs
+\.cache
+build
+\.DS_Store
+\.tsbuildinfo

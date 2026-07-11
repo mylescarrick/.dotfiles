@@ -551,9 +551,23 @@ Preferred: install/verify via `dot doctor` or `dot init`, because Herdr owns the
 
 ### Phase 5 — Publish
 
-- Publish packages or pin git refs.
-- Update dotfiles global settings to package sources.
-- Update docs with install/upgrade instructions.
+The dotfiles workspace has npm publish helpers:
+
+```bash
+cd home/.pi
+npm run pack:pi-packages
+npm run publish:pi-model-families
+npm run publish:pi-herdr-agents
+npm run publish:pi-packages
+```
+
+Before publishing:
+
+1. Run `npm login`.
+2. Re-run `npm view pi-model-families` and `npm view pi-herdr-agents` to confirm names are still available or intentionally owned.
+3. Inspect `out/*.tgz` from `npm run pack:pi-packages`.
+4. Publish `pi-model-families` first, then `pi-herdr-agents`.
+5. Update dotfiles and Knoxi package sources from local paths to `npm:pi-model-families` / `npm:pi-herdr-agents`.
 
 ## Acceptance criteria
 

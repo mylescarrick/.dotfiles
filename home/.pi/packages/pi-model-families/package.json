@@ -1,7 +1,8 @@
 {
   "name": "pi-model-families",
   "version": "0.1.0",
-  "private": true,
+  "description": "Role-based model family routing for the Pi coding agent",
+  "license": "MIT",
   "type": "module",
   "keywords": [
     "pi-package",
@@ -15,10 +16,18 @@
   "workspaces": [
     "extensions/*"
   ],
+  "files": [
+    "README.md",
+    "examples",
+    "extensions/model-families"
+  ],
   "pi": {
     "extensions": [
       "./extensions/model-families"
     ]
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

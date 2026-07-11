@@ -10,6 +10,10 @@
   ],
   "scripts": {
     "check": "npm run check --workspace=pi-extension-opencode-cloudflare && npm run check --workspace=pi-herdr-orchestrator-extension && npm run check --workspace=pi-model-families-extension && npm run check --workspace=pi-save-md-extension && npm run check --workspace=pi-web-tools-extension",
+    "pack:pi-packages": "mkdir -p out && npm run check --workspace=pi-model-families-extension && npm run check --workspace=pi-herdr-orchestrator-extension && npm pack --workspace=pi-model-families --pack-destination ./out && npm pack --workspace=pi-herdr-agents --pack-destination ./out",
+    "publish:pi-model-families": "npm run check --workspace=pi-model-families-extension && npm publish --workspace=pi-model-families --access public",
+    "publish:pi-herdr-agents": "npm run check --workspace=pi-herdr-orchestrator-extension && npm publish --workspace=pi-herdr-agents --access public",
+    "publish:pi-packages": "npm run publish:pi-model-families && npm run publish:pi-herdr-agents",
     "test:save-md": "npm run test --workspace=pi-save-md-extension",
     "test:web-tools": "npm run test --workspace=pi-web-tools-extension",
     "test:codex-fast-mode": "node --import tsx --test tests/codex-fast-mode.test.ts"

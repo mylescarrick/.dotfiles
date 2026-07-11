@@ -1,9 +1,11 @@
 # Pi Herdr Agents + Model Families Spec
 
-Status: draft implementation spec
+Status: implementation spec / design record
 Owner repo: dotfiles
 Target consumers: global Pi, Knoxi Apps, any Pi project that wants visible delegation
 Created: 2026-07-11
+
+For day-to-day usage, see [agent-workflow.md](agent-workflow.md). For skill authoring and pruning rules, see [skills-maintenance.md](skills-maintenance.md).
 
 ## Goal
 

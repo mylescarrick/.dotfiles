@@ -142,16 +142,58 @@ _is_stow_ignored_path() {
     return 1
 }
 
+_regex_escape() {
+    printf '%s' "$1" | sed -e 's/[][\/\\.^$*+?{}()|]/\\&/g'
+}
+
+_show_stow_conflict_diff() {
+    local rel_path="$1" source_path="$2" target_path="$3"
+
+    print_info "Diff for ${rel_path} (live → tracked):"
+    if command_exists diff; then
+        diff -u --label "live:${target_path}" --label "tracked:${source_path}" "$target_path" "$source_path" || true
+    else
+        print_warning "diff is not available; cannot display file differences"
+    fi
+}
+
+_choose_stow_conflict_action() {
+    local rel_path="$1" source_path="$2" target_path="$3"
+    STOW_CONFLICT_ACTION=""
+
+    _show_stow_conflict_diff "$rel_path" "$source_path" "$target_path"
+
+    while true; do
+        echo ""
+        echo "Existing live file conflicts with tracked dotfile: ~/${rel_path}"
+        echo "  u: use tracked dotfile now (backup live file, then stow symlink)"
+        echo "  k: keep live file for now (skip this tracked path for this stow run; you will be prompted again next time)"
+        echo "  d: show diff again"
+        echo "  a: abort stow"
+        read -r -p "Choose [u/k/d/a]: " response
+
+        case "$response" in
+            [uU]) STOW_CONFLICT_ACTION="use"; return 0 ;;
+            [kK]) STOW_CONFLICT_ACTION="keep"; return 0 ;;
+            [dD]) _show_stow_conflict_diff "$rel_path" "$source_path" "$target_path" ;;
+            [aA]|"") STOW_CONFLICT_ACTION="abort"; return 0 ;;
+            *) print_warning "Please choose u, k, d, or a" ;;
+        esac
+    done
+}
+
 # Stow refuses to overwrite real files. When dotfiles starts tracking a file that
 # a tool already created live (for example ~/.pi/agent/settings.json), preserve
-# the live copy under backups/ and remove it so stow can create the symlink.
+# the live copy under backups/ and remove it so stow can create the symlink. In
+# an interactive terminal, show the diff and let the user use tracked, keep live,
+# re-show the diff, or abort. Non-interactive runs use tracked after backup.
 _prepare_stow_file_conflicts() {
-    local timestamp backup_root conflicts=0 identical=0
+    local timestamp backup_root conflicts=0 identical=0 skipped=0
     timestamp="$(date +%Y%m%d_%H%M%S)"
     backup_root="${DOTFILES_DIR}/backups/stow-conflicts/${timestamp}"
 
     while IFS= read -r -d '' source_path; do
-        local rel_path target_path backup_path
+        local rel_path target_path backup_path action
         rel_path="${source_path#${HOME_DIR}/}"
         _is_stow_ignored_path "$rel_path" && continue
 
@@ -165,14 +207,36 @@ _prepare_stow_file_conflicts() {
             continue
         fi
 
-        backup_path="${backup_root}/${rel_path}"
-        mkdir -p "$(dirname "$backup_path")"
-        mv "$target_path" "$backup_path"
-        conflicts=$((conflicts + 1))
+        action="use"
+        if [[ -t 0 && -t 1 ]]; then
+            _choose_stow_conflict_action "$rel_path" "$source_path" "$target_path"
+            action="$STOW_CONFLICT_ACTION"
+        fi
+
+        case "$action" in
+            use)
+                backup_path="${backup_root}/${rel_path}"
+                mkdir -p "$(dirname "$backup_path")"
+                mv "$target_path" "$backup_path"
+                conflicts=$((conflicts + 1))
+                ;;
+            keep)
+                STOW_DYNAMIC_IGNORE_REGEXES+=("^$(_regex_escape "$rel_path")$")
+                skipped=$((skipped + 1))
+                ;;
+            abort|*)
+                print_warning "Aborted stow before changing ${rel_path}"
+                return 1
+                ;;
+        esac
     done < <(find "$HOME_DIR" \( -type f -o -type l \) -print0)
 
     if [[ $conflicts -gt 0 ]]; then
         print_warning "Backed up $conflicts existing live file(s) before stow: ${backup_root}"
+    fi
+    if [[ $skipped -gt 0 ]]; then
+        print_warning "Kept $skipped existing live file(s); skipped matching tracked path(s) for this stow run"
+        print_info "Kept files will conflict again on the next stow until you choose 'use tracked', remove/move the live file, or stop tracking the dotfile."
     fi
     if [[ $identical -gt 0 ]]; then
         print_info "Removed $identical identical live file(s) before stow"
@@ -182,8 +246,16 @@ _prepare_stow_file_conflicts() {
 # Stow the home package while ignoring generated dependency trees that are
 # intentionally not part of the symlinked dotfiles.
 _stow_home_package() {
-    _prepare_stow_file_conflicts
-    stow -R -v --ignore="$STOW_IGNORE_REGEX" -d "${DOTFILES_DIR}" -t "${HOME}" home
+    local stow_args=()
+    STOW_DYNAMIC_IGNORE_REGEXES=()
+
+    _prepare_stow_file_conflicts || return 1
+
+    for ignore_regex in "${STOW_DYNAMIC_IGNORE_REGEXES[@]}"; do
+        stow_args+=(--ignore="$ignore_regex")
+    done
+
+    stow -R -v --ignore="$STOW_IGNORE_REGEX" "${stow_args[@]}" -d "${DOTFILES_DIR}" -t "${HOME}" home
 }
 
 # ─── Tool Registry ────────────────────────────────────────────────────────────
@@ -684,17 +756,33 @@ cmd_init() {
 cmd_update() {
     _guard_mutation || return 1
     print_header "Updating dotfiles"
-    
-    # Pull latest changes
-    print_info "Pulling latest changes..."
-    
-    if git -C "$DOTFILES_DIR" pull; then
-        print_success "Repository updated"
+
+    # Pull latest changes. If the dot command itself changed, re-exec the
+    # freshly pulled script before doing mutating steps such as stow.
+    if [[ "${DOT_UPDATE_SKIP_PULL:-}" != "true" ]]; then
+        local old_rev new_rev
+        old_rev="$(git -C "$DOTFILES_DIR" rev-parse HEAD 2>/dev/null || true)"
+
+        print_info "Pulling latest changes..."
+
+        if git -C "$DOTFILES_DIR" pull; then
+            print_success "Repository updated"
+        else
+            print_error "Failed to update repository"
+            return 1
+        fi
+
+        new_rev="$(git -C "$DOTFILES_DIR" rev-parse HEAD 2>/dev/null || true)"
+        if [[ -z "${DOT_UPDATE_REEXECED:-}" && -n "$old_rev" && -n "$new_rev" && "$old_rev" != "$new_rev" ]]; then
+            if ! git -C "$DOTFILES_DIR" diff --quiet "$old_rev" "$new_rev" -- dot; then
+                print_info "dot command changed; restarting update with the new version..."
+                DOT_UPDATE_SKIP_PULL=true DOT_UPDATE_REEXECED=true exec "$DOTFILES_DIR/dot" update
+            fi
+        fi
     else
-        print_error "Failed to update repository"
-        return 1
+        print_info "Repository already updated; continuing with refreshed dot command"
     fi
-    
+
     # Update packages
     if confirm "Update Homebrew packages?" "y"; then
         print_info "Updating Homebrew..."

@@ -25,8 +25,11 @@ npm run check
 
 Current workspace-managed extensions live under:
 
-- `agent/extensions/web-tools`
-- `agent/extensions/pi-mcp`
+- `agent/extensions/model-families`
 - `agent/extensions/opencode-cloudflare`
+- `agent/extensions/save-md`
+- `agent/extensions/web-tools`
+
+Global model-family defaults are tracked in `agent/model-families.json`; trusted projects can override them with `.pi/model-families.json`.
 
 After changing extension code, reload pi with `/reload`.

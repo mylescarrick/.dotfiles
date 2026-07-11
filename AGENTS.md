@@ -56,7 +56,7 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 
 ```bash
 dot init              # Full setup (brew, stow, bun, ssh, font, oh-my-zsh)
-dot update            # Pull + brew upgrade + restow + pi update
+dot update            # Pull + brew upgrade + restow + pi update --all
 dot doctor            # Health check
 dot stow              # Resymlink only
 dot package add X     # Add + install package
@@ -72,7 +72,7 @@ dot gen-ssh-key       # Generate ed25519 key by email domain
 | Zsh | `.zshrc` / `.zprofile` | oh-my-zsh bootstrap, EDITOR, tool inits (starship, zoxide, vp) |
 | Git | `config` | SSH signing, `pull.rebase`, conditional include |
 | Starship | `starship.toml` | 2s timeout (Vite+ shims) |
-| Pi | `settings.json` | Default provider: opencode.cloudflare.dev, Catppuccin theme |
+| Pi | `settings.json` / `model-families.json` | Default provider: github-copilot; role-routed model families; Catppuccin theme |
 
 ## UNIQUE STYLES
 

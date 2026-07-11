@@ -29,7 +29,7 @@ After `init`, `dot` is on your PATH globally. Restart the shell (or
 | Command | What it does |
 |---------|--------------|
 | `dot init [--skip-ssh] [--skip-font]` | Full setup (see steps below) |
-| `dot update` | Pull, upgrade Homebrew, re-stow, run `pi update --all` |
+| `dot update` | Pull, upgrade Homebrew, re-stow, refresh Herdr/Pi integration, run `pi update --all` |
 | `dot doctor` | Environment health check |
 | `dot check-packages` | Show installed vs. missing Brewfile packages |
 | `dot retry-failed` | Reinstall packages that failed during setup |

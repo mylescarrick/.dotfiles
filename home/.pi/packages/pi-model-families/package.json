@@ -1,0 +1,26 @@
+{
+  "name": "pi-model-families",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "model-routing"
+  ],
+  "scripts": {
+    "check": "npm run check --workspace=pi-model-families-extension"
+  },
+  "workspaces": [
+    "extensions/*"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/model-families"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

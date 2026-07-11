@@ -158,6 +158,7 @@ TOOL_REGISTRY=(
     "Bun               ;; bun  ;; curl -fsSL https://bun.sh/install | bash      ;; true  ;; -         ;; true"
     "pi                ;; pi   ;; bun install -g @mariozechner/pi-coding-agent  ;; true  ;; -         ;; true"
     "Pi extension deps ;; -    ;; fn:_install_pi_extension_deps                 ;; false ;; -         ;; false"
+    "Herdr Pi integ.   ;; -    ;; fn:_install_herdr_pi_integration              ;; false ;; -         ;; false"
     "SSH key           ;; -    ;; fn:_generate_ssh_key                          ;; false ;; SKIP_SSH  ;; false"
     "Nerd Font         ;; -    ;; brew install --cask font-hack-nerd-font       ;; false ;; SKIP_FONT ;; false"
     "oh-my-zsh         ;; -    ;; fn:_install_oh_my_zsh                         ;; false ;; -         ;; false"
@@ -589,6 +590,26 @@ _install_pi_extension_deps() {
     fi
 }
 
+_install_herdr_pi_integration() {
+    if ! command_exists herdr; then
+        print_warning "herdr is not installed; skipping Herdr Pi integration"
+        return 0
+    fi
+
+    if [[ ! -d "${HOME}/.pi/agent/extensions" ]]; then
+        print_warning "Pi extensions directory not found; skipping Herdr Pi integration"
+        return 0
+    fi
+
+    print_info "Installing Herdr Pi integration..."
+    if herdr integration install pi; then
+        print_success "Herdr Pi integration installed"
+    else
+        print_warning "Failed to install Herdr Pi integration"
+        return 0
+    fi
+}
+
 _install_oh_my_zsh() {
 
     if [[ -d "${HOME}/.oh-my-zsh" ]]; then
@@ -649,8 +670,9 @@ cmd_update() {
         _stow_dotfiles
     fi
 
-    # Keep pi extension deps in sync in case any extension's package.json changed
+    # Keep pi extension deps/integrations in sync in case package config changed
     _install_pi_extension_deps
+    _install_herdr_pi_integration
 
     # Update pi and its configured packages.
     if command_exists pi; then

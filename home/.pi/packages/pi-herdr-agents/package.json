@@ -1,0 +1,32 @@
+{
+  "name": "pi-herdr-agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "herdr",
+    "agents"
+  ],
+  "scripts": {
+    "check": "npm run check --workspace=pi-herdr-orchestrator-extension"
+  },
+  "workspaces": [
+    "extensions/*"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/herdr-orchestrator"
+    ],
+    "skills": [
+      "./skills/herdr-agents"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}

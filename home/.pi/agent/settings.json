@@ -5,6 +5,8 @@
   "defaultThinkingLevel": "low",
   "packages": [
     "npm:pi-claude-bridge",
-    "npm:pine-of-glass"
+    "npm:pine-of-glass",
+    "../packages/pi-model-families",
+    "../packages/pi-herdr-agents"
   ]
 }

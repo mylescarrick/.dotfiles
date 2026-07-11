@@ -591,6 +591,12 @@ Preferred: install/verify via `dot doctor` or `dot init`, because Herdr owns the
 
 - Package names: `pi-model-families` / `pi-herdr-agents` or scoped npm names?
 - Should model-family extension expose an event/API for other extensions, or should Herdr read JSON directly?
-- Should Herdr package support non-Pi child agents later, or stay Pi-only initially?
-- Should dotfiles track Herdr’s Pi integration file or treat it as generated state?
-- What is the exact Herdr CLI command set for current Homebrew `herdr` version? Verify before coding.
+
+Implementation decisions:
+
+- Dotfiles treats Herdr’s Pi integration file as generated state and installs it via `dot init`/`dot update`.
+- The Herdr package is Pi-only initially.
+
+Resolved:
+
+- Exact Herdr CLI command set for Homebrew `herdr 0.7.3` is captured in [herdr-cli-notes.md](herdr-cli-notes.md).

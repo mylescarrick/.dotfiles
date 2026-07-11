@@ -133,9 +133,56 @@ check_dependencies() {
     return 0
 }
 
+# Return true when a home/ relative path is ignored by the stow command.
+_is_stow_ignored_path() {
+    local rel_path="$1"
+    [[ "$rel_path" =~ (^|/)(node_modules|dist|out|coverage|logs|\.cache|build)(/|$) ]] && return 0
+    [[ "$rel_path" =~ (^|/)\.DS_Store$ ]] && return 0
+    [[ "$rel_path" =~ \.tsbuildinfo$ ]] && return 0
+    return 1
+}
+
+# Stow refuses to overwrite real files. When dotfiles starts tracking a file that
+# a tool already created live (for example ~/.pi/agent/settings.json), preserve
+# the live copy under backups/ and remove it so stow can create the symlink.
+_prepare_stow_file_conflicts() {
+    local timestamp backup_root conflicts=0 identical=0
+    timestamp="$(date +%Y%m%d_%H%M%S)"
+    backup_root="${DOTFILES_DIR}/backups/stow-conflicts/${timestamp}"
+
+    while IFS= read -r -d '' source_path; do
+        local rel_path target_path backup_path
+        rel_path="${source_path#${HOME_DIR}/}"
+        _is_stow_ignored_path "$rel_path" && continue
+
+        target_path="${HOME}/${rel_path}"
+        [[ -e "$target_path" || -L "$target_path" ]] || continue
+        [[ -L "$target_path" || -d "$target_path" ]] && continue
+
+        if cmp -s "$source_path" "$target_path"; then
+            rm "$target_path"
+            identical=$((identical + 1))
+            continue
+        fi
+
+        backup_path="${backup_root}/${rel_path}"
+        mkdir -p "$(dirname "$backup_path")"
+        mv "$target_path" "$backup_path"
+        conflicts=$((conflicts + 1))
+    done < <(find "$HOME_DIR" \( -type f -o -type l \) -print0)
+
+    if [[ $conflicts -gt 0 ]]; then
+        print_warning "Backed up $conflicts existing live file(s) before stow: ${backup_root}"
+    fi
+    if [[ $identical -gt 0 ]]; then
+        print_info "Removed $identical identical live file(s) before stow"
+    fi
+}
+
 # Stow the home package while ignoring generated dependency trees that are
 # intentionally not part of the symlinked dotfiles.
 _stow_home_package() {
+    _prepare_stow_file_conflicts
     stow -R -v --ignore="$STOW_IGNORE_REGEX" -d "${DOTFILES_DIR}" -t "${HOME}" home
 }
 

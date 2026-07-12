@@ -1875,6 +1875,204 @@ cmd_skills() {
     esac
 }
 
+_pi_auth_shell_quote() {
+    local value="$1"
+    printf "'%s'" "${value//\'/\'\\\'\'}"
+}
+
+cmd_pi_auth_cloudflare() {
+    local account_id="${DOT_CLOUDFLARE_ACCOUNT_ID:-}"
+    local gateway_id="${DOT_CLOUDFLARE_GATEWAY_ID:-}"
+    local key_value=""
+    local key_label=""
+    local non_interactive=false
+
+    if [[ -n "${DOT_CLOUDFLARE_API_KEY_OP_REF:-}" ]]; then
+        key_value="!op read $(_pi_auth_shell_quote "$DOT_CLOUDFLARE_API_KEY_OP_REF")"
+        key_label="1Password reference from DOT_CLOUDFLARE_API_KEY_OP_REF"
+    fi
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --api-key-op-ref)
+                [[ $# -ge 2 ]] || { print_error "--api-key-op-ref requires an op:// reference"; return 1; }
+                key_value="!op read $(_pi_auth_shell_quote "$2")"
+                key_label="1Password reference"
+                shift 2
+                ;;
+            --api-key-env)
+                [[ $# -ge 2 ]] || { print_error "--api-key-env requires an environment variable name"; return 1; }
+                key_value="\$$2"
+                key_label="environment variable $2"
+                shift 2
+                ;;
+            --account-id)
+                [[ $# -ge 2 ]] || { print_error "--account-id requires a value"; return 1; }
+                account_id="$2"
+                shift 2
+                ;;
+            --gateway-id)
+                [[ $# -ge 2 ]] || { print_error "--gateway-id requires a value"; return 1; }
+                gateway_id="$2"
+                shift 2
+                ;;
+            --non-interactive)
+                non_interactive=true
+                shift
+                ;;
+            -h|--help)
+                cmd_pi_auth_help
+                return 0
+                ;;
+            *)
+                print_error "Unknown pi-auth cloudflare option: $1"
+                print_info "Run '${SCRIPT_NAME} pi-auth help' for usage"
+                return 1
+                ;;
+        esac
+    done
+
+    if [[ "$non_interactive" != true && -t 0 ]]; then
+        local input choice
+        if [[ -z "$account_id" ]]; then
+            read -r -p "Cloudflare account ID: " input
+            account_id="$input"
+        fi
+        if [[ -z "$gateway_id" ]]; then
+            read -r -p "Cloudflare AI Gateway ID/slug: " input
+            gateway_id="$input"
+        fi
+        if [[ -z "$key_value" ]]; then
+            echo "Cloudflare API key source:"
+            echo "  1) Environment variable (default: CLOUDFLARE_API_KEY)"
+            echo "  2) 1Password op:// reference"
+            echo "  3) Paste API key value (stored in private ~/.pi/agent/auth.json)"
+            read -r -p "Choose [1]: " choice
+            case "${choice:-1}" in
+                1)
+                    read -r -p "Environment variable name [CLOUDFLARE_API_KEY]: " input
+                    input="${input:-CLOUDFLARE_API_KEY}"
+                    key_value="\$$input"
+                    key_label="environment variable $input"
+                    ;;
+                2)
+                    read -r -p "1Password reference (op://...): " input
+                    [[ -n "$input" ]] || { print_error "1Password reference is required"; return 1; }
+                    key_value="!op read $(_pi_auth_shell_quote "$input")"
+                    key_label="1Password reference"
+                    ;;
+                3)
+                    read -r -s -p "Cloudflare API key value: " input
+                    echo ""
+                    [[ -n "$input" ]] || { print_error "API key value is required"; return 1; }
+                    key_value="$input"
+                    key_label="literal API key value"
+                    ;;
+                *)
+                    print_error "Invalid choice: $choice"
+                    return 1
+                    ;;
+            esac
+        fi
+    fi
+
+    if [[ -z "$key_value" ]]; then
+        key_value='${CLOUDFLARE_API_KEY}'
+        key_label="environment variable CLOUDFLARE_API_KEY"
+    fi
+
+    if [[ -z "$account_id" || -z "$gateway_id" || -z "$key_value" ]]; then
+        print_error "Missing Cloudflare auth configuration"
+        print_info "Pass --account-id, --gateway-id, and a key source, or run interactively."
+        return 1
+    fi
+
+    if ! command_exists node; then
+        print_error "node is required to update ~/.pi/agent/auth.json"
+        return 1
+    fi
+
+    local auth_path="${HOME}/.pi/agent/auth.json"
+    print_header "Configuring Pi Cloudflare auth"
+    mkdir -p "$(dirname "$auth_path")"
+
+    AUTH_PATH="$auth_path" \
+    CF_ACCOUNT_ID="$account_id" \
+    CF_GATEWAY_ID="$gateway_id" \
+    CF_KEY_VALUE="$key_value" \
+    node <<'NODE'
+const fs = require('fs');
+const path = process.env.AUTH_PATH;
+const accountId = process.env.CF_ACCOUNT_ID;
+const gatewayId = process.env.CF_GATEWAY_ID;
+const key = process.env.CF_KEY_VALUE;
+let data = {};
+try {
+  if (fs.existsSync(path)) data = JSON.parse(fs.readFileSync(path, 'utf8') || '{}');
+} catch (error) {
+  console.error(`Failed to parse ${path}: ${error.message}`);
+  process.exit(1);
+}
+function upsert(provider, envPatch) {
+  const existing = data[provider];
+  const env = existing && existing.type === 'api_key' && existing.env ? existing.env : {};
+  data[provider] = { type: 'api_key', key, env: { ...env, ...envPatch } };
+}
+upsert('cloudflare-ai-gateway', {
+  CLOUDFLARE_ACCOUNT_ID: accountId,
+  CLOUDFLARE_GATEWAY_ID: gatewayId,
+});
+upsert('cloudflare-workers-ai', {
+  CLOUDFLARE_ACCOUNT_ID: accountId,
+});
+fs.writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
+fs.chmodSync(path, 0o600);
+NODE
+
+    print_success "Updated $auth_path"
+    print_info "Cloudflare API key source: $key_label"
+    print_info "Cloudflare account ID: $account_id"
+    print_info "Cloudflare gateway ID: $gateway_id"
+}
+
+cmd_pi_auth_help() {
+    echo -e "${BOLD}${SCRIPT_NAME} pi-auth${RESET} - Configure private Pi auth.json entries"
+    echo ""
+    echo -e "${BOLD}USAGE:${RESET}"
+    echo "    ${SCRIPT_NAME} pi-auth cloudflare [OPTIONS]"
+    echo ""
+    echo -e "${BOLD}OPTIONS:${RESET}"
+    echo "    --api-key-op-ref REF   Store key resolver as: !op read 'REF'"
+    echo "    --api-key-env NAME     Store key resolver as: \$NAME"
+    echo "    --account-id ID        Cloudflare account ID"
+    echo "    --gateway-id ID        Cloudflare AI Gateway slug"
+    echo "    --non-interactive      Do not prompt; require args/env except key defaults to \$CLOUDFLARE_API_KEY"
+    echo ""
+    echo -e "${BOLD}ENV FALLBACKS:${RESET}"
+    echo "    DOT_CLOUDFLARE_API_KEY_OP_REF, DOT_CLOUDFLARE_ACCOUNT_ID, DOT_CLOUDFLARE_GATEWAY_ID"
+    echo ""
+    echo -e "${BOLD}EXAMPLES:${RESET}"
+    echo "    ${SCRIPT_NAME} pi-auth cloudflare"
+    echo "    ${SCRIPT_NAME} pi-auth cloudflare --account-id ... --gateway-id ... --api-key-op-ref 'op://Private/Cloudflare Pi API Token/credential'"
+    echo "    ${SCRIPT_NAME} pi-auth cloudflare --account-id ... --gateway-id ... --api-key-env CLOUDFLARE_API_KEY"
+    echo ""
+    echo "Writes ~/.pi/agent/auth.json directly; this file is private runtime state and is not stowed."
+}
+
+cmd_pi_auth() {
+    local subcommand="${1:-help}"
+    shift || true
+    case "$subcommand" in
+        cloudflare|cf) cmd_pi_auth_cloudflare "$@" ;;
+        -h|--help|help) cmd_pi_auth_help ;;
+        *)
+            print_error "Unknown pi-auth subcommand: $subcommand"
+            print_info "Run '${SCRIPT_NAME} pi-auth help' for usage"
+            return 1
+            ;;
+    esac
+}
+
 cmd_help() {
     echo -e "${BOLD}${SCRIPT_NAME}${RESET} - Dotfiles management tool"
     echo "Version: ${VERSION}"
@@ -1890,6 +2088,7 @@ cmd_help() {
     echo "    doctor              Run diagnostics and check installation"
     echo "    package             Package management commands (add, remove, list)"
     echo "    skills              Manage agent skills (add, update, remove, link, list)"
+    echo "    pi-auth             Configure private Pi auth.json entries"
     echo "    check-packages      Check which packages are installed/missing"
     echo "    retry-failed        Retry failed package installations"
     echo "    gen-ssh-key         Generate SSH key for GitHub/GitLab with email"
@@ -1919,6 +2118,7 @@ cmd_help() {
     echo "    ${SCRIPT_NAME} skills add mattpocock/skills wayfinder  # Vendor a third-party skill"
     echo "    ${SCRIPT_NAME} skills update              # Update vendored skills to latest"
     echo "    ${SCRIPT_NAME} skills link                # Wire local skills into agent dirs"
+    echo "    ${SCRIPT_NAME} pi-auth cloudflare        # Prompt for private Pi Cloudflare auth values"
     echo "    ${SCRIPT_NAME} check-packages            # See package installation status"
     echo "    ${SCRIPT_NAME} retry-failed              # Retry any failed installations"
     echo "    ${SCRIPT_NAME} gen-ssh-key               # Generate SSH key (prompts for email)"
@@ -1989,6 +2189,9 @@ main() {
             ;;
         skills)
             cmd_skills "$@"
+            ;;
+        pi-auth)
+            cmd_pi_auth "$@"
             ;;
         check-packages)
             cmd_check_packages "$@"

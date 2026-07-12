@@ -33,36 +33,6 @@
         }
       }
     },
-    "copilot-gpt-5.6": {
-      "description": "GitHub Copilot GPT-5.6 family: Sol/Terra for planning and architecture, Luna for delivery.",
-      "roles": {
-        "research": {
-          "provider": "github-copilot",
-          "model": "gpt-5.6-sol",
-          "thinkingLevel": "high"
-        },
-        "architecture": {
-          "provider": "github-copilot",
-          "model": "gpt-5.6-sol",
-          "thinkingLevel": "high"
-        },
-        "planning": {
-          "provider": "github-copilot",
-          "model": "gpt-5.6-terra",
-          "thinkingLevel": "high"
-        },
-        "delivery": {
-          "provider": "github-copilot",
-          "model": "gpt-5.6-luna",
-          "thinkingLevel": "medium"
-        },
-        "verification": {
-          "provider": "github-copilot",
-          "model": "gpt-5.6-luna",
-          "thinkingLevel": "low"
-        }
-      }
-    },
     "copilot-budget": {
       "description": "Budget Copilot defaults: GPT-5.5 for planning/architecture, MAI-Code for delivery.",
       "roles": {

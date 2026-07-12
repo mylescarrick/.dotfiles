@@ -34,6 +34,7 @@ After `init`, `dot` is on your PATH globally. Restart the shell (or
 | `dot check-packages` | Show installed vs. missing Brewfile packages |
 | `dot retry-failed` | Reinstall packages that failed during setup |
 | `dot package add/remove/list/update` | Manage the Brewfile |
+| `dot pi-auth cloudflare` | Configure private Pi Cloudflare auth entries |
 | `dot gen-ssh-key [email]` | Generate an ed25519 SSH key (named by email domain) |
 | `dot stow` | Re-create `home/` → `~` symlinks |
 | `dot link` / `dot unlink` | Add/remove the global `dot` symlink in PATH |
@@ -106,6 +107,25 @@ dot skills add mattpocock/skills wayfinder to-spec  # vendor third-party skills
 dot skills update                                 # update all vendored skills
 dot skills remove tech-spec                        # drop a skill
 dot skills link                                    # wire local skills (mc-pr, …) into agents
+```
+
+## Pi private auth
+
+`dot pi-auth cloudflare` configures `~/.pi/agent/auth.json` for the `cloudflare-ai-gateway` and `cloudflare-workers-ai` providers. It writes private runtime state directly, preserves existing auth entries, and keeps the file at `0600`; `auth.json` is not stowed or tracked.
+
+Run interactively:
+
+```bash
+dot pi-auth cloudflare
+```
+
+Or pass values explicitly, preferably using a 1Password reference for the API token:
+
+```bash
+dot pi-auth cloudflare \
+  --account-id ... \
+  --gateway-id ... \
+  --api-key-op-ref 'op://Private/Cloudflare Pi API Token/credential'
 ```
 
 Vendored (third-party) skills are tracked in `home/.agents/.skill-lock.json`;

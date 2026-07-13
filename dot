@@ -274,7 +274,8 @@ TOOL_REGISTRY=(
     "Homebrew          ;; brew ;; fn:_install_homebrew                          ;; true  ;; -         ;; true"
     "Brewfile packages ;; -    ;; fn:_install_packages                          ;; true  ;; -         ;; false"
     "Stow dotfiles     ;; -    ;; fn:_stow_dotfiles                             ;; true  ;; -         ;; false"
-    "Bun               ;; bun  ;; curl -fsSL https://bun.sh/install | bash      ;; true  ;; -         ;; true"
+    "Pi settings       ;; -    ;; fn:_sync_pi_settings                         ;; false ;; -         ;; false"
+    "Bun               ;; bun  ;; curl -fsSL https://bun.sh/install | bash      ;; true  ;; -         ;; true"},{
     "pi                ;; pi   ;; bun install -g @mariozechner/pi-coding-agent  ;; true  ;; -         ;; true"
     "Pi extension deps ;; -    ;; fn:_install_pi_extension_deps                 ;; false ;; -         ;; false"
     "Herdr Pi integ.   ;; -    ;; fn:_install_herdr_pi_integration              ;; false ;; -         ;; false"
@@ -687,6 +688,60 @@ EOF
     print_success "SSH key generation complete!"
 }
 
+_sync_pi_settings() {
+    local defaults_path="${DOTFILES_DIR}/config/pi/settings.defaults.json"
+    local settings_path="${HOME}/.pi/agent/settings.json"
+
+    if [[ ! -f "$defaults_path" ]]; then
+        print_warning "Pi settings defaults not found at ${defaults_path}; skipping"
+        return 0
+    fi
+
+    if ! command_exists node; then
+        print_error "node is required to sync Pi settings"
+        return 1
+    fi
+
+    print_info "Syncing Pi settings..."
+    mkdir -p "$(dirname "$settings_path")"
+
+    PI_SETTINGS_DEFAULTS="$defaults_path" \
+    PI_SETTINGS_PATH="$settings_path" \
+    node <<'NODE'
+const fs = require('fs');
+const defaultsPath = process.env.PI_SETTINGS_DEFAULTS;
+const settingsPath = process.env.PI_SETTINGS_PATH;
+
+function readJson(path) {
+  try {
+    if (!fs.existsSync(path)) return {};
+    const text = fs.readFileSync(path, 'utf8').trim();
+    return text ? JSON.parse(text) : {};
+  } catch (error) {
+    console.error(`Failed to read ${path}: ${error.message}`);
+    process.exit(1);
+  }
+}
+
+const defaults = readJson(defaultsPath);
+const current = readJson(settingsPath);
+const merged = { ...defaults, ...current };
+
+// Dotfiles owns package sources; Pi may own runtime preferences such as
+// defaultProvider/defaultModel/defaultThinkingLevel and lastChangelogVersion.
+if (Object.prototype.hasOwnProperty.call(defaults, 'packages')) {
+  merged.packages = defaults.packages;
+}
+
+if (fs.existsSync(settingsPath) && fs.lstatSync(settingsPath).isSymbolicLink()) {
+  fs.unlinkSync(settingsPath);
+}
+fs.writeFileSync(settingsPath, `${JSON.stringify(merged, null, 2)}\n`, { mode: 0o600 });
+NODE
+
+    print_success "Pi settings synced"
+}
+
 _install_pi_extension_deps() {
     local pi_dir="${HOME}/.pi"
 
@@ -805,7 +860,8 @@ cmd_update() {
         _stow_dotfiles
     fi
 
-    # Keep pi extension deps/integrations in sync in case package config changed
+    # Keep private Pi runtime config and extension deps/integrations in sync
+    _sync_pi_settings
     _install_pi_extension_deps
     _install_herdr_pi_integration
 
@@ -2073,6 +2129,30 @@ cmd_pi_auth() {
     esac
 }
 
+cmd_pi_settings_help() {
+    echo -e "${BOLD}${SCRIPT_NAME} pi-settings${RESET} - Sync private Pi settings.json from tracked defaults"
+    echo ""
+    echo -e "${BOLD}USAGE:${RESET}"
+    echo "    ${SCRIPT_NAME} pi-settings sync"
+    echo ""
+    echo "Merges config/pi/settings.defaults.json into ~/.pi/agent/settings.json."
+    echo "Runtime model preferences are preserved; package sources come from dotfiles."
+}
+
+cmd_pi_settings() {
+    local subcommand="${1:-sync}"
+    shift || true
+    case "$subcommand" in
+        sync) _sync_pi_settings "$@" ;;
+        -h|--help|help) cmd_pi_settings_help ;;
+        *)
+            print_error "Unknown pi-settings subcommand: $subcommand"
+            print_info "Run '${SCRIPT_NAME} pi-settings help' for usage"
+            return 1
+            ;;
+    esac
+}
+
 cmd_help() {
     echo -e "${BOLD}${SCRIPT_NAME}${RESET} - Dotfiles management tool"
     echo "Version: ${VERSION}"
@@ -2089,7 +2169,8 @@ cmd_help() {
     echo "    package             Package management commands (add, remove, list)"
     echo "    skills              Manage agent skills (add, update, remove, link, list)"
     echo "    pi-auth             Configure private Pi auth.json entries"
-    echo "    check-packages      Check which packages are installed/missing"
+    echo "    pi-settings         Sync private Pi settings.json from tracked defaults"
+    echo "    check-packages      Check which packages are installed/missing"},{
     echo "    retry-failed        Retry failed package installations"
     echo "    gen-ssh-key         Generate SSH key for GitHub/GitLab with email"
     echo "    stow                Create symlinks for dotfiles using GNU Stow"
@@ -2192,6 +2273,9 @@ main() {
             ;;
         pi-auth)
             cmd_pi_auth "$@"
+            ;;
+        pi-settings)
+            cmd_pi_settings "$@"
             ;;
         check-packages)
             cmd_check_packages "$@"

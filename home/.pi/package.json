@@ -9,11 +9,10 @@
     "packages/*/extensions/*"
   ],
   "scripts": {
-    "check": "bun run --cwd agent/extensions/opencode-cloudflare check && bun run --cwd packages/pi-herdr-agents/extensions/herdr-orchestrator check && bun run --cwd packages/pi-model-families/extensions/model-families check && bun run --cwd agent/extensions/save-md check && bun run --cwd agent/extensions/web-tools check",
-    "pack:pi-packages": "mkdir -p out && bun run --cwd packages/pi-model-families/extensions/model-families check && bun run --cwd packages/pi-herdr-agents/extensions/herdr-orchestrator check && (cd packages/pi-model-families && bun pm pack --destination ../../out) && (cd packages/pi-herdr-agents && bun pm pack --destination ../../out)",
+    "check": "bun run --cwd agent/extensions/opencode-cloudflare check && bun run --cwd packages/pi-model-families/extensions/model-families check && bun run --cwd agent/extensions/save-md check && bun run --cwd agent/extensions/web-tools check",
+    "pack:pi-packages": "mkdir -p out && bun run --cwd packages/pi-model-families/extensions/model-families check && (cd packages/pi-model-families && bun pm pack --destination ../../out)",
     "publish:pi-model-families": "bun run --cwd packages/pi-model-families/extensions/model-families check && (cd packages/pi-model-families && bun publish --access public)",
-    "publish:pi-herdr-agents": "bun run --cwd packages/pi-herdr-agents/extensions/herdr-orchestrator check && (cd packages/pi-herdr-agents && bun publish --access public)",
-    "publish:pi-packages": "bun run publish:pi-model-families && bun run publish:pi-herdr-agents",
+    "publish:pi-packages": "bun run publish:pi-model-families",
     "test:save-md": "bun run --cwd agent/extensions/save-md test",
     "test:web-tools": "bun run --cwd agent/extensions/web-tools test",
     "test:codex-fast-mode": "node --import tsx --test tests/codex-fast-mode.test.ts"

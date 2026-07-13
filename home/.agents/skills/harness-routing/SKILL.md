@@ -1,30 +1,30 @@
 ---
 name: harness-routing
-description: Use when choosing workflow/tooling across Pi, Claude Code, Supacode, Herdr, model roles, delegation, or when an upstream skill mentions subagents/background agents.
+description: Use when choosing workflow/tooling across Pi, Claude Code, Supacode, model roles, delegation, subagents, background agents, or worktrees.
 ---
 
 # Harness Routing
 
-Route the work to the lowest-overhead visible workflow. This skill is a local overlay for shared/upstream skills; do not edit vendored skills just to add harness policy.
+Route work to the lowest-overhead workflow that preserves the right safety boundary. This skill is a local overlay for shared/upstream skills; do not edit vendored skills just to add harness policy.
 
 ## Routing rules
 
 1. **Identify the active harness.** Do not infer Pi from `command -v pi`; use the actual conversation/runtime context.
-2. **Choose the surface.** Use Supacode for repo/worktree/tab organization. Use Herdr only for visible multi-agent terminal orchestration. Use the current agent session for normal single-threaded work.
+2. **Choose the surface.** Use Supacode for repo/worktree/tab organization. Use the current agent session for normal single-threaded work. Use Pi tidy subagents or Claude Code native subagents only when delegation clears the threshold.
 3. **Choose the model level by role.** Say `research`, `architecture`, `planning`, `delivery`, or `verification`; concrete model IDs belong in config such as `model-families.json`, not in skills.
-4. **Choose delegation only when it pays.** Inline is default. Delegate for broad independent research, fresh-context review, independent hypothesis checks, or approved worktree execution.
+4. **Choose delegation only when it pays.** Inline is default. Delegate for broad independent research, fresh-context review, independent hypothesis checks, or approved worktree-scoped execution.
 
 ## Harness modes
 
-- **Pi:** use `pi-model-families` for model roles when available. Use `pi-herdr-agents` for visible Herdr workers only when delegation clears the threshold. If unavailable, continue inline.
-- **Claude Code:** use native Claude Code subagents/worktrees when appropriate. Do not use Herdr just because it is installed.
+- **Pi:** use `pi-model-families` for model roles when available. Use `@mobrienv/pi-tidy-subagents` (`subagent` / `subagent_control`) for justified foreground/background delegation. Keep children read-only unless the user approved writes, and use separate worktrees for parallel writes.
+- **Claude Code:** use native Claude Code subagents/worktrees when appropriate.
 - **Other/default:** avoid harness-specific features unless the current runtime explicitly supports them.
 
 ## Upstream skill overlay
 
 If a vendored skill says “background agent”, “subagent”, or “parallel agents”, translate that through the current harness:
 
-- Pi → inline by default; Herdr visible workers only when justified.
+- Pi → inline by default; tidy subagents only when justified.
 - Claude Code → native subagents/worktrees when justified.
 - Unknown → sequential inline unless the user explicitly approves another mechanism.
 

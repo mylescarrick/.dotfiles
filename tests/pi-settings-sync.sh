@@ -34,6 +34,9 @@ if (!Array.isArray(settings.packages) || settings.packages.includes('runtime-own
   throw new Error('packages should come from tracked defaults');
 }
 if (!settings.packages.includes('npm:pi-claude-bridge')) throw new Error('missing tracked package');
+if (!settings.packages.includes('npm:@mobrienv/pi-tidy-tools')) throw new Error('missing tidy tools package');
+if (!settings.packages.includes('npm:@mobrienv/pi-tidy-subagents')) throw new Error('missing tidy subagents package');
+if (settings.packages.includes('../packages/pi-herdr-agents')) throw new Error('removed herdr package should not be synced');
 NODE
 
 # Migration: replace an old stowed settings symlink with a real runtime file.

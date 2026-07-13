@@ -20,9 +20,10 @@ Researched 2026-07-11.
 Pi is a deliberately **minimalist, extension-driven** agent. It ships **no built-in orchestration,
 no sub-agents, no plan mode, no looping/cron, and no dynamic model routing**. Everything beyond the
 core loop is expected to be added via its **extension API** (TypeScript, loaded with `jiti`), its
-**skills** system (Agent Skills standard), and **prompt templates**. Config is layered global →
-project, gated by a **trust** decision. Model defaults are **static** (settings + `/model` +
-`--model`); anything adaptive is an extension concern.
+**skills** system (Agent Skills standard), **prompt templates**, and installable Pi packages. Config
+is layered global → project, gated by a **trust** decision. Model defaults are **static** (settings +
+`/model` + `--model`); anything adaptive is an extension concern. This dotfiles repo currently adds
+role-based routing through `pi-model-families` and delegation through `@mobrienv/pi-tidy-subagents`.
 
 ---
 
@@ -37,12 +38,13 @@ project, gated by a **trust** decision. Model defaults are **static** (settings 
 - `README.md:501` — "**No background bash.** Use tmux."
 
 Ways to achieve orchestration instead:
+- **Pi package:** `@mobrienv/pi-tidy-subagents` registers `subagent` and `subagent_control` for foreground/background child Pi agents.
 - **tmux**: run multiple independent `pi` sessions (`docs/tmux.md`).
 - **RPC / headless**: `pi --mode rpc` drives the agent over JSON stdin/stdout for subprocess control (`docs/rpc.md`).
 - **SDK**: embed via `createAgentSession()` / `AgentSessionRuntime` from the package (`docs/sdk.md`, `README.md:455`).
 - **Extension session handoff**: extensions can fork/replace sessions and inject kickoff prompts —
   `withSession` gives a `ReplacedSessionContext` with `sendMessage()`/`sendUserMessage()`
-  (`docs/extensions.md` ~lines 1186–1258). This is the closest native primitive to delegation.
+  (`docs/extensions.md` ~lines 1186–1258).
 
 Knox's own harness note confirms this: `~/projects/knoxi-apps/.agents/skills/references/harness-modes.md:14`
 — "No built-in subagents. … Prefer inline sequential execution and targeted file reads."
@@ -151,14 +153,17 @@ keeping global `compaction.enabled`).
 
 **Static configuration**, three layers:
 
-**Global `settings.json`** (`~/.pi/agent/settings.json`, tracked in this repo after these changes):
+**Global `settings.json`** (`~/.pi/agent/settings.json`, runtime-owned and synced from `config/pi/settings.defaults.json`):
 ```json
 {
   "theme": "dark",
-  "defaultProvider": "github-copilot",
-  "defaultModel": "gpt-5.4-mini",
-  "defaultThinkingLevel": "low",
-  "packages": ["npm:pi-claude-bridge", "npm:pine-of-glass"]
+  "packages": [
+    "npm:pi-claude-bridge",
+    "npm:pine-of-glass",
+    "npm:@mobrienv/pi-tidy-tools",
+    "npm:@mobrienv/pi-tidy-subagents",
+    "../packages/pi-model-families"
+  ]
 }
 ```
 Related keys (`docs/settings.md`): `hideThinkingBlock`, `thinkingBudgets` (per-level token budgets),
@@ -183,9 +188,9 @@ the `pi-claude-bridge` package.
 **There is no built-in dynamic/per-turn model routing.** The default model is fixed until changed by
 `/model`, a flag, or an extension calling `pi.setModel()`.
 
-This repo now implements dynamic role-based defaults as a global extension at
-`home/.pi/agent/extensions/model-families/`, with global family definitions in
-`home/.pi/agent/model-families.json` and trusted project overrides via `.pi/model-families.json`.
+This repo now implements dynamic role-based defaults through the local `pi-model-families` package,
+with global family definitions in `home/.pi/agent/model-families.json` and trusted project overrides
+via `.pi/model-families.json`.
 
 ---
 

@@ -3,7 +3,8 @@
   "packages": [
     "npm:pi-claude-bridge",
     "npm:pine-of-glass",
-    "../packages/pi-model-families",
-    "../packages/pi-herdr-agents"
+    "npm:@mobrienv/pi-tidy-tools",
+    "npm:@mobrienv/pi-tidy-subagents",
+    "../packages/pi-model-families"
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "defaultFamily": "copilot-budget",
+  "defaultFamily": "copilot-main",
   "autoRoute": true,
   "returnRole": "delivery",
   "families": {
@@ -29,6 +29,36 @@
         "verification": {
           "provider": "cloudflare-workers-ai",
           "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "low"
+        }
+      }
+    },
+    "copilot-main": {
+      "description": "Main Copilot defaults: GPT-5.5 for research/planning/architecture, Kimi K2.7 Code for delivery/verification.",
+      "roles": {
+        "research": {
+          "provider": "github-copilot",
+          "model": "gpt-5.5",
+          "thinkingLevel": "high"
+        },
+        "architecture": {
+          "provider": "github-copilot",
+          "model": "gpt-5.5",
+          "thinkingLevel": "high"
+        },
+        "planning": {
+          "provider": "github-copilot",
+          "model": "gpt-5.5",
+          "thinkingLevel": "high"
+        },
+        "delivery": {
+          "provider": "github-copilot",
+          "model": "kimi-k2.7-code",
+          "thinkingLevel": "low"
+        },
+        "verification": {
+          "provider": "github-copilot",
+          "model": "kimi-k2.7-code",
           "thinkingLevel": "low"
         }
       }

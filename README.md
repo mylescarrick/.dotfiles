@@ -35,6 +35,7 @@ After `init`, `dot` is on your PATH globally. Restart the shell (or
 | `dot retry-failed` | Reinstall packages that failed during setup |
 | `dot package add/remove/list/update` | Manage the Brewfile |
 | `dot pi-auth cloudflare` | Configure private Pi Cloudflare auth entries |
+| `dot pi-settings sync` | Sync private Pi settings from tracked defaults |
 | `dot gen-ssh-key [email]` | Generate an ed25519 SSH key (named by email domain) |
 | `dot stow` | Re-create `home/` → `~` symlinks |
 | `dot link` / `dot unlink` | Add/remove the global `dot` symlink in PATH |
@@ -109,7 +110,9 @@ dot skills remove tech-spec                        # drop a skill
 dot skills link                                    # wire local skills (mc-pr, …) into agents
 ```
 
-## Pi private auth
+## Pi private runtime config
+
+`~/.pi/agent/settings.json` is runtime-owned instead of stowed, so Pi can update model preferences and changelog state without dirtying the public dotfiles checkout. `dot pi-settings sync` merges tracked defaults from `config/pi/settings.defaults.json` into the live file, preserving runtime model preferences while letting dotfiles own package sources. `dot init` and `dot update` run this sync automatically.
 
 `dot pi-auth cloudflare` configures `~/.pi/agent/auth.json` for the `cloudflare-ai-gateway` and `cloudflare-workers-ai` providers. It writes private runtime state directly, preserves existing auth entries, and keeps the file at `0600`; `auth.json` is not stowed or tracked.
 

@@ -29,7 +29,7 @@ After `init`, `dot` is on your PATH globally. Restart the shell (or
 | Command | What it does |
 |---------|--------------|
 | `dot init [--skip-ssh] [--skip-font]` | Full setup (see steps below) |
-| `dot update` | Pull, upgrade Homebrew, re-stow, refresh Herdr/Pi integration, run `pi update --all` |
+| `dot update` | Pull, upgrade Homebrew, re-stow, sync Pi settings/deps, run `pi update --all` |
 | `dot doctor` | Environment health check |
 | `dot check-packages` | Show installed vs. missing Brewfile packages |
 | `dot retry-failed` | Reinstall packages that failed during setup |
@@ -42,7 +42,7 @@ After `init`, `dot` is on your PATH globally. Restart the shell (or
 | `dot edit` | Open the dotfiles dir in `$EDITOR` |
 | `dot help` | Command overview |
 
-`dot init` runs, in order: Homebrew → Brewfile packages → Stow → Bun →
+`dot init` runs, in order: Homebrew → Brewfile packages → Stow → Pi settings → Bun →
 `pi` (via `bun install -g`) → pi extension deps → SSH key (`--skip-ssh`) →
 Nerd Font (`--skip-font`) → oh-my-zsh. Package installs are resilient:
 failures are logged to `packages/failed_packages_*.txt` and retried with

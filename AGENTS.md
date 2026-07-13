@@ -43,7 +43,7 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 - Stow layout: `home/` mirrors `~`, stow creates symlinks
 - Zsh: oh-my-zsh; custom functions/aliases live in `home/.oh-my-zsh/custom/*.zsh`, loaded after plugins — check plugin aliases/functions before adding new ones (oh-my-zsh's `git` plugin already covers most git shorthand: `git_main_branch`, `git_current_branch`, `gbda`/`gbds`, `grename`, `gdv`, etc.)
 - Agent skills: canonical copy lives in `home/.agents/skills/`; per-agent global dirs that differ from `~/.agents/skills/` (pi, Claude Code) get relative symlinks back to canonical, matching the `skills` CLI's own install behavior. Manage via `dot skills` (add/update/remove/link/list) — never raw `skills add -g`/`skills update`, which target the wrong checkout, pollute the stow tree via `~/.config`, and fan out to every known agent. Vendored skills are tracked in `home/.agents/.skill-lock.json`; local shared skills (`mc-pr`, `mc-commit`, `bro`, `harness-routing`) are hand-authored and wired in with `dot skills link`. Pi-only skills live under `home/.pi/packages/*/skills/`, not shared `~/.agents/skills/`
-- Pi extensions/packages: TypeScript, npm workspaces under `home/.pi/`; generic reusable Pi packages live in `home/.pi/packages/` before publishing
+- Pi extensions/packages: TypeScript, npm workspaces under `home/.pi/`; generic reusable local Pi packages live in `home/.pi/packages/` before publishing; published Pi packages live in `config/pi/settings.defaults.json`
 
 ## ANTI-PATTERNS
 
@@ -56,7 +56,7 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 
 ```bash
 dot init              # Full setup (brew, stow, bun, ssh, font, oh-my-zsh)
-dot update            # Pull + brew upgrade + restow + Herdr/Pi integration + pi update --all
+dot update            # Pull + brew upgrade + restow + Pi settings/deps sync + pi update --all
 dot doctor            # Health check
 dot stow              # Resymlink only
 dot package add X     # Add + install package
@@ -84,5 +84,5 @@ dot gen-ssh-key       # Generate ed25519 key by email domain
 - `dot update` handles WARP VPN brew API issues automatically
 - Starship `command_timeout = 2000` because Vite+ node shims are slow
 - `home/.oh-my-zsh/custom/secrets.zsh` is gitignored — contains env tokens for work services
-- `.pi/agent/*` mostly gitignored; extensions + skills explicitly un-ignored; Herdr's generated `herdr-agent-state.ts` integration remains untracked
+- `.pi/agent/*` mostly gitignored; extensions + skills explicitly un-ignored; Pi runtime package settings are synced from `config/pi/settings.defaults.json`
 - Git identity requires a clean `~/.gitconfig` (or none) — a pre-existing one overrides the XDG `~/.config/git/config` for any values it sets, breaking the personal/work conditional include

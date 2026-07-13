@@ -39,11 +39,11 @@ Move reference-heavy material to sibling files when it is branch-specific or rar
 
 ## Harness policy
 
-Any skill mentioning subagents, background agents, worktrees, MCP, Herdr, model selection, or hooks must be harness-aware.
+Any skill mentioning subagents, background agents, worktrees, MCP, model selection, or hooks must be harness-aware.
 
 Preferred wording:
 
-- Pi: inline by default; Herdr visible workers only when justified and available.
+- Pi: inline by default; use `@mobrienv/pi-tidy-subagents` only when delegation is justified and available.
 - Claude Code: native subagents/worktrees only when justified.
 - Model choice: use roles (`research`, `architecture`, `planning`, `delivery`, `verification`), not concrete model IDs.
 

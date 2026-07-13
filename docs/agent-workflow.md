@@ -9,10 +9,10 @@ This repo configures a small agent stack. Keep each layer's job distinct.
 | Supacode | repos, worktrees, tabs, surfaces | You need workspace structure or multiple terminal surfaces. |
 | Pi | coding-agent loop and tools | You are doing normal implementation, planning, research, or review. |
 | Pi packages | reusable Pi behavior | The behavior is Pi-specific and should travel between projects. |
-| Herdr | visible terminal agents | You need parallel/fresh-context agents whose transcripts and cost stay visible. |
+| Pi tidy subagents | foreground/background child Pi agents | You need justified parallel or fresh-context work inside a Pi session. |
 | Shared skills | cross-harness workflow | The behavior should work in Pi, Claude Code, and other skill-aware agents. |
 
-Default to the current Pi session. Add Herdr only when visible delegation is worth the overhead.
+Default to the current Pi session. Add tidy subagents only when delegation is worth the overhead and safety constraints.
 
 ## Model selection
 
@@ -35,7 +35,7 @@ Do not bake concrete model names into shared skills or project workflow docs.
 
 ## Delegation
 
-Use inline work for small or dependent tasks. Use visible Herdr workers for:
+Use inline work for small or dependent tasks. Use Pi tidy subagents for:
 
 - broad independent research
 - fresh-context review
@@ -44,11 +44,12 @@ Use inline work for small or dependent tasks. Use visible Herdr workers for:
 
 Guardrails:
 
-- default max workers: 2
-- max workers without explicit override: 3
+- inline remains the default
+- prefer foreground children when the parent needs the result before proceeding
+- use background children for longer independent work that can report back later
 - read-only unless the user approved writes
-- parallel writes require separate worktrees
-- parent session summarizes worker output; do not paste full transcripts back in
+- parallel writes require separate worktrees and non-overlapping scopes
+- parent session summarizes child output; use artifacts for full details
 
 ## Harness routing
 
@@ -56,13 +57,13 @@ Use the local `harness-routing` skill when an upstream skill mentions background
 
 Translation rules:
 
-- **Pi:** inline by default; Herdr visible workers only when justified; model roles via `pi-model-families` when available.
-- **Claude Code:** use native Claude Code subagents/worktrees when justified; do not use Herdr just because it is installed.
+- **Pi:** inline by default; tidy subagents only when justified; model roles via `pi-model-families` when available.
+- **Claude Code:** use native Claude Code subagents/worktrees when justified.
 - **Unknown/default:** stay sequential unless the runtime explicitly supports the feature.
 
 ## Publishing Pi packages
 
-Reusable Pi behavior is staged under:
+Reusable local Pi behavior is staged under:
 
 ```text
 home/.pi/packages/
@@ -73,7 +74,6 @@ Publish with Bun from `home/.pi`:
 ```bash
 bun run pack:pi-packages
 bun run publish:pi-model-families
-bun run publish:pi-herdr-agents
 ```
 
-After publishing, replace local package paths in settings with npm sources where appropriate.
+Published third-party Pi packages such as `@mobrienv/pi-tidy-tools` and `@mobrienv/pi-tidy-subagents` are managed through `config/pi/settings.defaults.json` and Pi's package updater.

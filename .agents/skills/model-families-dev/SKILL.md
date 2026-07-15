@@ -1,11 +1,11 @@
 ---
-name: model-families
-description: Manage Pi model-family config. Use when creating, editing, auditing, disabling, or choosing role-based model families, providers, models, inputs, or thinking levels.
+name: model-families-dev
+description: Maintain this dotfiles repo's Pi model-family config and extension. Use when editing tracked model-family families, docs, audit tooling, providers, models, inputs, or thinking levels.
 ---
 
-# Model Families
+# Model Families Dev
 
-Use this skill before editing Pi `model-families.json` or changing role-based model routing.
+Use this project-local skill before editing this dotfiles repo's tracked Pi `model-families.json`, model-family extension, or role-based routing docs.
 
 ## Files
 

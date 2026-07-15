@@ -38,7 +38,9 @@ async function makeFixture(tracked: Record<string, string>): Promise<{
   temporaryDirectories.push(home);
   const checkout = join(home, ".dotfiles");
   await mkdir(join(checkout, "config/pi"), { recursive: true });
+  await mkdir(join(checkout, "packages"), { recursive: true });
   await mkdir(join(checkout, "home"), { recursive: true });
+  await writeFile(join(checkout, "packages/bundle"), 'brew "stow"\n');
   await writeFile(
     join(checkout, "config/pi/settings.defaults.json"),
     '{"theme":"dark","packages":[]}\n',
@@ -55,7 +57,15 @@ async function makeFixture(tracked: Record<string, string>): Promise<{
   await run(["git", "commit", "-m", "fixture"], checkout);
   const head = await run(["git", "rev-parse", "HEAD"], checkout);
   await run(["git", "update-ref", "refs/remotes/origin/main", head], checkout);
-  return { checkout, home, env: { ...process.env, HOME: home } };
+  const toolBin = join(home, "tool-bin");
+  await mkdir(toolBin);
+  await writeFile(join(toolBin, "brew"), "#!/bin/sh\nexit 0\n");
+  await chmod(join(toolBin, "brew"), 0o755);
+  return {
+    checkout,
+    home,
+    env: { ...process.env, HOME: home, PATH: `${toolBin}:${process.env.PATH}` },
+  };
 }
 
 afterEach(async () => {

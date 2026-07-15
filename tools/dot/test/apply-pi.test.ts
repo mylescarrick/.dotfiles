@@ -36,7 +36,9 @@ async function makeFixture(): Promise<{
   temporaryDirectories.push(home);
   const checkout = join(home, ".dotfiles");
   await mkdir(join(checkout, "config/pi"), { recursive: true });
+  await mkdir(join(checkout, "packages"), { recursive: true });
   await mkdir(join(checkout, "home"), { recursive: true });
+  await writeFile(join(checkout, "packages/bundle"), 'brew "stow"\n');
   await writeFile(join(checkout, "home/.dot-apply-fixture"), "tracked\n");
   await writeFile(
     join(checkout, "config/pi/settings.defaults.json"),
@@ -61,8 +63,16 @@ async function makeFixture(): Promise<{
     ["git", "update-ref", "refs/remotes/origin/main", head],
     checkout,
   );
+  const fakeBin = join(home, "fake-bin");
+  await mkdir(fakeBin);
+  await writeFile(join(fakeBin, "brew"), "#!/bin/sh\nexit 0\n");
+  await chmod(join(fakeBin, "brew"), 0o755);
 
-  return { checkout, home, env: { ...process.env, HOME: home } };
+  return {
+    checkout,
+    home,
+    env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}` },
+  };
 }
 
 afterEach(async () => {
@@ -121,7 +131,8 @@ describe("dot apply Pi settings", () => {
 
     expect(outcome).toEqual({
       exitCode: 0,
-      stdout: "Dotfiles stowed\nPi settings synced\n",
+      stdout:
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\n",
       stderr: "",
     });
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
@@ -147,7 +158,8 @@ describe("dot apply Pi settings", () => {
       }),
     ).toMatchObject({
       exitCode: 0,
-      stdout: "Dotfiles stowed\nPi settings synced\n",
+      stdout:
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\n",
     });
     const first = await lstat(settingsPath);
 
@@ -159,7 +171,8 @@ describe("dot apply Pi settings", () => {
       }),
     ).toMatchObject({
       exitCode: 0,
-      stdout: "Dotfiles stowed\nPi settings already current\n",
+      stdout:
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings already current\n",
     });
     const second = await lstat(settingsPath);
     expect(second.ino).toBe(first.ino);
@@ -174,7 +187,8 @@ describe("dot apply Pi settings", () => {
       }),
     ).toMatchObject({
       exitCode: 0,
-      stdout: "Dotfiles stowed\nPi settings synced\n",
+      stdout:
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\n",
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
   });

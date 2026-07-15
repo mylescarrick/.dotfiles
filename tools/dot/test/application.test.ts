@@ -60,6 +60,20 @@ COMMANDS
     });
   });
 
+  test("rejects invalid apply arguments before inspecting the checkout", async () => {
+    expect(
+      await application.execute({
+        argv: ["apply", "--force"],
+        cwd: "/tmp/checkout",
+        env: {},
+      }),
+    ).toEqual({
+      exitCode: 2,
+      stdout: "",
+      stderr: "dot: usage: dot apply [--yes]\n",
+    });
+  });
+
   test("rejects an unknown command with usage guidance", async () => {
     expect(
       await application.execute({

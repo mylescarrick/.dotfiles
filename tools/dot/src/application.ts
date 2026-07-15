@@ -1,4 +1,7 @@
+import { resolve } from "node:path";
 import packageMetadata from "../package.json";
+import { apply } from "./apply";
+import { bunProcessRunner, type ProcessRunner } from "./process";
 
 export interface Invocation {
   readonly argv: readonly string[];
@@ -19,6 +22,11 @@ export interface DotApplication {
 interface CommandDescription {
   readonly usage: string;
   readonly summary: string;
+}
+
+interface ApplicationDependencies {
+  readonly checkoutRoot: string;
+  readonly processes?: ProcessRunner;
 }
 
 const commands: readonly CommandDescription[] = [
@@ -49,28 +57,68 @@ ${commandLines}
 `;
 }
 
-export const application: DotApplication = {
-  async execute(invocation) {
-    const [command] = invocation.argv;
-    if (
-      invocation.argv.length === 0 ||
-      (invocation.argv.length === 1 && (command === "help" || command === "--help"))
-    ) {
-      return { exitCode: 0, stdout: renderHelp(), stderr: "" };
-    }
+export function createApplication(
+  dependencies: ApplicationDependencies,
+): DotApplication {
+  const processes = dependencies.processes ?? bunProcessRunner;
+  return {
+    async execute(invocation) {
+      const [command] = invocation.argv;
+      if (
+        invocation.argv.length === 0 ||
+        (invocation.argv.length === 1 &&
+          (command === "help" || command === "--help"))
+      ) {
+        return { exitCode: 0, stdout: renderHelp(), stderr: "" };
+      }
 
-    if (invocation.argv.length === 1 && command === "--version") {
+      if (invocation.argv.length === 1 && command === "--version") {
+        return {
+          exitCode: 0,
+          stdout: `dot version ${packageMetadata.version}\n`,
+          stderr: "",
+        };
+      }
+
+      if (command === "apply") {
+        if (
+          invocation.argv.length > 2 ||
+          (invocation.argv.length === 2 && invocation.argv[1] !== "--yes")
+        ) {
+          return {
+            exitCode: 2,
+            stdout: "",
+            stderr: "dot: usage: dot apply [--yes]\n",
+          };
+        }
+        try {
+          return {
+            exitCode: 0,
+            stdout: await apply({
+              checkoutRoot: dependencies.checkoutRoot,
+              env: invocation.env,
+              processes,
+            }),
+            stderr: "",
+          };
+        } catch (error) {
+          return {
+            exitCode: 1,
+            stdout: "",
+            stderr: `dot: ${(error as Error).message}\n`,
+          };
+        }
+      }
+
       return {
-        exitCode: 0,
-        stdout: `dot version ${packageMetadata.version}\n`,
-        stderr: "",
+        exitCode: 2,
+        stdout: "",
+        stderr: `dot: unknown command '${command}'\nRun 'dot help' for usage.\n`,
       };
-    }
+    },
+  };
+}
 
-    return {
-      exitCode: 2,
-      stdout: "",
-      stderr: `dot: unknown command '${command}'\nRun 'dot help' for usage.\n`,
-    };
-  },
-};
+export const application = createApplication({
+  checkoutRoot: resolve(import.meta.dir, "../../.."),
+});

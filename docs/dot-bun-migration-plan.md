@@ -1,6 +1,6 @@
 # `dot` Bun Migration Plan
 
-Status: Refreshed draft
+Status: Implemented — Phases 0–6 complete
 Owner: dotfiles maintainer
 Scope: Replace the monolithic Bash implementation with a small Bun/TypeScript CLI, while simplifying the command surface and making canonical-checkout updates safe and testable.
 

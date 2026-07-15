@@ -10,10 +10,10 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
-const dotRoot = `${import.meta.dir}/..`;
+const launcherPath = resolve(import.meta.dir, "../../../dot");
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
@@ -59,7 +59,7 @@ async function makeFixture(
   const origin = join(root, "origin.git");
   await mkdir(join(checkout, "tools/dot/src"), { recursive: true });
   await mkdir(fakeBin, { recursive: true });
-  await copyFile(join(dotRoot, "launcher.sh"), join(checkout, "dot"));
+  await copyFile(launcherPath, join(checkout, "dot"));
   await chmod(join(checkout, "dot"), 0o755);
   await writeFile(join(checkout, "tools/dot/src/main.ts"), "// fixture\n");
   if (options.withBun !== false) {
@@ -253,6 +253,39 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     expect(await readFile(fixture.invocationLog, "utf8")).toBe(
       `${join(fixture.checkout, "tools/dot/src/main.ts")}\ninit\n`,
     );
+  });
+
+  test("refuses to bootstrap Bun from a noncanonical checkout", async () => {
+    const fixture = await makeFixture({ withBun: false, withGit: true });
+    const worktree = join(fixture.home, "feature-init");
+    await run(
+      ["git", "worktree", "add", "-b", "feature-init", worktree],
+      fixture.checkout,
+    );
+
+    const child = Bun.spawn(
+      [
+        "/bin/sh",
+        "-c",
+        '( sleep .2; printf "y\\n" ) | /usr/bin/script -q /dev/null "$DOT_TEST_LAUNCHER" init',
+      ],
+      {
+        env: { ...fixture.env, DOT_TEST_LAUNCHER: join(worktree, "dot") },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    const [stdout, stderr] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+
+    expect(stderr).toBe("");
+    expect(stdout).toContain(
+      `dot: init must run from the canonical checkout at ${fixture.checkout}`,
+    );
+    expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
   });
 
   test("does not download Bun when interactive bootstrap is declined", async () => {

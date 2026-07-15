@@ -1,5 +1,6 @@
 import { apply } from "./apply";
 import { bootstrapMachine } from "./bootstrap";
+import { guardCanonicalCheckout } from "./checkout";
 import { runDoctor } from "./diagnostics";
 import type { ProcessRunner } from "./process";
 import type { Terminal } from "./terminal";
@@ -11,6 +12,8 @@ export async function initialize(options: {
   readonly processes: ProcessRunner;
   readonly terminal: Terminal;
 }): Promise<{ readonly exitCode: number; readonly stdout: string }> {
+  // Fail before system bootstrap; apply guards again after this potentially long step.
+  await guardCanonicalCheckout(options);
   const bootstrap = await bootstrapMachine(options);
   const applyOutput = await apply({
     acceptTracked: false,

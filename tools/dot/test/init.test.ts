@@ -166,6 +166,33 @@ describe("dot init", () => {
     expect(outcome.stdout).toContain("0 actionable issues\n");
   });
 
+  test("refuses noncanonical init before system bootstrap", async () => {
+    const state = await fixture();
+    const worktree = join(state.home, "feature-init");
+    await run(
+      ["git", "worktree", "add", "-b", "feature-init", worktree],
+      state.checkout,
+    );
+    const processes = new FreshBootstrapProcesses();
+
+    const outcome = await createApplication({
+      checkoutRoot: worktree,
+      processes,
+      terminal: answeringTerminal(["y", "y"]),
+    }).execute({ argv: ["init"], cwd: worktree, env: state.env });
+
+    expect(outcome).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: `dot: machine mutation must run from the canonical checkout at ${state.checkout}\n`,
+    });
+    expect(
+      processes.requests.some(({ argv }) =>
+        ["brew", "pi", "curl", "bun", "stow"].includes(argv[0]),
+      ),
+    ).toBe(false);
+  });
+
   test("required bootstrap failure prevents apply and doctor mutation", async () => {
     const state = await fixture();
     const processes = new FreshBootstrapProcesses(true);
@@ -201,10 +228,11 @@ describe("dot init", () => {
   });
 
   test("refuses noninteractive init before mutation", async () => {
-    const outcome = await createApplication({ checkoutRoot: "/missing" }).execute({
+    const state = await fixture();
+    const outcome = await createApplication({ checkoutRoot: state.checkout }).execute({
       argv: ["init"],
-      cwd: "/missing",
-      env: { HOME: "/tmp/home" },
+      cwd: state.checkout,
+      env: state.env,
     });
     expect(outcome).toEqual({
       exitCode: 1,

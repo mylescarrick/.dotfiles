@@ -122,7 +122,7 @@ Report the PR URL plus the exact verification evidence included in the PR test p
 
 ## Test plan
 
-- [ ] `dot stow` runs clean with no conflicts
+- [ ] `dot apply` runs clean with no conflicts
 - [ ] New shell functions load without error in an interactive zsh session
 - [ ] `git fomo` and `git lg` work without fish installed
 ```

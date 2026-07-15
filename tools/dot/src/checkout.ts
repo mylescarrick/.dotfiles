@@ -42,7 +42,9 @@ export async function guardCanonicalCheckout(options: {
     realpath(join(home, ".dotfiles")).catch(() => undefined),
   ]);
   if (!canonicalRoot || checkoutRoot !== canonicalRoot) {
-    throw new Error(`apply must run from the canonical checkout at ${join(home, ".dotfiles")}`);
+    throw new Error(
+      `machine mutation must run from the canonical checkout at ${join(home, ".dotfiles")}`,
+    );
   }
 
   const gitDir = await git(options.processes, checkoutRoot, options.env, [

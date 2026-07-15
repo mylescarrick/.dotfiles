@@ -32,7 +32,7 @@ Current workspace-managed local extensions live under:
 
 Global model-family defaults are tracked in `agent/model-families.json`; trusted projects can override them with `.pi/model-families.json`.
 
-Runtime Pi package sources are tracked in `../../config/pi/settings.defaults.json` and synced into `~/.pi/agent/settings.json` with `dot pi-settings sync`. Published packages currently include `@mobrienv/pi-tidy-tools` and `@mobrienv/pi-tidy-subagents`; local package prototypes live under `packages/` and are referenced with paths relative to the runtime settings file.
+Runtime Pi package sources are tracked in `../../config/pi/settings.defaults.json` and synced into private `~/.pi/agent/settings.json` by canonical `dot apply` / `dot update`. Published packages currently include `@mobrienv/pi-tidy-tools` and `@mobrienv/pi-tidy-subagents`; local package prototypes live under `packages/` and are referenced with paths relative to the runtime settings file.
 
 Package/publish helpers for local packages:
 

@@ -14,6 +14,7 @@ export async function apply(options: {
   readonly processes: ProcessRunner;
   readonly terminal: Terminal;
 }): Promise<string> {
+  // Revalidate here even when init already guarded before its bootstrap stages.
   await guardCanonicalCheckout(options);
   const home = options.env.HOME;
   if (!home) throw new Error("HOME is required");

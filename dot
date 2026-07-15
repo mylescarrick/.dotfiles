@@ -199,6 +199,13 @@ _prepare_stow_file_conflicts() {
 
         target_path="${HOME}/${rel_path}"
         [[ -e "$target_path" || -L "$target_path" ]] || continue
+
+        # If a parent directory is already stowed as a symlink, target_path may
+        # resolve back to source_path even though target_path itself is not a
+        # symlink. Treat that as already stowed; removing target_path would
+        # delete the tracked source file through the symlinked parent.
+        [[ "$source_path" -ef "$target_path" ]] && continue
+
         [[ -L "$target_path" || -d "$target_path" ]] && continue
 
         if cmp -s "$source_path" "$target_path"; then

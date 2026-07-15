@@ -14,6 +14,8 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 │   └── ripgrep/        # rg config
 ├── home/.zshrc, .zprofile  # Stowed to ~
 ├── home/.oh-my-zsh/custom/ # Custom zsh functions/aliases (stowed into ~/.oh-my-zsh/custom/)
+├── .agents/skills/     # Repo-local skills for maintaining this checkout only
+├── .pi/                # Repo-local Pi resources for this checkout only
 ├── home/.agents/skills/    # Canonical agent-skills library (stowed to ~/.agents/skills/)
 ├── home/.pi/           # Pi agent workspace (AGENTS.md)
 │   ├── agent/extensions/ # TypeScript extensions
@@ -29,7 +31,8 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 |------|----------|
 | Add package | `dot package add <name>` or edit `packages/bundle` |
 | Vendor/update agent skill | `dot skills add <owner/repo> <skill...>` / `dot skills update` |
-| Add local skill | Author `home/.agents/skills/<name>/SKILL.md`, then `dot skills link` |
+| Add global/deployed skill | Author `home/.agents/skills/<name>/SKILL.md`, then `dot skills link` |
+| Add repo-only maintenance skill | Author `.agents/skills/<name>/SKILL.md` |
 | Shell alias | `home/.oh-my-zsh/custom/aliases.zsh` |
 | Shell function | `home/.oh-my-zsh/custom/*.zsh` (git.zsh, worktree.zsh, utils.zsh) |
 | Git alias | `home/.config/git/config` [alias] section |
@@ -43,6 +46,7 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 - Stow layout: `home/` mirrors `~`, stow creates symlinks
 - Zsh: oh-my-zsh; custom functions/aliases live in `home/.oh-my-zsh/custom/*.zsh`, loaded after plugins — check plugin aliases/functions before adding new ones (oh-my-zsh's `git` plugin already covers most git shorthand: `git_main_branch`, `git_current_branch`, `gbda`/`gbds`, `grename`, `gdv`, etc.)
 - Agent skills: canonical copy lives in `home/.agents/skills/`; per-agent global dirs that differ from `~/.agents/skills/` (pi, Claude Code) get relative symlinks back to canonical, matching the `skills` CLI's own install behavior. Manage via `dot skills` (add/update/remove/link/list) — never raw `skills add -g`/`skills update`, which target the wrong checkout, pollute the stow tree via `~/.config`, and fan out to every known agent. Vendored skills are tracked in `home/.agents/.skill-lock.json`; local shared skills (`mc-pr`, `mc-commit`, `bro`, `harness-routing`) are hand-authored and wired in with `dot skills link`. Pi-only skills live under `home/.pi/packages/*/skills/`, not shared `~/.agents/skills/`
+- Repo-local agent resources: maintenance guidance/tools that only make sense while editing this checkout live at repo root (`.agents/skills/<name>/SKILL.md`, `.pi/skills/<name>/SKILL.md`, `.pi/extensions/<name>/index.ts`). Do not put repo-maintenance-only resources under `home/`; `dot stow` deploys only `home/*` resources to real `~` paths.
 - Pi extensions/packages: TypeScript, npm workspaces under `home/.pi/`; generic reusable local Pi packages live in `home/.pi/packages/` before publishing; published Pi packages live in `config/pi/settings.defaults.json`
 
 ## ANTI-PATTERNS

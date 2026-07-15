@@ -6,6 +6,7 @@ home/.config/opencode/amp_stuff/
 backups/
 packages/failed_packages_*.txt
 tmp/
+node_modules/
 .DS_STORE
 home/.agents/skills/ui/
 

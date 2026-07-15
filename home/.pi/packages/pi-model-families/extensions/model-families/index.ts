@@ -16,6 +16,7 @@ type TargetModel = {
 }
 type ModelFamily = {
   description?: string
+  disabled?: boolean
   roles: Partial<Record<Role, TargetModel>>
 }
 type ModelFamiliesConfig = {
@@ -49,7 +50,8 @@ const CONFIG_FILE = "model-families.json"
 const STATE_ENTRY_TYPE = "model-family-state"
 const ROLES = ["research", "architecture", "planning", "delivery", "verification"] as const
 const ROLE_SET = new Set<string>(ROLES)
-const THINKING_LEVELS = new Set<string>(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+const THINKING_LEVEL_ORDER = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const
+const THINKING_LEVELS = new Set<string>(THINKING_LEVEL_ORDER)
 
 const FALLBACK_CONFIG: ModelFamiliesConfig = {
   defaultFamily: "copilot-budget",
@@ -89,6 +91,8 @@ const COMMANDS = [
   "planning",
   "delivery",
   "verification",
+  "models",
+  "audit",
   "lock",
   "reload",
 ]
@@ -168,12 +172,15 @@ function normalizeConfig(value: unknown, ctx?: ExtensionContext): ModelFamiliesC
 
     families[familyName] = {
       description: typeof rawFamily.description === "string" ? rawFamily.description : undefined,
+      disabled: rawFamily.disabled === true,
       roles,
     }
   }
 
-  const fallbackDefault = Object.keys(families)[0] ?? FALLBACK_CONFIG.defaultFamily
-  const defaultFamily = typeof source.defaultFamily === "string" && families[source.defaultFamily] ? source.defaultFamily : fallbackDefault
+  const enabledNames = Object.entries(families).filter(([, family]) => !family.disabled).map(([name]) => name)
+  const fallbackDefault = enabledNames[0] ?? Object.keys(families)[0] ?? FALLBACK_CONFIG.defaultFamily
+  const configuredDefault = typeof source.defaultFamily === "string" ? families[source.defaultFamily] : undefined
+  const defaultFamily = typeof source.defaultFamily === "string" && configuredDefault && !configuredDefault.disabled ? source.defaultFamily : fallbackDefault
 
   return {
     defaultFamily,
@@ -264,6 +271,185 @@ function targetForRole(family: ModelFamily, role: Role): { role: Role; target: T
   return undefined
 }
 
+
+type RegistryModel = ReturnType<ExtensionContext["modelRegistry"]["getAll"]>[number]
+
+type ProviderAuthStatusShape = {
+  configured?: boolean
+  source?: string
+  label?: string
+}
+
+function familyEnabledEntries(config: ModelFamiliesConfig): Array<[string, ModelFamily]> {
+  return Object.entries(config.families).filter(([, family]) => !family.disabled)
+}
+
+function familyNames(config: ModelFamiliesConfig, options?: { enabledOnly?: boolean }): string[] {
+  const entries = options?.enabledOnly ? familyEnabledEntries(config) : Object.entries(config.families)
+  return entries.map(([name]) => name)
+}
+
+function supportedThinkingLevels(model: RegistryModel): ThinkingLevel[] {
+  if (!model.reasoning) return ["off"]
+
+  const thinkingLevelMap = model.thinkingLevelMap as Partial<Record<ThinkingLevel, string | null>> | undefined
+  return THINKING_LEVEL_ORDER.filter((level) => {
+    const mapped = thinkingLevelMap?.[level]
+    if (mapped === null) return false
+    if (level === "xhigh" || level === "max") return mapped !== undefined
+    return true
+  })
+}
+
+function clampThinkingLevel(model: RegistryModel, level: ThinkingLevel): ThinkingLevel {
+  const available = supportedThinkingLevels(model)
+  if (available.includes(level)) return level
+
+  const requestedIndex = THINKING_LEVEL_ORDER.indexOf(level)
+  if (requestedIndex === -1) return available[0] ?? "off"
+
+  for (let i = requestedIndex; i < THINKING_LEVEL_ORDER.length; i += 1) {
+    const candidate = THINKING_LEVEL_ORDER[i]!
+    if (available.includes(candidate)) return candidate
+  }
+
+  for (let i = requestedIndex - 1; i >= 0; i -= 1) {
+    const candidate = THINKING_LEVEL_ORDER[i]!
+    if (available.includes(candidate)) return candidate
+  }
+
+  return available[0] ?? "off"
+}
+
+function modelRef(model: RegistryModel): string {
+  return `${model.provider}/${model.id}`
+}
+
+function authStatusLabel(status: ProviderAuthStatusShape): string {
+  if (status.configured) return status.label ? `${status.source ?? "configured"}:${status.label}` : (status.source ?? "configured")
+  if (status.source) return status.label ? `unconfigured ${status.source}:${status.label}` : `unconfigured ${status.source}`
+  return "missing"
+}
+
+function modelMatchesQuery(model: RegistryModel, query: string): boolean {
+  if (!query) return true
+  const haystack = `${model.provider}\n${model.id}\n${model.name ?? ""}`.toLowerCase()
+  return query.toLowerCase().split(/\s+/).every((part) => haystack.includes(part))
+}
+
+function envPlaceholders(value: string | undefined): string[] {
+  if (!value) return []
+  const names = new Set<string>()
+  for (const match of value.matchAll(/\{([A-Z0-9_]+)\}/g)) {
+    names.add(match[1] ?? "")
+  }
+  return [...names].filter(Boolean)
+}
+
+function missingEnvPlaceholders(model: RegistryModel, ctx: ExtensionContext): string[] {
+  const authStorageWithProviderEnv = ctx.modelRegistry.authStorage as { getProviderEnv?: (provider: string) => Record<string, string> | undefined }
+  const providerEnv = authStorageWithProviderEnv.getProviderEnv?.(model.provider) ?? {}
+  return envPlaceholders(model.baseUrl).filter((name) => !process.env[name] && !providerEnv[name])
+}
+
+function formatModelLine(model: RegistryModel, ctx: ExtensionContext): string {
+  const available = ctx.modelRegistry.hasConfiguredAuth(model)
+  const auth = ctx.modelRegistry.getProviderAuthStatus(model.provider) as ProviderAuthStatusShape
+  const missingEnv = missingEnvPlaceholders(model, ctx)
+  return [
+    `${modelRef(model)}${model.name ? ` — ${model.name}` : ""}`,
+    `  available: ${available ? "yes" : "no"}; auth: ${authStatusLabel(auth)}`,
+    `  input: ${model.input.join(",")}; reasoning: ${model.reasoning ? "yes" : "no"}; thinking: ${supportedThinkingLevels(model).join(",")}`,
+    `  context: ${model.contextWindow ?? "?"}; maxTokens: ${model.maxTokens ?? "?"}${missingEnv.length ? `; missing env: ${missingEnv.join(",")}` : ""}`,
+  ].join("\n")
+}
+
+function suggestEquivalentModels(target: TargetModel, ctx: ExtensionContext): string[] {
+  const suggestions: string[] = []
+
+  if (target.provider === "cloudflare-workers-ai" && target.model.startsWith("@cf/")) {
+    const gatewayModel = `workers-ai/${target.model}`
+    if (ctx.modelRegistry.find("cloudflare-ai-gateway", gatewayModel)) {
+      suggestions.push(`cloudflare-ai-gateway/${gatewayModel}`)
+    }
+  }
+
+  if (target.provider === "cloudflare-ai-gateway" && target.model.startsWith("workers-ai/@cf/")) {
+    const workersModel = target.model.replace(/^workers-ai\//, "")
+    if (ctx.modelRegistry.find("cloudflare-workers-ai", workersModel)) {
+      suggestions.push(`cloudflare-workers-ai/${workersModel}`)
+    }
+  }
+
+  const sameId = ctx.modelRegistry.getAll()
+    .filter((model) => model.id === target.model && model.provider !== target.provider)
+    .slice(0, 5)
+    .map((model) => modelRef(model as RegistryModel))
+
+  return [...new Set([...suggestions, ...sameId])]
+}
+
+function showModels(query: string, ctx: ExtensionContext): void {
+  const matches = ctx.modelRegistry.getAll()
+    .filter((model) => modelMatchesQuery(model as RegistryModel, query))
+    .sort((a, b) => modelRef(a as RegistryModel).localeCompare(modelRef(b as RegistryModel)))
+
+  const limit = 30
+  const lines = matches.slice(0, limit).map((model) => formatModelLine(model as RegistryModel, ctx))
+  const suffix = matches.length > limit ? `\n\n...and ${matches.length - limit} more. Refine with /mf models <query>.` : ""
+  ctx.ui.notify(lines.length ? `Models (${matches.length}):\n${lines.join("\n\n")}${suffix}` : `No models match: ${query}`, "info")
+}
+
+function auditFamily(name: string, family: ModelFamily, ctx: ExtensionContext): string[] {
+  const lines = [`${name}${family.disabled ? " [disabled]" : ""}${family.description ? ` — ${family.description}` : ""}`]
+
+  for (const role of ROLES) {
+    const resolved = targetForRole(family, role)
+    if (!resolved) {
+      lines.push(`  ${role}: ✗ missing target`)
+      continue
+    }
+
+    const via = resolved.role === role ? "" : ` (via ${resolved.role})`
+    const target = resolved.target
+    const model = ctx.modelRegistry.find(target.provider, target.model) as RegistryModel | undefined
+    if (!model) {
+      const suggestions = suggestEquivalentModels(target, ctx)
+      lines.push(`  ${role}: ✗ ${modelKey(target)}${via} missing${suggestions.length ? `; similar: ${suggestions.join(", ")}` : ""}`)
+      continue
+    }
+
+    const available = ctx.modelRegistry.hasConfiguredAuth(model)
+    const auth = ctx.modelRegistry.getProviderAuthStatus(model.provider) as ProviderAuthStatusShape
+    const supported = supportedThinkingLevels(model)
+    const thinking = target.thinkingLevel
+      ? supported.includes(target.thinkingLevel)
+        ? `✓ thinking ${target.thinkingLevel}`
+        : `⚠ thinking ${target.thinkingLevel} unsupported; clamps to ${clampThinkingLevel(model, target.thinkingLevel)}`
+      : "⚠ thinking unset; current level is retained"
+    const missingEnv = missingEnvPlaceholders(model, ctx)
+    const envText = missingEnv.length ? `; missing env ${missingEnv.join(",")}` : ""
+
+    lines.push(`  ${role}: ${available ? "✓" : "⚠"} ${modelKey(target)}${via}; available ${available ? "yes" : "no"}; auth ${authStatusLabel(auth)}; input ${model.input.join(",")}; ${thinking}${envText}`)
+  }
+
+  return lines
+}
+
+function showAudit(familyName: string | undefined, config: ModelFamiliesConfig, ctx: ExtensionContext): void {
+  const entries = familyName
+    ? Object.entries(config.families).filter(([name]) => name === familyName)
+    : Object.entries(config.families)
+
+  if (familyName && entries.length === 0) {
+    ctx.ui.notify(`Model families: unknown family ${familyName}\n${helpText(config)}`, "warning")
+    return
+  }
+
+  const lines = entries.flatMap(([name, family]) => auditFamily(name, family, ctx))
+  ctx.ui.notify(`Model family audit:\n${lines.join("\n")}`, "info")
+}
+
 function skillNames(options: unknown): string[] {
   const skills = (options as PromptOptionsShape | undefined)?.skills
   if (!Array.isArray(skills)) return []
@@ -305,8 +491,9 @@ function splitArgs(args: string): string[] {
 
 function helpText(config: ModelFamiliesConfig): string {
   return [
-    "Usage: /model-family [status|list|use <family>|auto [family]|default|role <role> [prompt]|<role> [prompt]|lock|reload]",
-    `Families: ${Object.keys(config.families).join(", ")}`,
+    "Usage: /model-family [status|list|use <family>|auto [family]|default|role <role> [prompt]|<role> [prompt]|models [query]|audit [family]|lock|reload]",
+    `Families: ${familyNames(config, { enabledOnly: true }).join(", ")}`,
+    `Disabled: ${familyNames(config).filter((name) => config.families[name]?.disabled).join(", ") || "none"}`,
     `Roles: ${ROLES.join(", ")}`,
   ].join("\n")
 }
@@ -422,8 +609,13 @@ export default function modelFamilies(pi: ExtensionAPI) {
   }
 
   async function useFamily(familyName: string, ctx: ExtensionContext): Promise<void> {
-    if (!config.families[familyName]) {
+    const family = config.families[familyName]
+    if (!family) {
       ctx.ui.notify(`Model families: unknown family ${familyName}\n${helpText(config)}`, "warning")
+      return
+    }
+    if (family.disabled) {
+      ctx.ui.notify(`Model families: ${familyName} is disabled. Set disabled=false in ${CONFIG_FILE} and reload to use it.`, "warning")
       return
     }
 
@@ -467,14 +659,24 @@ export default function modelFamilies(pi: ExtensionAPI) {
     }
 
     if (command === "list") {
-      const lines = Object.entries(config.families).map(([name, family]) => `  ${name}${name === activeFamily ? " *" : ""}${family.description ? ` — ${family.description}` : ""}`)
+      const lines = Object.entries(config.families).map(([name, family]) => `  ${name}${name === activeFamily ? " *" : ""}${family.disabled ? " [disabled]" : ""}${family.description ? ` — ${family.description}` : ""}`)
       ctx.ui.notify(`Model families:\n${lines.join("\n")}`, "info")
+      return
+    }
+
+    if (command === "models") {
+      showModels(parts.slice(1).join(" "), ctx)
+      return
+    }
+
+    if (command === "audit") {
+      showAudit(parts[1], config, ctx)
       return
     }
 
     if (command === "reload") {
       config = loadConfig(ctx.cwd, isProjectTrusted(ctx), ctx)
-      if (!config.families[activeFamily]) activeFamily = config.defaultFamily
+      if (!config.families[activeFamily] || config.families[activeFamily]?.disabled) activeFamily = config.defaultFamily
       routingMode = config.autoRoute ? "auto" : "locked"
       lockedModelKey = routingMode === "locked" ? currentModelKey(ctx) : undefined
       nextRoute = undefined
@@ -535,8 +737,8 @@ export default function modelFamilies(pi: ExtensionAPI) {
     getArgumentCompletions: (prefix) => {
       const parts = splitArgs(prefix)
       const last = parts.at(-1) ?? ""
-      const suggestFamilies = prefix.endsWith(" ") || ["use", "auto"].includes(parts[0] ?? "")
-      const source = suggestFamilies ? Object.keys(config.families) : [...COMMANDS, ...Object.keys(config.families)]
+      const suggestFamilies = prefix.endsWith(" ") || ["use", "auto", "audit"].includes(parts[0] ?? "")
+      const source = suggestFamilies ? familyNames(config, { enabledOnly: !["audit"].includes(parts[0] ?? "") }) : [...COMMANDS, ...familyNames(config)]
       const items = source
         .filter((value) => value.startsWith(last))
         .map((value) => ({ value, label: value }))
@@ -548,7 +750,7 @@ export default function modelFamilies(pi: ExtensionAPI) {
   pi.registerCommand("mf", {
     description: "Alias for /model-family",
     getArgumentCompletions: (prefix) => {
-      const source = [...COMMANDS, ...Object.keys(config.families)]
+      const source = [...COMMANDS, ...familyNames(config)]
       const items = source
         .filter((value) => value.startsWith(prefix.trim()))
         .map((value) => ({ value, label: value }))
@@ -564,7 +766,7 @@ export default function modelFamilies(pi: ExtensionAPI) {
     lockedModelKey = undefined
 
     const restored = readPersistedState(ctx)
-    if (restored && config.families[restored.activeFamily]) {
+    if (restored && config.families[restored.activeFamily] && !config.families[restored.activeFamily]?.disabled) {
       activeFamily = restored.activeFamily
       routingMode = restored.routingMode
       lockedModelKey = restored.lockedModelKey

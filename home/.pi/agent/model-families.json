@@ -1,8 +1,38 @@
 {
-  "defaultFamily": "copilot-main",
+  "defaultFamily": "azure-gpt",
   "autoRoute": true,
   "returnRole": "delivery",
   "families": {
+    "azure-gpt": {
+      "description": "Azure OpenAI GPT-5.6 family: Terra medium for default delivery, Luna low for cheap scoped/verification work, Sol high for long-horizon research/planning/architecture; manually escalate Sol roles to xhigh when needed.",
+      "roles": {
+        "research": {
+          "provider": "azure-openai-responses",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "architecture": {
+          "provider": "azure-openai-responses",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "planning": {
+          "provider": "azure-openai-responses",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "delivery": {
+          "provider": "azure-openai-responses",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        },
+        "verification": {
+          "provider": "azure-openai-responses",
+          "model": "gpt-5.6-luna",
+          "thinkingLevel": "low"
+        }
+      }
+    },
     "open-weight-cloudflare": {
       "description": "Open-weight-ish models via Cloudflare Workers AI / AI Gateway: GLM for research and architecture, Kimi Code for delivery.",
       "roles": {
@@ -31,7 +61,8 @@
           "model": "@cf/moonshotai/kimi-k2.7-code",
           "thinkingLevel": "low"
         }
-      }
+      },
+      "disabled": true
     },
     "copilot-main": {
       "description": "Main Copilot defaults: GPT-5.5 for research/planning/architecture, Kimi K2.7 Code for delivery/verification.",

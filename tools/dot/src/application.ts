@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import packageMetadata from "../package.json";
 import { apply } from "./apply";
 import { runDoctor } from "./diagnostics";
+import { addPackage, removePackage } from "./package-authoring";
 import { bunProcessRunner, type ProcessRunner } from "./process";
 import { systemTerminal, type Terminal } from "./terminal";
 
@@ -82,6 +83,38 @@ export function createApplication(
           stdout: `dot version ${packageMetadata.version}\n`,
           stderr: "",
         };
+      }
+
+      if (command === "package") {
+        const [, action, name, option] = invocation.argv;
+        const validAdd =
+          action === "add" &&
+          Boolean(name) &&
+          (invocation.argv.length === 3 ||
+            (invocation.argv.length === 4 && option === "--cask"));
+        const validRemove = action === "remove" && Boolean(name) && invocation.argv.length === 3;
+        if (!validAdd && !validRemove) {
+          return {
+            exitCode: 2,
+            stdout: "",
+            stderr: "dot: usage: dot package add NAME [--cask] | dot package remove NAME\n",
+          };
+        }
+        try {
+          const stdout = validAdd
+            ? await addPackage({
+                cask: option === "--cask",
+                checkoutRoot: dependencies.checkoutRoot,
+                env: invocation.env,
+                name: name!,
+                processes,
+              })
+            : await removePackage({ checkoutRoot: dependencies.checkoutRoot, name: name! });
+          return { exitCode: 0, stdout, stderr: "" };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return { exitCode: 1, stdout: "", stderr: `dot: ${message}\n` };
+        }
       }
 
       if (command === "doctor") {

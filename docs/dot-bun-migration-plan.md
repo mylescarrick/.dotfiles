@@ -83,6 +83,23 @@ Command-specific options follow the command. Only `--help` and `--version` are g
 | `2` | Invalid command or arguments |
 | `>2` | Reserved for unexpected launcher/application failures |
 
+### Command behavior matrix
+
+| Command | Checkout | Live home | System | Network | Prompt policy | Worktree policy |
+|---|---|---|---|---|---|---|
+| `help`, `--version` | Read root only | None | None | Never | Never | Allowed |
+| `doctor` | Read local Git state | Read managed state | Read required tools | Never | Never | Allowed; reports whether checkout is canonical |
+| `apply [--yes]` | Read and guard | Reconcile | Install missing declared state | Only when declared state is missing | Conflicts prompt on a TTY; `--yes` accepts tracked state after backup | Canonical checkout only |
+| `update [--yes]` | Fetch and fast-forward, then read and guard | Same as `apply` | Same as `apply` | Always for Git; otherwise only missing declared state | Same as `apply` | Canonical checkout only |
+| `init` | Read root | Reconcile via `apply` | Bootstrap missing prerequisites | As required for bootstrap and missing declared state | Interactive only | Canonical checkout only |
+| `package add NAME [--cask]` | Atomically edit current checkout | None | Install the named package | Homebrew may use network | Never | Allowed |
+| `package remove NAME` | Atomically edit current checkout | None | None | Never | Never | Allowed |
+| `skills [list]` | Read current checkout | None | None | Never | Never | Allowed |
+| `skills add/update/remove/sync` | Mutate current checkout | None | Run checkout-scoped skills tooling | Add/update may use network | Never | Allowed |
+| `pi auth cloudflare` | Read provider rules | Atomically update private auth | None | Never | Prompts only for missing private inputs on a TTY | Allowed; always targets runtime `$HOME` explicitly |
+
+All commands parse and validate their complete invocation before the first mutation. A command not listed in this matrix is not part of the intended interface.
+
 ### `dot apply [--yes]`
 
 Reconcile the live machine with the canonical checked-out desired state.

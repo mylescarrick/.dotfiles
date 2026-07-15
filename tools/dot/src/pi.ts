@@ -67,10 +67,16 @@ async function replacePrivateFile(path: string, content: string): Promise<void> 
   }
 }
 
-export async function syncPiSettings(options: {
+export interface PiSettingsPlan {
+  readonly changed: boolean;
+  readonly desired: string;
+  readonly settingsPath: string;
+}
+
+export async function planPiSettings(options: {
   readonly checkoutRoot: string;
   readonly home: string;
-}): Promise<boolean> {
+}): Promise<PiSettingsPlan> {
   const defaultsPath = join(options.checkoutRoot, "config/pi/settings.defaults.json");
   const settingsPath = join(options.home, ".pi/agent/settings.json");
 
@@ -92,7 +98,15 @@ export async function syncPiSettings(options: {
   if (Object.hasOwn(defaults, "packages")) merged.packages = defaults.packages;
   const desired = `${JSON.stringify(merged, null, 2)}\n`;
 
-  if (await currentRegularFileMatches(settingsPath, desired)) return false;
-  await replacePrivateFile(settingsPath, desired);
+  return {
+    changed: !(await currentRegularFileMatches(settingsPath, desired)),
+    desired,
+    settingsPath,
+  };
+}
+
+export async function applyPiSettings(plan: PiSettingsPlan): Promise<boolean> {
+  if (!plan.changed) return false;
+  await replacePrivateFile(plan.settingsPath, plan.desired);
   return true;
 }

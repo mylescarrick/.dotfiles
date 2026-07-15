@@ -14,6 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
+import type { Terminal } from "../src/terminal";
 
 const temporaryDirectories: string[] = [];
 
@@ -35,6 +36,8 @@ async function makeFixture(): Promise<{
   temporaryDirectories.push(home);
   const checkout = join(home, ".dotfiles");
   await mkdir(join(checkout, "config/pi"), { recursive: true });
+  await mkdir(join(checkout, "home"), { recursive: true });
+  await writeFile(join(checkout, "home/.dot-apply-fixture"), "tracked\n");
   await writeFile(
     join(checkout, "config/pi/settings.defaults.json"),
     `${JSON.stringify(
@@ -118,7 +121,7 @@ describe("dot apply Pi settings", () => {
 
     expect(outcome).toEqual({
       exitCode: 0,
-      stdout: "Pi settings synced\n",
+      stdout: "Dotfiles stowed\nPi settings synced\n",
       stderr: "",
     });
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
@@ -142,7 +145,10 @@ describe("dot apply Pi settings", () => {
         cwd: fixture.checkout,
         env: fixture.env,
       }),
-    ).toMatchObject({ exitCode: 0, stdout: "Pi settings synced\n" });
+    ).toMatchObject({
+      exitCode: 0,
+      stdout: "Dotfiles stowed\nPi settings synced\n",
+    });
     const first = await lstat(settingsPath);
 
     expect(
@@ -151,7 +157,10 @@ describe("dot apply Pi settings", () => {
         cwd: fixture.checkout,
         env: fixture.env,
       }),
-    ).toMatchObject({ exitCode: 0, stdout: "Pi settings already current\n" });
+    ).toMatchObject({
+      exitCode: 0,
+      stdout: "Dotfiles stowed\nPi settings already current\n",
+    });
     const second = await lstat(settingsPath);
     expect(second.ino).toBe(first.ino);
     expect(second.mtimeMs).toBe(first.mtimeMs);
@@ -163,8 +172,43 @@ describe("dot apply Pi settings", () => {
         cwd: fixture.checkout,
         env: fixture.env,
       }),
-    ).toMatchObject({ exitCode: 0, stdout: "Pi settings synced\n" });
+    ).toMatchObject({
+      exitCode: 0,
+      stdout: "Dotfiles stowed\nPi settings synced\n",
+    });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
+  });
+
+  test("preserves runtime changes made during an interactive stow decision", async () => {
+    const fixture = await makeFixture();
+    const settingsPath = join(fixture.home, ".pi/agent/settings.json");
+    await mkdir(join(fixture.home, ".pi/agent"), { recursive: true });
+    await writeFile(settingsPath, '{"defaultProvider":"before","packages":[]}\n');
+    await writeFile(join(fixture.home, ".dot-apply-fixture"), "live conflict\n");
+    let prompted = false;
+    const terminal: Terminal = {
+      interactive: true,
+      async prompt() {
+        prompted = true;
+        await writeFile(
+          settingsPath,
+          '{"defaultProvider":"changed-during-prompt","packages":[]}\n',
+        );
+        return "u";
+      },
+      write() {},
+    };
+
+    const outcome = await createApplication({
+      checkoutRoot: fixture.checkout,
+      terminal,
+    }).execute({ argv: ["apply"], cwd: fixture.checkout, env: fixture.env });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(prompted).toBe(true);
+    expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
+      defaultProvider: "changed-during-prompt",
+    });
   });
 
   test("preserves invalid runtime JSON and fails before replacement", async () => {
@@ -186,6 +230,7 @@ describe("dot apply Pi settings", () => {
     });
     expect(await readFile(settingsPath, "utf8")).toBe("{ invalid json\n");
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o640);
+    expect(await Bun.file(join(fixture.home, ".dot-apply-fixture")).exists()).toBe(false);
   });
 
   test("replaces a dangling legacy symlink with defaults", async () => {

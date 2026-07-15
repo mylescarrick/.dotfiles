@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import packageMetadata from "../package.json";
 import { apply } from "./apply";
 import { bunProcessRunner, type ProcessRunner } from "./process";
+import { systemTerminal, type Terminal } from "./terminal";
 
 export interface Invocation {
   readonly argv: readonly string[];
@@ -27,6 +28,7 @@ interface CommandDescription {
 interface ApplicationDependencies {
   readonly checkoutRoot: string;
   readonly processes?: ProcessRunner;
+  readonly terminal?: Terminal;
 }
 
 const commands: readonly CommandDescription[] = [
@@ -61,6 +63,7 @@ export function createApplication(
   dependencies: ApplicationDependencies,
 ): DotApplication {
   const processes = dependencies.processes ?? bunProcessRunner;
+  const terminal = dependencies.terminal ?? systemTerminal;
   return {
     async execute(invocation) {
       const [command] = invocation.argv;
@@ -95,17 +98,20 @@ export function createApplication(
           return {
             exitCode: 0,
             stdout: await apply({
+              acceptTracked: invocation.argv[1] === "--yes",
               checkoutRoot: dependencies.checkoutRoot,
               env: invocation.env,
               processes,
+              terminal,
             }),
             stderr: "",
           };
         } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
           return {
             exitCode: 1,
             stdout: "",
-            stderr: `dot: ${(error as Error).message}\n`,
+            stderr: `dot: ${message}\n`,
           };
         }
       }

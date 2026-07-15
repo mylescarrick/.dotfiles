@@ -7,7 +7,7 @@ import type { ProcessRunner } from "./process";
 import { validateSkillLinks } from "./skills";
 import { inspectStow } from "./stow";
 
-interface DiagnosticReport {
+export interface DiagnosticReport {
   readonly healthy: boolean;
   readonly stdout: string;
 }

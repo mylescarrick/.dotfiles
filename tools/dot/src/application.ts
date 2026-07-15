@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import packageMetadata from "../package.json";
 import { apply } from "./apply";
 import { runDoctor } from "./diagnostics";
+import { initialize } from "./init";
 import { addPackage, removePackage } from "./package-authoring";
 import { configureCloudflareAuth } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
@@ -31,6 +32,7 @@ interface CommandDescription {
 
 interface ApplicationDependencies {
   readonly checkoutRoot: string;
+  readonly knownBrewPaths?: readonly string[];
   readonly processes?: ProcessRunner;
   readonly terminal?: Terminal;
 }
@@ -85,6 +87,29 @@ export function createApplication(
           stdout: `dot version ${packageMetadata.version}\n`,
           stderr: "",
         };
+      }
+
+      if (command === "init") {
+        if (invocation.argv.length !== 1) {
+          return {
+            exitCode: 2,
+            stdout: "",
+            stderr: "dot: usage: dot init\n",
+          };
+        }
+        try {
+          const outcome = await initialize({
+            checkoutRoot: dependencies.checkoutRoot,
+            env: invocation.env,
+            knownBrewPaths: dependencies.knownBrewPaths,
+            processes,
+            terminal,
+          });
+          return { ...outcome, stderr: "" };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return { exitCode: 1, stdout: "", stderr: `dot: ${message}\n` };
+        }
       }
 
       if (command === "skills") {

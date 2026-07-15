@@ -43,8 +43,62 @@ if [ "${1:-}" = "update" ]; then
 fi
 
 if ! bun_path=$(command -v bun); then
-  fail "Bun is required; run 'dot init' to bootstrap it."
+  if [ "${1:-}" != "init" ]; then
+    fail "Bun is required; run 'dot init' to bootstrap it."
+  fi
+  if [ "$#" -ne 1 ]; then
+    fail "Bun is required; run 'dot init' without options to bootstrap it."
+  fi
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
+    fail "Bun bootstrap requires an interactive terminal"
+  fi
+
+  printf '%s' "Bun is missing. Install it from https://bun.sh/install? [y/N]: "
+  IFS= read -r answer || answer=
+  case $answer in
+    y|Y|yes|YES|Yes) ;;
+    *) fail "Bun bootstrap cancelled" ;;
+  esac
+
+  installer=$(mktemp "${TMPDIR:-/tmp}/dot-bun-installer.XXXXXX") || \
+    fail "could not create a temporary Bun installer"
+  trap 'rm -f "$installer"' 0 1 2 15
+  if ! curl -fsSL https://bun.sh/install -o "$installer"; then
+    fail "failed to download the Bun installer"
+  fi
+  if ! /usr/bin/env -i \
+    HOME="$HOME" \
+    PATH="$PATH" \
+    SHELL="${SHELL:-/bin/zsh}" \
+    USER="${USER:-}" \
+    LOGNAME="${LOGNAME:-}" \
+    TMPDIR="${TMPDIR:-/tmp}" \
+    TERM="${TERM:-}" \
+    LANG="${LANG:-}" \
+    HTTP_PROXY="${HTTP_PROXY:-}" \
+    HTTPS_PROXY="${HTTPS_PROXY:-}" \
+    ALL_PROXY="${ALL_PROXY:-}" \
+    NO_PROXY="${NO_PROXY:-}" \
+    BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}" \
+    /bin/bash "$installer"
+  then
+    fail "Bun installer failed"
+  fi
+  rm -f "$installer"
+  trap - 0 1 2 15
+
+  bun_install=${BUN_INSTALL:-$HOME/.bun}
+  if bun_path=$(command -v bun); then
+    :
+  elif [ -x "$bun_install/bin/bun" ]; then
+    bun_path=$bun_install/bin/bun
+  else
+    fail "Bun installer completed but bun was not found"
+  fi
 fi
+
+PATH=$(dirname "$bun_path"):$PATH
+export PATH
 
 if [ "${1:-}" = "update" ]; then
   canonical=$HOME/.dotfiles

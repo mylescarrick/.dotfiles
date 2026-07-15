@@ -156,7 +156,7 @@ The Bun-side init workflow is then:
 4. Invoke the same implementation as `dot apply`; `apply` alone owns Brewfile package installation.
 5. Finish with `dot doctor`.
 
-Remote installer execution must be named, isolated, confirmed interactively, and never happen during ordinary commands. Required and optional stage policy must be explicit.
+Remote installer execution must be named, isolated, confirmed interactively, and never happen during ordinary commands. Required and optional stage policy must be explicit. Bun, Homebrew, and oh-my-zsh use their official HTTPS installer scripts, which do not provide a stable checksum contract for this workflow; TLS and the upstream host are therefore explicit trust dependencies. Download each script to a private temporary path before execution, remove it afterward, and pass the script an allowlisted environment rather than unrelated shell secrets.
 
 SSH key generation leaves `dot`; documented `ssh-keygen` commands are clearer than the two inconsistent implementations currently in the script. Font installation is already owned by the Brewfile and must not be a duplicate init stage. Consequently, `--skip-ssh` and `--skip-font` disappear.
 

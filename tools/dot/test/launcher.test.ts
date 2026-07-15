@@ -44,6 +44,7 @@ async function makeFixture(
 ): Promise<{
   checkout: string;
   env: Record<string, string>;
+  fakeBin: string;
   home: string;
   invocationLog: string;
   launcherLink: string;
@@ -84,6 +85,7 @@ async function makeFixture(
 
   return {
     checkout,
+    fakeBin,
     home: root,
     invocationLog,
     launcherLink,
@@ -187,6 +189,111 @@ describe("dot launcher", () => {
     expect(await readFile(fixture.invocationLog, "utf8")).toBe(
       `${join(fixture.checkout, "tools/dot/src/main.ts")}\nhelp\n`,
     );
+  });
+
+  test("bootstraps Bun interactively for init before executing the application", async () => {
+    const fixture = await makeFixture({ withBun: false });
+    const installer = join(fixture.home, "bun-installer.sh");
+    const curlLog = join(fixture.home, "curl-url");
+    const pathLog = join(fixture.home, "bootstrap-path");
+    const bunInstall = join(fixture.home, "custom-bun");
+    await writeFile(
+      installer,
+      `#!/bin/sh
+[ -z "\${DOT_TEST_SECRET:-}" ] || exit 9
+mkdir -p "$BUN_INSTALL/bin"
+cat > "$BUN_INSTALL/bin/bun" <<'BUN'
+#!/bin/sh
+printf '%s\\n' "$@" > "${fixture.invocationLog}"
+printf '%s\\n' "$PATH" > "${pathLog}"
+BUN
+chmod +x "$BUN_INSTALL/bin/bun"
+`,
+    );
+    await writeFile(
+      join(fixture.fakeBin, "curl"),
+      `#!/bin/sh
+printf '%s\\n' "$2" > "$DOT_TEST_CURL_LOG"
+cp "$DOT_TEST_BUN_INSTALLER" "$4"
+`,
+    );
+    await chmod(join(fixture.fakeBin, "curl"), 0o755);
+
+    const child = Bun.spawn(
+      [
+        "/bin/sh",
+        "-c",
+        '( sleep .2; printf "y\\n" ) | /usr/bin/script -q /dev/null "$DOT_TEST_LAUNCHER" init',
+      ],
+      {
+        env: {
+          ...fixture.env,
+          BUN_INSTALL: bunInstall,
+          DOT_TEST_BUN_INSTALLER: installer,
+          DOT_TEST_CURL_LOG: curlLog,
+          DOT_TEST_LAUNCHER: fixture.launcherLink,
+          DOT_TEST_SECRET: "must-not-reach-installer",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+
+    expect(exitCode).toBe(0);
+
+    expect(stderr).toBe("");
+    expect(stdout).toContain("Install it from https://bun.sh/install?");
+    expect(await readFile(curlLog, "utf8")).toBe("https://bun.sh/install\n");
+    expect(await readFile(pathLog, "utf8")).toStartWith(`${bunInstall}/bin:`);
+    expect(await readFile(fixture.invocationLog, "utf8")).toBe(
+      `${join(fixture.checkout, "tools/dot/src/main.ts")}\ninit\n`,
+    );
+  });
+
+  test("does not download Bun when interactive bootstrap is declined", async () => {
+    const fixture = await makeFixture({ withBun: false });
+    const child = Bun.spawn(
+      [
+        "/bin/sh",
+        "-c",
+        '( sleep .2; printf "n\\n" ) | /usr/bin/script -q /dev/null "$DOT_TEST_LAUNCHER" init',
+      ],
+      {
+        env: { ...fixture.env, DOT_TEST_LAUNCHER: fixture.launcherLink },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    const [stdout, stderr] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+
+    expect(stderr).toBe("");
+    expect(stdout).toContain("dot: Bun bootstrap cancelled");
+    expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
+  });
+
+  test("refuses noninteractive init when Bun is unavailable", async () => {
+    const fixture = await makeFixture({ withBun: false });
+    const child = Bun.spawn([fixture.launcherLink, "init"], {
+      env: fixture.env,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [exitCode, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stderr).text(),
+    ]);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toBe("dot: Bun bootstrap requires an interactive terminal\n");
   });
 
   test("fails without changing anything when Bun is unavailable", async () => {

@@ -88,6 +88,42 @@ describe("package authoring", () => {
     );
   });
 
+  test("rejects a package already declared as the other type", async () => {
+    const checkout = await fixture();
+    const processes = new RecordingProcesses();
+    const outcome = await createApplication({ checkoutRoot: checkout, processes }).execute({
+      argv: ["package", "add", "raycast"],
+      cwd: checkout,
+      env: {},
+    });
+
+    expect(outcome).toMatchObject({
+      exitCode: 1,
+      stderr: "dot: package 'raycast' is already declared as cask\n",
+    });
+    expect(processes.requests).toHaveLength(0);
+  });
+
+  test("remove handles entries with Homebrew options without uninstalling", async () => {
+    const checkout = await fixture();
+    await writeFile(
+      join(checkout, "packages/bundle"),
+      'brew "postgresql@16", restart_service: :changed\nbrew "stow"\n',
+    );
+    const processes = new RecordingProcesses();
+    const outcome = await createApplication({ checkoutRoot: checkout, processes }).execute({
+      argv: ["package", "remove", "postgresql@16"],
+      cwd: checkout,
+      env: {},
+    });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(await readFile(join(checkout, "packages/bundle"), "utf8")).not.toContain(
+      "postgresql@16",
+    );
+    expect(processes.requests).toHaveLength(0);
+  });
+
   test("remove edits desired state without uninstalling", async () => {
     const checkout = await fixture();
     const processes = new RecordingProcesses();

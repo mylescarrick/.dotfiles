@@ -128,6 +128,24 @@ describe("skills authoring", () => {
     expect(await Bun.file(join(checkout, "home/.pi/agent/skills/local")).exists()).toBe(false);
   });
 
+  test("rejects traversal-shaped removal before tooling or deletion", async () => {
+    const checkout = await fixture();
+    const processes = new RecordingProcesses();
+    const outcome = await createApplication({ checkoutRoot: checkout, processes }).execute({
+      argv: ["skills", "remove", "../../.."],
+      cwd: checkout,
+      env: {},
+    });
+
+    expect(outcome).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "dot: invalid skill name: ../../..\n",
+    });
+    expect(processes.requests).toHaveLength(0);
+    expect(await Bun.file(join(checkout, "home/.agents/skills/local/SKILL.md")).exists()).toBe(true);
+  });
+
   test("rejects incomplete add before invoking external tooling", async () => {
     const processes = new RecordingProcesses();
     const outcome = await createApplication({ checkoutRoot: "/unused", processes }).execute({

@@ -6,6 +6,12 @@ function validateName(name: string): void {
   if (!name || /["\r\n]/.test(name)) throw new Error("invalid package name");
 }
 
+function parsePackageLine(line: string): { name: string; type: "brew" | "cask" } | undefined {
+  const match = line.match(/^(brew|cask) "([^"]+)"(?:,.*)?$/);
+  if (!match) return undefined;
+  return { type: match[1] as "brew" | "cask", name: match[2]! };
+}
+
 async function replaceAtomic(path: string, content: string): Promise<void> {
   const temporary = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
   try {
@@ -30,12 +36,16 @@ export async function addPackage(options: {
   const type = options.cask ? "cask" : "brew";
   const line = `${type} "${options.name}"`;
   const lines = original.split("\n");
-  if (lines.includes(line)) return `Package '${options.name}' is already declared\n`;
+  const existing = lines.map(parsePackageLine).find((entry) => entry?.name === options.name);
+  if (existing?.type === type) return `Package '${options.name}' is already declared\n`;
+  if (existing) {
+    throw new Error(`package '${options.name}' is already declared as ${existing.type}`);
+  }
 
   let inserted = false;
   for (let index = 0; index < lines.length; index += 1) {
-    const match = lines[index]!.match(new RegExp(`^${type} "([^"]+)"$`));
-    if (match && options.name.localeCompare(match[1]!) < 0) {
+    const parsed = parsePackageLine(lines[index]!);
+    if (parsed?.type === type && options.name.localeCompare(parsed.name) < 0) {
       lines.splice(index, 0, line);
       inserted = true;
       break;
@@ -44,7 +54,7 @@ export async function addPackage(options: {
   if (!inserted) {
     let last = -1;
     for (let index = 0; index < lines.length; index += 1) {
-      if (lines[index]!.startsWith(`${type} "`)) last = index;
+      if (parsePackageLine(lines[index]!)?.type === type) last = index;
     }
     lines.splice(last >= 0 ? last + 1 : lines.length - 1, 0, line);
   }
@@ -74,9 +84,8 @@ export async function removePackage(options: {
   validateName(options.name);
   const bundle = join(options.checkoutRoot, "packages/bundle");
   const original = await readFile(bundle, "utf8");
-  const pattern = new RegExp(`^(brew|cask) "${options.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"$`);
   const lines = original.split("\n");
-  const filtered = lines.filter((line) => !pattern.test(line));
+  const filtered = lines.filter((line) => parsePackageLine(line)?.name !== options.name);
   if (filtered.length === lines.length) return `Package '${options.name}' is not declared\n`;
   await replaceAtomic(bundle, filtered.join("\n"));
   return `Removed package '${options.name}' from the Brewfile\n`;

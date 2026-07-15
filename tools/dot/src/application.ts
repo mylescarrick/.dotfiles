@@ -145,7 +145,13 @@ export function createApplication(
         for (let index = 3; index < invocation.argv.length; index += 2) {
           const flag = invocation.argv[index];
           const value = invocation.argv[index + 1];
-          if (!flag || !allowed.has(flag) || !value || values[flag]) {
+          if (
+            !flag ||
+            !allowed.has(flag) ||
+            !value ||
+            value.startsWith("-") ||
+            values[flag]
+          ) {
             return {
               exitCode: 2,
               stdout: "",

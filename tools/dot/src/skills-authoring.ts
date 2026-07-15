@@ -83,6 +83,12 @@ export async function syncSkillLinks(options: {
   return `Synced ${names.length} skill(s); pruned ${pruned} dangling link(s)\n`;
 }
 
+function validateSkillName(name: string): void {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(name) || name === "." || name === "..") {
+    throw new Error(`invalid skill name: ${name}`);
+  }
+}
+
 function scopedEnvironment(
   checkoutRoot: string,
   sink: string,
@@ -105,6 +111,9 @@ export async function runSkillsCli(options: {
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly processes: ProcessRunner;
 }): Promise<string> {
+  const skillNames = options.action === "add" ? options.args.slice(1) : options.args;
+  for (const name of skillNames) validateSkillName(name);
+
   const sink = await mkdtemp(join(tmpdir(), "dot-skills-"));
   try {
     let argv: [string, ...string[]];

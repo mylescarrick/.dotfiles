@@ -126,6 +126,23 @@ describe("Pi Cloudflare auth", () => {
     expect((await lstat(authPath)).mode & 0o777).toBe(0o640);
   });
 
+  test("rejects a flag in a value position before touching auth", async () => {
+    const root = await home();
+    const outcome = await createApplication({ checkoutRoot: "/unused" }).execute({
+      argv: [
+        "pi",
+        "auth",
+        "cloudflare",
+        "--account-id",
+        "--gateway-id",
+      ],
+      cwd: "/unused",
+      env: { HOME: root },
+    });
+    expect(outcome.exitCode).toBe(2);
+    expect(await Bun.file(join(root, ".pi/agent/auth.json")).exists()).toBe(false);
+  });
+
   test("rejects incomplete option pairs before touching auth", async () => {
     const root = await home();
     const outcome = await createApplication({ checkoutRoot: "/unused" }).execute({

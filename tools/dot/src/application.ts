@@ -5,6 +5,7 @@ import { runDoctor } from "./diagnostics";
 import { addPackage, removePackage } from "./package-authoring";
 import { configureCloudflareAuth } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
+import { listSkills, runSkillsCli, syncSkillLinks } from "./skills-authoring";
 import { systemTerminal, type Terminal } from "./terminal";
 
 export interface Invocation {
@@ -84,6 +85,46 @@ export function createApplication(
           stdout: `dot version ${packageMetadata.version}\n`,
           stderr: "",
         };
+      }
+
+      if (command === "skills") {
+        const action = invocation.argv[1] ?? "list";
+        const args = invocation.argv.slice(2);
+        const valid =
+          (action === "list" && args.length === 0) ||
+          (action === "sync" && args.length === 0) ||
+          (action === "update" && args.length === 0) ||
+          (action === "add" && args.length >= 2) ||
+          (action === "remove" && args.length >= 1);
+        if (!valid) {
+          return {
+            exitCode: 2,
+            stdout: "",
+            stderr: "dot: usage: dot skills [list|sync|update|add REPO SKILL...|remove SKILL...]\n",
+          };
+        }
+        try {
+          const stdout =
+            action === "list"
+              ? await listSkills(dependencies.checkoutRoot)
+              : action === "sync"
+                ? await syncSkillLinks({
+                    checkoutRoot: dependencies.checkoutRoot,
+                    env: invocation.env,
+                    processes,
+                  })
+                : await runSkillsCli({
+                    action: action as "add" | "update" | "remove",
+                    args,
+                    checkoutRoot: dependencies.checkoutRoot,
+                    env: invocation.env,
+                    processes,
+                  });
+          return { exitCode: 0, stdout, stderr: "" };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return { exitCode: 1, stdout: "", stderr: `dot: ${message}\n` };
+        }
       }
 
       if (command === "pi") {

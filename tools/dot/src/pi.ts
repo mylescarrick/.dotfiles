@@ -67,6 +67,29 @@ async function replacePrivateFile(path: string, content: string): Promise<void> 
   }
 }
 
+export async function inspectPiSettings(home: string): Promise<string[]> {
+  const path = join(home, ".pi/agent/settings.json");
+  let metadata;
+  try {
+    metadata = await lstat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return ["Pi runtime settings are missing"];
+    }
+    throw error;
+  }
+  if (!metadata.isFile()) return ["Pi runtime settings are not a private regular file"];
+
+  const issues: string[] = [];
+  if ((metadata.mode & 0o777) !== 0o600) issues.push("Pi runtime settings mode is not 0600");
+  try {
+    parseObject(await readFile(path, "utf8"), "Pi runtime settings");
+  } catch (error) {
+    issues.push((error as Error).message);
+  }
+  return issues;
+}
+
 export interface PiSettingsPlan {
   readonly changed: boolean;
   readonly desired: string;

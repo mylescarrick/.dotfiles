@@ -125,6 +125,35 @@ async function resolveConflict(options: {
   }
 }
 
+export async function inspectStow(options: {
+  readonly checkoutRoot: string;
+  readonly home: string;
+}): Promise<number> {
+  const sourceRoot = join(options.checkoutRoot, "home");
+  try {
+    if (!(await lstat(sourceRoot)).isDirectory()) throw new Error();
+  } catch {
+    throw new Error(`tracked home package is missing at ${sourceRoot}`);
+  }
+
+  let drift = 0;
+  for (const relative of await trackedPaths(sourceRoot)) {
+    const source = join(sourceRoot, relative);
+    const target = join(options.home, relative);
+    try {
+      await lstat(target);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        drift += 1;
+        continue;
+      }
+      throw error;
+    }
+    if (!(await sameFile(source, target))) drift += 1;
+  }
+  return drift;
+}
+
 export async function applyStow(options: {
   readonly acceptTracked: boolean;
   readonly checkoutRoot: string;

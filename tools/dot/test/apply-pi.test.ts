@@ -14,6 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
+import { bunProcessRunner, type ProcessRequest, type ProcessRunner } from "../src/process";
 import type { Terminal } from "../src/terminal";
 
 const temporaryDirectories: string[] = [];
@@ -81,7 +82,28 @@ afterEach(async () => {
   );
 });
 
+class RecordingDelegate implements ProcessRunner {
+  readonly requests: ProcessRequest[] = [];
+  async run(request: ProcessRequest) {
+    this.requests.push(request);
+    return bunProcessRunner.run(request);
+  }
+}
+
 describe("dot apply Pi settings", () => {
+  test("Bun-side update delegates to apply without Git refresh", async () => {
+    const fixture = await makeFixture();
+    const processes = new RecordingDelegate();
+    const outcome = await createApplication({
+      checkoutRoot: fixture.checkout,
+      processes,
+    }).execute({ argv: ["update", "--yes"], cwd: fixture.checkout, env: fixture.env });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(processes.requests.some((request) => request.argv.includes("fetch"))).toBe(false);
+    expect(processes.requests.some((request) => request.argv.includes("merge"))).toBe(false);
+    expect(processes.requests.some((request) => request.argv.includes("upgrade"))).toBe(false);
+  });
   test("refuses a checkout behind last-fetched origin before mutation", async () => {
     const fixture = await makeFixture();
     const oldHead = Bun.spawnSync(["git", "rev-parse", "HEAD"], {

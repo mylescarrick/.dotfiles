@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import packageMetadata from "../package.json";
 import { apply } from "./apply";
+import { runDoctor } from "./diagnostics";
 import { bunProcessRunner, type ProcessRunner } from "./process";
 import { systemTerminal, type Terminal } from "./terminal";
 
@@ -83,7 +84,32 @@ export function createApplication(
         };
       }
 
-      if (command === "apply") {
+      if (command === "doctor") {
+        if (invocation.argv.length !== 1) {
+          return {
+            exitCode: 2,
+            stdout: "",
+            stderr: "dot: usage: dot doctor\n",
+          };
+        }
+        try {
+          const report = await runDoctor({
+            checkoutRoot: dependencies.checkoutRoot,
+            env: invocation.env,
+            processes,
+          });
+          return {
+            exitCode: report.healthy ? 0 : 1,
+            stdout: report.stdout,
+            stderr: "",
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return { exitCode: 1, stdout: "", stderr: `dot: ${message}\n` };
+        }
+      }
+
+      if (command === "apply" || command === "update") {
         if (
           invocation.argv.length > 2 ||
           (invocation.argv.length === 2 && invocation.argv[1] !== "--yes")
@@ -91,7 +117,7 @@ export function createApplication(
           return {
             exitCode: 2,
             stdout: "",
-            stderr: "dot: usage: dot apply [--yes]\n",
+            stderr: `dot: usage: dot ${command} [--yes]\n`,
           };
         }
         try {

@@ -64,7 +64,7 @@ async function makeFixture(
   if (options.withBun !== false) {
     await writeFile(
       join(fakeBin, "bun"),
-      "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$DOT_TEST_INVOCATION_LOG\"\n",
+      "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$DOT_TEST_INVOCATION_LOG\"\n[ -z \"${DOT_TEST_MAIN_CONTENT_LOG:-}\" ] || cat \"$1\" > \"$DOT_TEST_MAIN_CONTENT_LOG\"\nexit 0\n",
     );
     await chmod(join(fakeBin, "bun"), 0o755);
   }
@@ -116,6 +116,21 @@ async function publishChange(fixture: {
   await writeFile(join(publisher, "published.txt"), "new revision\n");
   await run(["git", "add", "published.txt"], publisher);
   await run(["git", "commit", "-m", "publish change"], publisher);
+  await run(["git", "push", "origin", "main"], publisher);
+  return run(["git", "rev-parse", "HEAD"], publisher);
+}
+
+async function publishApplicationChange(fixture: {
+  home: string;
+  origin: string;
+}): Promise<string> {
+  const publisher = await makePublisher(fixture);
+  await writeFile(
+    join(publisher, "tools/dot/src/main.ts"),
+    "// refreshed Bun application\n",
+  );
+  await run(["git", "add", "tools/dot/src/main.ts"], publisher);
+  await run(["git", "commit", "-m", "update application"], publisher);
   await run(["git", "push", "origin", "main"], publisher);
   return run(["git", "rev-parse", "HEAD"], publisher);
 }
@@ -252,6 +267,24 @@ describe("dot launcher", () => {
     );
     expect(await readFile(fixture.invocationLog, "utf8")).toBe(
       `${join(fixture.checkout, "tools/dot/src/main.ts")}\nupdate\n`,
+    );
+  });
+
+  test("loads Bun application code from the fast-forwarded revision", async () => {
+    const fixture = await makeFixture({ withGit: true });
+    const contentLog = join(fixture.home, "main-content");
+    const publishedHead = await publishApplicationChange(fixture);
+
+    const child = Bun.spawn([fixture.launcherLink, "update"], {
+      env: { ...fixture.env, DOT_TEST_MAIN_CONTENT_LOG: contentLog },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    expect(await child.exited).toBe(0);
+    expect(await readFile(contentLog, "utf8")).toBe("// refreshed Bun application\n");
+    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(
+      publishedHead,
     );
   });
 

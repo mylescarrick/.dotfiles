@@ -2,18 +2,24 @@ import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ProcessRunner } from "./process";
 
-export async function reconcilePackages(options: {
+interface PackageOptions {
   readonly checkoutRoot: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly processes: ProcessRunner;
-}): Promise<string> {
-  const bundle = join(options.checkoutRoot, "packages/bundle");
+}
+
+async function bundlePath(checkoutRoot: string): Promise<string> {
+  const bundle = join(checkoutRoot, "packages/bundle");
   try {
     if (!(await lstat(bundle)).isFile()) throw new Error();
   } catch {
     throw new Error(`Brewfile is missing at ${bundle}`);
   }
+  return bundle;
+}
 
+export async function inspectPackages(options: PackageOptions): Promise<boolean> {
+  const bundle = await bundlePath(options.checkoutRoot);
   const env = {
     ...options.env,
     HOMEBREW_NO_AUTO_UPDATE: "1",
@@ -30,7 +36,18 @@ export async function reconcilePackages(options: {
   } catch {
     throw new Error("Homebrew is required; run 'dot init'");
   }
-  if (check.exitCode === 0) return "Packages already current\n";
+  return check.exitCode === 0;
+}
+
+export async function reconcilePackages(options: PackageOptions): Promise<string> {
+  const bundle = await bundlePath(options.checkoutRoot);
+  const env = {
+    ...options.env,
+    HOMEBREW_NO_AUTO_UPDATE: "1",
+    HOMEBREW_BUNDLE_BREW_SKIP: undefined,
+    HOMEBREW_BUNDLE_CASK_SKIP: undefined,
+  };
+  if (await inspectPackages(options)) return "Packages already current\n";
 
   const install = await options.processes.run({
     argv: ["brew", "bundle", "install", "--no-upgrade", "--file", bundle],

@@ -45,7 +45,7 @@ async function currentRegularFileMatches(
   }
 }
 
-async function replacePrivateFile(path: string, content: string): Promise<void> {
+export async function replacePrivateFile(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = join(
     dirname(path),

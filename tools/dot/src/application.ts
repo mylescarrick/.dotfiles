@@ -3,6 +3,7 @@ import packageMetadata from "../package.json";
 import { apply } from "./apply";
 import { runDoctor } from "./diagnostics";
 import { addPackage, removePackage } from "./package-authoring";
+import { configureCloudflareAuth } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
 import { systemTerminal, type Terminal } from "./terminal";
 
@@ -83,6 +84,59 @@ export function createApplication(
           stdout: `dot version ${packageMetadata.version}\n`,
           stderr: "",
         };
+      }
+
+      if (command === "pi") {
+        if (invocation.argv[1] !== "auth" || invocation.argv[2] !== "cloudflare") {
+          return {
+            exitCode: 2,
+            stdout: "",
+            stderr: "dot: usage: dot pi auth cloudflare [OPTIONS]\n",
+          };
+        }
+        const values: Record<string, string> = {};
+        const allowed = new Set([
+          "--account-id",
+          "--gateway-id",
+          "--api-key-env",
+          "--api-key-op-ref",
+        ]);
+        for (let index = 3; index < invocation.argv.length; index += 2) {
+          const flag = invocation.argv[index];
+          const value = invocation.argv[index + 1];
+          if (!flag || !allowed.has(flag) || !value || values[flag]) {
+            return {
+              exitCode: 2,
+              stdout: "",
+              stderr: "dot: usage: dot pi auth cloudflare [OPTIONS]\n",
+            };
+          }
+          values[flag] = value;
+        }
+        if (values["--api-key-env"] && values["--api-key-op-ref"]) {
+          return {
+            exitCode: 2,
+            stdout: "",
+            stderr: "dot: choose one Cloudflare API key source\n",
+          };
+        }
+        const home = invocation.env.HOME;
+        if (!home) return { exitCode: 1, stdout: "", stderr: "dot: HOME is required\n" };
+        try {
+          const stdout = await configureCloudflareAuth({
+            accountId: values["--account-id"],
+            apiKeyEnv: values["--api-key-env"],
+            apiKeyOpRef: values["--api-key-op-ref"],
+            env: invocation.env,
+            gatewayId: values["--gateway-id"],
+            home,
+            terminal,
+          });
+          return { exitCode: 0, stdout, stderr: "" };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return { exitCode: 1, stdout: "", stderr: `dot: ${message}\n` };
+        }
       }
 
       if (command === "package") {

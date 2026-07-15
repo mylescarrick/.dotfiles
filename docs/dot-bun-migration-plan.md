@@ -1,352 +1,454 @@
-# dot Bun Migration Plan
+# `dot` Bun Migration Plan
 
-Status: Draft
-Triage label: `ready-for-agent`
+Status: Refreshed draft
 Owner: dotfiles maintainer
-Scope: Convert the `dot` CLI from a monolithic Bash script into a modular Bun/TypeScript utility while preserving existing user-facing behavior.
+Scope: Replace the monolithic Bash implementation with a small Bun/TypeScript CLI, while simplifying the command surface and making canonical-checkout updates safe and testable.
 
-## Testing Seams
+## Executive Decision
 
-The primary testing seam is the **black-box `dot` command** invoked against a sandboxed checkout and sandboxed home directory.
+This is **not** a line-for-line Bash-to-TypeScript port.
 
-This seam validates the behavior that matters most: given a dotfiles checkout, a home directory, environment variables, terminal mode, and external tools on `PATH`, the CLI should produce the correct files, symlinks, output, exit codes, and subprocess calls.
+The current `dot` script is 2,298 lines and combines repository updating, local state reconciliation, system bootstrap, package authoring, skills authoring, private Pi configuration, diagnostics, prompts, and recovery workflows. Recreating every function as a TypeScript command module would improve syntax without removing much complexity.
 
-Supporting seams:
+The migration will instead preserve the important state and safety invariants while reducing the public interface:
 
-1. **Pure core unit seam** — for deterministic logic such as Brewfile parsing, Pi settings merging, Pi auth merging, stow conflict planning, command parsing, and repository root discovery.
-2. **Process adapter seam** — for fake subprocess execution, asserting exact argv, cwd, environment, captured output, and failure handling.
-3. **Filesystem sandbox seam** — for validating symlink targets, backup contents, file permissions, atomic writes, and ignored generated artifacts.
+```text
+dot apply                  Apply the checked-out desired state
+dot update                 Refresh canonical origin/main, re-exec, then apply
+dot doctor                 Inspect managed state without changing it
+dot init                   Bootstrap a new machine, then apply
 
-The ideal test shape is high-level and behavioral. Internal module boundaries should be free to change as long as externally observable `dot` behavior remains correct.
+dot package add/remove     Safely edit the Brewfile
+dot skills ...             Safely manage the checkout-scoped skills store
+dot pi auth cloudflare     Safely update private Pi auth
 
-## Problem Statement
+dot help / --version
+```
 
-The current `dot` CLI is a large Bash script that manages a personal macOS development environment. It works, but its size and responsibility mix make it increasingly hard to reason about, safely modify, and test.
+The root `dot` file remains a small, security-critical POSIX-compatible launcher because Bun may be absent on a new machine. Its only responsibilities are real-path resolution, the `update` prelude, explicit Bun bootstrap for `init`, and execution of the Bun application. The application lives in `tools/dot/` and should initially use Bun built-ins rather than a CLI framework.
 
-The CLI currently combines command parsing, Homebrew orchestration, GNU Stow safety behavior, Pi runtime state sync, skills management, SSH key generation, update behavior, interactive prompts, file mutation, and subprocess execution in one place.
+`~/.dotfiles` is a **deployment checkout**: clean, on `main`, and used to publish configuration into `$HOME`. Development belongs in worktrees. Commands that mutate the repository for authoring may run in a worktree; commands that mutate live machine state may not.
 
-From the maintainer's perspective, the main problems are:
+## Freshness and `redot`
 
-- Changes to one command can accidentally affect unrelated commands.
-- Safety-sensitive filesystem behavior is difficult to unit test.
-- Subprocess execution relies on shell parsing and `eval`-like behavior in places.
-- Help text, README examples, parser behavior, and command implementation can drift.
-- Some current documented behaviors do not quite match implementation behavior.
-- First-run setup, update, and stow behavior are high-risk because they mutate the live home directory and system state.
+### Decision
 
-The maintainer wants `dot` to stay simple to use, but become modular, idempotent, testable, and easier for agents or future contributors to modify safely.
+Normal commands do not fetch from the network. `dot update` is the explicit freshness operation.
 
-## Solution
+For `dot update` only, the launcher recognizes the command and performs the Git refresh **before** loading the Bun application. Every other command skips this prelude and performs no launcher-level network access.
 
-Replace the monolithic Bash implementation with a modular Bun/TypeScript CLI while preserving the public command name and user-facing behavior.
+1. Validate the small launcher-owned grammar (`dot update [--yes]`) before mutation; help bypasses the update prelude.
+2. Require Bun to be available.
+3. Require the launcher to resolve to the canonical `~/.dotfiles` checkout.
+4. Require a clean checkout attached to `main`.
+5. Fetch `origin`.
+6. Compare `HEAD` with `refs/remotes/origin/main` and allow only equal or behind states.
+7. Fast-forward with `git merge --ff-only refs/remotes/origin/main` when behind.
+8. If `HEAD` changed, re-exec the refreshed launcher once.
+9. Execute the Bun application from the refreshed revision and run `apply`.
 
-The root executable remains a tiny launcher/bootstrap. The Bun implementation lives in a dedicated tooling package outside the stowed home tree and outside the Pi workspace. The launcher resolves the actual checkout root, handles first-run Bun availability, and delegates to the TypeScript implementation.
+This guarantees that the update workflow uses the revision just fetched from `origin/main`. It also fixes the current implementation's fragile rule of re-executing only when the root `dot` file changed; after the migration, any changed revision may change application behavior.
 
-The migration should be incremental. The new implementation should first cover command parsing, help/version, path resolution, pure local-state logic, and read-only commands. Higher-risk commands such as stow, init, update, package installation, and SSH key generation should be ported only after the test harness and lower-risk behavior are established.
+### Why not update on every launch?
 
-The CLI should express desired state. Commands should be safe to rerun where possible. The migration should avoid adding many new options. Instead, it should clarify a small set of intentional controls, especially around noninteractive execution, optional setup steps, and destructive system changes.
+A fetch on every invocation would make `help`, `doctor`, package editing, and local development sensitive to network latency, credentials, and outages. It would also mutate remote refs during commands that otherwise have no network behavior.
 
-## User Stories
+A live remote can change immediately after any fetch, so “always latest” can only mean “verified against the revision fetched at the start of this operation.” `dot update` provides that guarantee at an explicit point without slowing every command.
 
-1. As the dotfiles maintainer, I want `dot` to remain the single command for managing my environment, so that my daily workflow does not change.
-2. As the dotfiles maintainer, I want the implementation to be modular, so that I can safely work on one command without understanding the entire CLI.
-3. As the dotfiles maintainer, I want the CLI to be tested, so that I can refactor behavior without risking my live machine setup.
-4. As the dotfiles maintainer, I want commands to be idempotent where practical, so that rerunning setup and sync commands is safe.
-5. As the dotfiles maintainer, I want the CLI to avoid unnecessary options, so that commands describe desired state instead of historical repair paths.
-6. As the dotfiles maintainer, I want `dot init --skip-ssh --skip-font` to work as documented, so that quick-start examples are reliable.
-7. As the dotfiles maintainer, I want global options to work before or after the command where documented, so that the parser is predictable.
-8. As the dotfiles maintainer, I want `dot` to resolve the checkout correctly when invoked through a symlink, so that `dot link` is safe.
-9. As the dotfiles maintainer, I want `dot help` to be generated from command metadata, so that help text does not drift from implementation.
-10. As the dotfiles maintainer, I want `dot --version` to continue working, so that scripts can detect the CLI version.
-11. As the dotfiles maintainer, I want `dot doctor` to preserve its environment health checks, so that I can diagnose setup drift.
-12. As the dotfiles maintainer, I want `dot update` to preserve its pull-and-reexec behavior, so that updated CLI code is used after pulling changes.
-13. As the dotfiles maintainer, I want `dot update` to continue syncing packages, stow links, Pi settings, Pi extension dependencies, and configured Pi packages, so that the command remains the one-stop refresh path.
-14. As the dotfiles maintainer, I want mutation commands to guard against running from the wrong checkout, so that worktrees do not accidentally repoint my live home symlinks.
-15. As the dotfiles maintainer, I want `dot stow` to continue backing up conflicting live files, so that tracked dotfiles never destroy local state silently.
-16. As the dotfiles maintainer, I want stow conflict behavior to remain understandable in interactive terminals, so that I can choose whether to use tracked or live files.
-17. As the dotfiles maintainer, I want noninteractive stow behavior to be deterministic, so that automation does not hang or make ambiguous choices.
-18. As the dotfiles maintainer, I want generated Pi dependency and build artifacts ignored by stow, so that live dependency trees are not replaced by symlinks.
-19. As the dotfiles maintainer, I want Pi settings sync to preserve runtime model/provider preferences, so that my personal Pi choices are not overwritten.
-20. As the dotfiles maintainer, I want dotfiles-owned Pi package defaults to override runtime package entries, so that package sources stay centrally managed.
-21. As the dotfiles maintainer, I want old stowed Pi settings symlinks migrated to private runtime files, so that Pi can mutate runtime settings safely.
-22. As the dotfiles maintainer, I want Pi auth setup to preserve existing auth entries, so that adding Cloudflare auth does not wipe other providers.
-23. As the dotfiles maintainer, I want private Pi auth files written with restrictive permissions, so that secrets stay protected.
-24. As the dotfiles maintainer, I want Cloudflare auth values to avoid leaking into logs and errors, so that sensitive values remain private.
-25. As the dotfiles maintainer, I want package add/remove/list/update behavior preserved, so that Brewfile management remains convenient.
-26. As the dotfiles maintainer, I want Brewfile edits to remain sorted and minimal, so that diffs stay readable.
-27. As the dotfiles maintainer, I want missing package arguments to produce friendly usage errors, so that mistakes are easy to correct.
-28. As the dotfiles maintainer, I want package operations to use safe subprocess calls, so that package names are never shell-interpolated.
-29. As the dotfiles maintainer, I want failed package retry behavior preserved, so that setup remains resilient.
-30. As the dotfiles maintainer, I want `dot skills` to operate on the current checkout, so that worktrees do not pollute the live home tree or unrelated agent directories.
-31. As the dotfiles maintainer, I want skills to remain linked into Pi and Claude Code with relative symlinks, so that the canonical skills library remains shared.
-32. As the dotfiles maintainer, I want local and vendored skills to remain distinguishable, so that skill maintenance remains clear.
-33. As the dotfiles maintainer, I want SSH key generation to preserve the documented email-domain naming behavior, so that signing keys stay predictable.
-34. As the dotfiles maintainer, I want any legacy SSH path inconsistency reviewed deliberately, so that migration does not silently change key behavior.
-35. As the dotfiles maintainer, I want external command calls to be fakeable in tests, so that test runs are fast and safe.
-36. As the dotfiles maintainer, I want default tests to avoid real Homebrew, Git remotes, SSH agent changes, Pi updates, and network installers, so that tests can run repeatedly without side effects.
-37. As the dotfiles maintainer, I want a short legacy escape hatch during migration, so that I can recover if the new implementation misses an edge case.
-38. As a future agent, I want clear command modules and core modules, so that I can make focused changes confidently.
-39. As a future agent, I want tests at the highest useful seam, so that internal refactors do not require broad test rewrites.
-40. As a future agent, I want implementation decisions captured in this plan, so that the migration can be completed systematically over multiple sessions.
+Before live-machine mutation, other commands still inspect local Git facts. If the canonical checkout is behind the **last-fetched** `origin/main`, they fail and recommend `dot update`. They must not claim that this proves remote freshness.
 
-## Implementation Decisions
+### Why not `redot`?
 
-- Keep the public command name as `dot`.
-- Keep the root executable as a tiny launcher/bootstrap rather than making it the full application.
-- Place the Bun implementation in a dedicated tooling package outside the stowed home tree.
-- Do not place the new implementation inside the Pi workspace.
-- Prefer source execution with Bun for the local checkout workflow.
-- Treat compiled Bun binaries as optional future artifacts, not the primary installation or update mechanism.
-- Preserve macOS as the supported operating system scope.
-- Continue using Homebrew, GNU Stow, Git, SSH, Pi, and the skills CLI as external tools.
-- Replace ad-hoc Bash dispatch with a typed command manifest.
-- Generate root help and command help from command metadata where practical.
-- Replace the delimited Bash init registry with typed init step definitions.
-- Keep init step required/optional behavior explicit in the typed registry.
-- Use argument-array subprocess execution for dynamic values.
-- Avoid shell interpolation for package names, paths, provider IDs, and user-supplied values.
-- Keep unavoidable shell-based remote installer behavior isolated, named, and easy to audit.
-- Create pure core modules for deterministic transformations.
-- Create adapters for filesystem, terminal IO, subprocess execution, and external tools.
-- Inject adapters into command handlers so tests can use fakes.
-- Preserve canonical-checkout mutation guards for commands that mutate the live home directory or canonical checkout.
-- Support documented global flags before and after commands.
-- Preserve existing interactive behavior unless explicitly changed.
-- Preserve deterministic noninteractive behavior for automation.
-- Keep GNU Stow as the tool that creates symlinks.
-- Port the stow preflight/conflict/backup logic into TypeScript.
-- Preserve generated-artifact ignore behavior for dependency trees, build outputs, caches, logs, platform files, and TypeScript build info.
-- Preserve Pi settings as private runtime state rather than tracked stowed state.
-- Preserve the rule that dotfiles-owned Pi package defaults override runtime package entries.
-- Preserve Pi runtime preferences that are not dotfiles-owned.
-- Preserve Pi auth as private runtime state with restrictive permissions.
-- Preserve skills canonical storage and agent symlink behavior.
-- Preserve the skills CLI isolation behavior so the wrapper writes into the intended checkout only.
-- Preserve update self-reexecution after pulling a change to the CLI implementation.
-- Keep a migration-era legacy implementation escape hatch until the new implementation has sufficient parity.
-- Avoid adding broad new feature flags during the migration.
-- Fix known mismatches between documentation and implementation as intentional compatibility improvements.
+Do not add `redot` as a normal workflow. It would duplicate checkout-refresh knowledge, add another executable to install and test, and make callers choose between two commands that partly own the same invariant.
 
-## Testing Decisions
+In particular, `redot` must not “clean” or reset the checkout. Automatic cleanup can silently destroy local work. Nor should a deployment checkout use `git pull --rebase`: it should contain no local commits to rebase. Dirty, ahead, detached, wrong-branch, and diverged states are errors requiring explicit human resolution.
 
-- Test external behavior rather than implementation details.
-- Use black-box CLI tests as the primary regression suite.
-- Invoke the CLI against temporary checkouts and temporary home directories.
-- Use fake executables on `PATH` for Homebrew, Git, GNU Stow, Pi, Bun-related commands, SSH tooling, clipboard tooling, and other external dependencies.
-- Fake executables should record argv, cwd, environment, stdin, stdout, stderr, and exit status where relevant.
-- Default tests must not call real Homebrew, real Git remotes, real network installers, real SSH agent commands, real Pi updates, or real package installation.
-- Pure modules should have direct unit tests when they encode important deterministic rules.
-- Filesystem tests should assert resulting files, symlink targets, backup contents, file modes, and absence of unintended mutations.
-- Output tests should normalize timestamps, temporary paths, and ANSI color when those values are not semantically important.
-- The existing stow conflict backup regression should remain covered.
-- The existing stow generated-artifact ignore regression should remain covered.
-- The existing Pi settings sync regression should remain covered.
-- The existing Pi Cloudflare auth regression should remain covered.
-- Add tests for root discovery through direct invocation and symlink invocation.
-- Add tests for documented global option ordering.
-- Add tests for missing argument validation in package commands.
-- Add tests for command aliases and default subcommands.
-- Add tests for generated help text containing all public commands and no malformed lines.
-- Add tests for Brewfile sorted insertion, duplicate detection, removal, and special-character package names.
-- Add tests for Pi settings merge semantics, including package ownership and symlink migration.
-- Add tests for Pi auth upsert semantics, existing-entry preservation, key resolver formatting, and file mode.
-- Add tests for stow conflict planning in interactive and noninteractive modes.
-- Add tests for required versus optional init step failure handling.
-- Add tests for update reexecution behavior when the CLI changes after pull.
-- Add tests for skills checkout scoping and relative symlink creation.
-- Add tests for SSH email/domain key naming.
-- Maintain one canonical default test command for the Bun CLI.
-- Keep real macOS/Homebrew smoke tests opt-in only.
+If `dot` itself is too broken to update, the documented recovery is deliberately boring:
+
+```bash
+git -C ~/.dotfiles fetch origin
+git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
+```
+
+An independently copied recovery tool should be added only if real failures show that these commands are insufficient. Recovery orchestration may be delegated later; the mutation guard must always remain inside `dot`.
+
+## Intentional Command Surface
+
+Command-specific options follow the command. Only `--help` and `--version` are global; the parser does not need to support options in every position.
+
+| Exit | Meaning |
+|---:|---|
+| `0` | Success or already converged |
+| `1` | Operational failure, refused unsafe mutation, or actionable `doctor` drift |
+| `2` | Invalid command or arguments |
+| `>2` | Reserved for unexpected launcher/application failures |
+
+### `dot apply [--yes]`
+
+Reconcile the live machine with the canonical checked-out desired state.
+
+It owns the ordered workflow behind one deep interface:
+
+1. Validate canonical checkout state.
+2. Inspect desired and live state before avoidable mutation.
+3. Install missing declared packages only when the Brewfile is not satisfied.
+4. Plan, back up, and apply stow changes.
+5. Merge tracked Pi defaults into private runtime settings.
+6. Synchronize canonical skill links.
+7. Reconcile the stowed `~/.pi` workspace dependencies when required; the running `tools/dot` package does not install its own dependencies mid-execution.
+8. Report completed, skipped, and failed stages.
+
+If `HEAD` is behind the last-fetched `origin/main`, `apply` fails with guidance to run `dot update`. Equality only means “aligned with the last fetch”; `apply` never claims remote freshness.
+
+It does **not** broadly upgrade Homebrew packages or run `pi update --all`. Those tools own their own upgrade behavior. `dot` owns convergence to repository-declared state.
+
+A converged `apply` should be quick. Network access is allowed only when declared state is missing and requires installation; it must not occur merely to check for newer versions.
+
+### `dot update [--yes]`
+
+Refresh canonical `origin/main` through the launcher, re-exec if the revision changed, then invoke the same implementation as `dot apply`.
+
+It replaces the current mixture of unconstrained `git pull`, optional broad Homebrew upgrades, stow, Pi sync, dependency install, and Pi upgrades. Update should be deterministic: refresh repository, then reconcile declared state.
+
+### `dot doctor`
+
+Read-only and network-free. Check only state owned or required by this repository:
+
+- canonical checkout location, branch, cleanliness, and relation to last-fetched `origin/main`;
+- required executables;
+- Brewfile installation drift;
+- managed symlink drift and conflicts;
+- Pi runtime JSON validity and permissions;
+- skills-link drift;
+- configured SSH signing-key presence;
+- broken links under managed paths, not an arbitrary scan of all `$HOME`.
+
+Exit `0` when healthy and nonzero when actionable drift exists.
+
+### `dot init`
+
+First-run bootstrap only:
+
+Before the Bun application can start, the launcher handles one special case: if Bun is missing and the command is `init`, it offers an explicit Bun bootstrap, then executes the Bun application. Initial bootstrap is intentionally interactive; noninteractive `init` is out of scope. For any other command, the launcher exits with one clear remediation instruction before changing the checkout.
+
+The Bun-side init workflow is then:
+
+1. Install Homebrew explicitly if missing.
+2. Install Pi and other bootstrap-only tooling.
+3. Install oh-my-zsh if missing.
+4. Invoke the same implementation as `dot apply`; `apply` alone owns Brewfile package installation.
+5. Finish with `dot doctor`.
+
+Remote installer execution must be named, isolated, confirmed interactively, and never happen during ordinary commands. Required and optional stage policy must be explicit.
+
+SSH key generation leaves `dot`; documented `ssh-keygen` commands are clearer than the two inconsistent implementations currently in the script. Font installation is already owned by the Brewfile and must not be a duplicate init stage. Consequently, `--skip-ssh` and `--skip-font` disappear.
+
+### `dot package add NAME [--cask]`
+
+Atomically add a sorted Brewfile entry, then install it. Formula is the default; casks are explicit rather than network-detected.
+
+If installation fails, the Brewfile remains the source of truth and `doctor` reports the drift. Dynamic values are always separate subprocess arguments.
+
+### `dot package remove NAME`
+
+Atomically remove a Brewfile entry. Do not unexpectedly uninstall the package; print the native `brew uninstall` command if useful.
+
+The following existing package interfaces disappear:
+
+- `package list`: inspect `packages/bundle` or use `doctor`;
+- `package update`: use Homebrew directly;
+- `check-packages`: merged into `doctor`;
+- `retry-failed`: desired-state reconciliation replaces timestamped retry files;
+- work-bundle arguments: there is no `packages/bundle.work`; add this only if a real second bundle appears.
+
+### `dot skills`
+
+Keep `add`, `update`, `remove`, `sync`, and the default `list` operation. This wrapper earns its interface because it hides real repository-specific policy:
+
+- scoped `HOME` and temporary XDG/cache paths;
+- restricted target agents;
+- canonical versus vendored skill ownership;
+- relative Pi and Claude Code links;
+- ignored skills and dangling-link pruning;
+- current-worktree isolation.
+
+Rename implementation-oriented `link` to desired-state-oriented `sync`. Add/update/remove synchronize automatically.
+
+### `dot pi auth cloudflare`
+
+Keep the provider-specific operation because preserving unrelated auth, formatting key resolvers, redacting secrets, atomically writing JSON, and enforcing mode `0600` provide useful leverage.
+
+Tracked Pi settings synchronization is no longer a public command; it is an implementation stage of `apply`.
+
+### Commands removed
+
+| Existing command | Replacement or reason |
+|---|---|
+| `stow` | Hidden inside `apply`; GNU Stow is an implementation detail |
+| `pi-settings sync` | Hidden inside `apply` |
+| `check-packages` | Included in `doctor` |
+| `retry-failed` | Idempotent desired-state reconciliation |
+| `package list/update` | Repository file, `doctor`, or native Homebrew |
+| `gen-ssh-key` | Document native `ssh-keygen`; remove duplicate inconsistent implementations |
+| `link` / `unlink` | `.zprofile` already puts `~/.dotfiles` on `PATH` |
+| `edit` | `$EDITOR ~/.dotfiles` is clearer and equally capable |
+| broad Homebrew/Pi upgrade workflow | Use `brew upgrade` and `pi update --all` directly |
+
+No-argument `dot` shows help. Implicit mutation is not worth saving five characters.
+
+## Safety Invariants
+
+1. **Canonical deployment checkout** — live `$HOME` mutation is allowed only from the real `~/.dotfiles` checkout on `main`.
+2. **No destructive Git repair** — never auto-stash, reset, clean, switch branches, or rebase local commits.
+3. **Strict refresh** — `dot update` permits only equal or clean fast-forward states relative to fetched `origin/main`.
+4. **Fresh implementation** — every changed update revision re-execs the launcher once before reconciliation.
+5. **Parse before mutation** — invalid commands and arguments produce exit `2` without side effects.
+6. **Plan before apply** — validate JSON and classify stow conflicts before avoidable mutation.
+7. **Revalidate destructive actions** — a live file changed after planning is not moved or removed.
+8. **Preserve conflicts** — differing live files are backed up before tracked state replaces them.
+9. **Atomic private state** — Pi settings/auth writes use same-directory temporary files, atomic rename, and mode `0600`.
+10. **No shell interpolation** — dynamic paths, package names, provider IDs, and user values are subprocess argv entries.
+11. **Secret containment** — literal secrets never enter argv, subprocess environment, logs, or error messages.
+12. **Idempotent recovery** — rerunning after partial failure resumes from observed desired/live state, not a retry sidecar protocol.
+13. **Deterministic automation** — noninteractive execution never waits for input. Without `--yes`, a conflict requiring consent fails before changing that file.
+
+Do not build a general transaction framework. Atomic private writes, stow precondition checks, unique backup directories, and a concise recovery message address the concrete failure modes.
+
+## Architecture
+
+### External seam
+
+The primary module is the application:
+
+```ts
+interface DotApplication {
+  execute(invocation: Invocation): Promise<CommandOutcome>;
+}
+```
+
+Parsing, checkout policy, stage ordering, help generation, and error mapping sit behind this interface. The implementation returns an outcome rather than calling `process.exit` from command code.
+
+Start with explicit `guardCanonicalCheckout()` calls in the few live-machine mutation workflows. Do not introduce a declarative effect system or general coordinator unless repetition in real commands demonstrates that it would remove more complexity than it adds.
+
+### Deep internal modules
+
+Organize by behavior, not one shallow file per command:
+
+```text
+tools/dot/
+├── package.json
+├── src/
+│   ├── main.ts             # construct application and render outcome
+│   ├── application.ts      # parse, guard, coordinate, dispatch
+│   ├── checkout.ts         # read-only local Git-state classification
+│   ├── apply.ts            # desired-state plan and stage orchestration
+│   ├── stow.ts             # inspect → plan → resolve → revalidate → apply
+│   ├── packages.ts         # Brewfile transforms and reconciliation
+│   ├── pi.ts               # private settings/auth ownership and atomic writes
+│   ├── skills.ts           # checkout-scoped skills policy
+│   ├── diagnostics.ts
+│   ├── process.ts
+│   └── terminal.ts
+└── test/
+```
+
+This is illustrative, not a required file-per-box structure. Merge files until a module actually owns meaningful policy.
+
+### Earned seams only
+
+Use:
+
+- one process interface with production and recording adapters;
+- one terminal interface with TTY and scripted adapters;
+- a deep Git module above the process seam;
+- real temporary filesystems and repositories;
+- a narrow clock seam only if deterministic backup naming needs it.
+
+Do **not** create pass-through Brew, Stow, Pi, SSH, clipboard, and filesystem adapters. Add a tool-specific seam only when it gains a second adapter or enough policy that deleting it would spread complexity across callers.
+
+Pure in-process logic includes parsing, Brewfile transformation, Pi merge/upsert, stow planning, SSH-key presence rules, help rendering, and Git-state classification.
+
+## Testing Strategy
+
+The application interface is the main test surface. Critical launcher behavior is tested black-box.
+
+### Application contract tests
+
+Invoke `DotApplication.execute` with:
+
+- a real temporary checkout and temporary home;
+- the production rooted filesystem implementation;
+- a recording process adapter;
+- a scripted terminal adapter.
+
+Assert observable files, symlink targets, modes, subprocess argv/cwd/environment, output, and exit status. Tests should survive internal file/module refactors.
+
+### Launcher black-box tests
+
+Cover:
+
+- direct and symlink invocation;
+- Bun missing behavior;
+- canonical root enforcement;
+- argument and stream forwarding;
+- update re-execution into the newly fetched revision.
+
+### Local tool contract tests
+
+Use local bare Git repositories to cover equal, behind, ahead, diverged, dirty, detached, wrong-branch, fetch-failure, and fast-forward cases. Use real GNU Stow only against temporary homes. Default tests never call public Git remotes, Homebrew registries, Bun registries, Pi updates, SSH agents, or installers.
+
+### Required regressions
+
+Port the five existing shell regressions into the Bun suite:
+
+- stow conflict backup;
+- generated-artifact ignore;
+- same-file behavior through a symlinked parent;
+- Pi settings merge and old-symlink migration;
+- Pi Cloudflare auth creation and mode.
+
+Change the stow conflict fixture from Pi settings to a generic tracked file because Pi settings are now intentionally private runtime state.
+
+Add coverage for:
+
+- existing Pi auth provider preservation;
+- invalid JSON preservation;
+- atomic-write failure;
+- interactive and noninteractive stow choices;
+- file changes between stow planning and apply;
+- Stow failure after backup;
+- friendly package argument errors and special characters;
+- generated help matching the command manifest;
+- no secret values in output, argv, or environment;
+- partial `apply` failure followed by a successful rerun;
+- no broad Homebrew or Pi upgrades during `apply` or `update`.
+
+Keep one canonical default test command. Real network/macOS bootstrap smoke tests remain opt-in.
 
 ## Execution Plan
 
-### Phase 0 — Freeze the intended behavior
+### Phase 0 — Freeze the intentional contract
 
-- Record the public command matrix.
-- Record known intentional fixes:
-  - documented post-command global flags should work,
-  - symlink invocation should resolve the checkout root correctly,
-  - missing package arguments should produce friendly errors,
-  - malformed help output should be corrected,
-  - Pi settings/auth should no longer require Node once handled by Bun,
-  - legacy SSH key path behavior should be reviewed deliberately.
-- Ensure current regression tests pass before starting the migration.
+- Record the reduced command behavior matrix.
+- Record network, prompt, mutation, and failure behavior per command.
+- Convert current accidental defects into explicit fixes:
+  - post-command flags currently do not work;
+  - missing package arguments currently fail under `set -u` before friendly validation;
+  - root help contains malformed output;
+  - symlink invocation does not resolve the real checkout;
+  - init and public SSH generation disagree on key paths;
+  - font installation has duplicate ownership.
+- Keep the five existing shell regressions green as baseline evidence.
 
-Acceptance criteria:
+Acceptance:
 
-- Existing behavior is documented.
-- Current regressions pass.
-- Intentional behavior fixes are listed before implementation begins.
+- The intended behavior is smaller than the current command surface.
+- Every retained command has clear effects and ownership.
+- Deletions and behavior changes are deliberate, not accidental migration gaps.
 
-### Phase 1 — Introduce the Bun CLI skeleton
+### Phase 1 — Build the harness and freshness launcher
 
-- Create a dedicated Bun package for the CLI implementation.
-- Add a minimal command dispatcher.
-- Add help/version support.
-- Add a basic test setup.
-- Keep the legacy Bash CLI as the default implementation initially.
-- Add an opt-in path to exercise the Bun implementation during development.
+- Create the dependency-light `tools/dot/` Bun package.
+- Add `DotApplication.execute`, command metadata, generated help/version, process recording, and scripted terminal support.
+- Add temporary checkout/home fixtures.
+- Replace the root script with a migration launcher capable of strict `dot update` refresh and one-time re-exec.
+- Test Git states with a local bare origin before any live update behavior is enabled.
 
-Acceptance criteria:
+Acceptance:
 
-- The new CLI can print help and version.
-- The test command runs successfully.
-- The legacy implementation remains usable.
+- Help and version work without network access.
+- Direct and symlink launch resolve correctly.
+- `dot update` never resets, cleans, rebases, or merges divergent work.
+- A changed revision executes refreshed launcher/application code.
 
-### Phase 2 — Build shared primitives
+### Phase 2 — Deliver `dot apply` as a vertical slice
 
-- Implement repository root discovery.
-- Implement command parsing.
-- Implement output helpers.
-- Implement prompt abstraction.
-- Implement error and exit-code helpers.
-- Implement filesystem adapter.
-- Implement process adapter.
-- Implement terminal adapter.
-- Implement external-tool adapters.
+- Add the explicit canonical-checkout guard shared by live-machine workflows.
+- Port stow inspect/plan/resolve/revalidate/apply behavior.
+- Port Pi settings private-state synchronization with atomic writes.
+- Port deterministic skills-link synchronization.
+- Reconcile declared packages only when missing.
+- Port existing regressions into Bun application tests, then remove equivalent shell tests rather than maintaining two suites.
 
-Acceptance criteria:
+Acceptance:
 
-- Direct and symlink invocation root discovery are tested.
-- Global flags before and after commands are tested.
-- Command dispatch and help are generated from command metadata where practical.
-- Subprocess behavior can be faked in tests.
+- `apply` is idempotent and canonical-only.
+- Conflict backups, ignored artifacts, and symlink-parent safety are preserved.
+- Noninteractive conflict policy is explicit and tested.
+- A converged apply performs no broad upgrades.
 
-### Phase 3 — Port pure local-state logic
+### Phase 3 — Complete update and diagnostics
 
-- Port Brewfile parsing and editing.
-- Port Pi settings merge logic.
-- Port Pi auth merge/upsert logic.
-- Port stow ignore matching and conflict planning.
-- Port SSH email/domain key-name derivation.
+- Connect the refreshed launcher path to the same `apply` implementation.
+- Implement network-free `doctor` over repository-owned state.
+- Test fetch failure, no-change update, changed update, re-exec loop prevention, apply failure, and successful rerun.
 
-Acceptance criteria:
+Acceptance:
 
-- Pure unit tests cover each deterministic transformation.
-- Existing Pi settings and Pi auth regression behavior is reproducible through the new core logic.
-- Brewfile insertion/removal preserves ordering and avoids duplicate entries.
+- `update` means exactly “strict fast-forward plus apply.”
+- `doctor` reports actionable drift with useful exit status.
+- No later system mutation occurs after a failed fetch or unsafe Git state.
 
-### Phase 4 — Port read-only and low-risk commands
+### Phase 4 — Port retained authoring commands
 
-- Port root help and version.
-- Port diagnostics.
-- Port package listing/checking.
-- Port skills listing.
+- Implement package add/remove with atomic sorted edits and safe argv.
+- Port skills add/update/remove/list/sync with checkout isolation.
+- Port Pi Cloudflare auth upsert with atomic mode-`0600` writes and structural secret redaction.
 
-Acceptance criteria:
+Acceptance:
 
-- Commands run in black-box tests with fake external tools.
-- No default test invokes real external package or network operations.
-- Output is clear and behaviorally equivalent where intended.
+- Authoring commands work from feature worktrees without mutating live-home links.
+- Package edits remain minimal and deterministic.
+- Skills never pollute live symlinks or unrelated agent directories.
+- Existing auth entries and environment fields are preserved.
 
-### Phase 5 — Port deterministic mutating commands
+### Phase 5 — Bootstrap last
 
-- Port Pi settings sync.
-- Port Pi auth Cloudflare setup.
-- Port package add/remove Brewfile mutation.
-- Port skills linking.
-- Port global link/unlink behavior.
+- Implement explicit Bun bootstrap in the launcher's `init` path and Homebrew bootstrap in the Bun workflow.
+- Install bootstrap-only tools, then delegate declared-state work to `apply` and `doctor`.
+- Remove SSH generation and duplicate font setup.
+- Test required versus optional failures without real installers.
 
-Acceptance criteria:
+Acceptance:
 
-- Runtime Pi settings are preserved correctly.
-- Dotfiles-owned Pi package defaults win correctly.
-- Pi auth files are written with restrictive permissions.
-- Package file edits are sorted and minimal.
-- Skills symlinks are relative and scoped to the intended checkout.
+- Init is rerunnable.
+- Every remote installer is isolated and confirmed.
+- Routine commands never bootstrap tools silently.
 
-### Phase 6 — Port stow behavior
+### Phase 6 — Cut over and delete
 
-- Port stow preflight conflict detection.
-- Port conflict backup behavior.
-- Port identical live file cleanup.
-- Port generated-artifact ignore behavior.
-- Preserve interactive conflict choices.
-- Preserve deterministic noninteractive behavior.
-- Invoke GNU Stow with explicit arguments.
+- Make Bun the only implementation.
+- Remove the legacy Bash implementation and escape hatch once the reduced contract passes.
+- Update README and AGENTS.md to the reduced command surface and deployment-checkout model.
+- Document the two-command manual Git recovery instead of adding `redot`.
 
-Acceptance criteria:
+Acceptance:
 
-- Stow conflict backup regression passes against the Bun implementation.
-- Generated artifact ignore regression passes against the Bun implementation.
-- Tests assert symlink results, backup contents, ignored files, and stow argv.
-
-### Phase 7 — Port external system mutation workflows
-
-- Port init.
-- Port update.
-- Port package update.
-- Port failed package retry.
-- Port SSH key generation.
-- Preserve required/optional init step behavior.
-- Preserve update self-reexecution behavior.
-
-Acceptance criteria:
-
-- Init step sequencing is tested with fake external tools.
-- Required failures fail the command.
-- Optional failures warn and continue.
-- Update reexec behavior is tested.
-- SSH key generation behavior is tested without touching the real SSH agent by default.
-
-### Phase 8 — Make Bun the default implementation
-
-- Replace the root executable body with a tiny launcher/bootstrap.
-- Delegate to the Bun implementation by default when Bun is available.
-- Preserve a legacy escape hatch for one migration window.
-- Update README and agent-facing repo docs.
-
-Acceptance criteria:
-
-- `dot` invokes the Bun implementation by default.
-- The launcher resolves the checkout root correctly through symlinks.
-- Legacy fallback remains available temporarily.
-- Documentation reflects the new implementation.
-
-### Phase 9 — Remove legacy implementation
-
-- Remove the legacy Bash implementation.
-- Remove the legacy escape hatch.
-- Ensure all tests exercise the Bun implementation.
-- Keep behavior and architecture documentation current.
-
-Acceptance criteria:
-
-- The Bun implementation is the only implementation.
-- Test suite is green.
-- Docs no longer describe legacy behavior.
+- One implementation, one generated help source, and one default test command remain.
+- Deleted commands are absent from code and documentation.
+- The canonical checkout can be refreshed and applied without running stale Bun code.
 
 ## Out of Scope
 
-- Replacing Homebrew.
-- Replacing GNU Stow.
-- Replacing Git, SSH, Pi, or the skills CLI.
-- Making the dotfiles manager cross-platform.
-- Publishing the CLI to npm.
-- Making compiled Bun binaries the primary installation path.
-- Reorganizing the entire dotfiles repository beyond what the CLI migration requires.
-- Reworking Zsh, oh-my-zsh, Git identity, Pi extension behavior, or skills content unless required by the CLI migration.
-- Adding a large third-party CLI framework without a clear need.
-- Adding broad new product features during the migration.
+- Cross-platform support.
+- Replacing Homebrew, GNU Stow, Git, Pi, or the skills CLI.
+- Publishing to npm or making a compiled binary the primary installation path.
+- A public plugin system or generic workflow engine.
+- Automatic destructive repair of the canonical checkout.
+- Automatic network refresh on every command.
+- Broad package/tool upgrades.
+- A standalone `redot` recovery tool without evidence that manual fast-forward recovery is inadequate.
 
-## Further Notes
+## Review Evidence
 
-This rewrite is primarily a compatibility-preserving migration. The simplification comes from clearer state ownership, typed command dispatch, pure core modules, and high-level behavioral tests — not from deleting large parts of the command surface immediately.
+At refresh time:
 
-The highest-risk areas are:
+- the Bash implementation is 2,298 lines;
+- the prior draft enumerated about 40 command-parity user stories;
+- all five existing shell regressions pass;
+- those regressions cover only stow and Pi private-state behavior, not parsing, checkout freshness, update re-execution, package authoring, skills, init, or diagnostics;
+- `.zprofile` already adds `~/.dotfiles` to `PATH`;
+- only `packages/bundle` exists;
+- the Nerd Font is already declared in that Brewfile.
 
-1. stow conflict handling,
-2. update self-reexecution,
-3. skills checkout scoping,
-4. Pi private runtime state,
-5. external package/system mutation commands.
-
-The safest starting point is the command manifest, path resolver, test harness, and pure local-state modules. The highest-risk external workflows should be migrated last.
-
-## Open Decisions
-
-- Whether the first-run launcher should bootstrap Bun automatically or print instructions when Bun is absent.
-- Whether to keep a small set of noninteractive flags such as `--yes` or rely on existing prompt defaults.
-- Whether to intentionally correct the legacy SSH default key path behavior during the migration or preserve it for compatibility.
-- Whether to maintain old Bash regression scripts alongside Bun tests during the migration or port them immediately.
-- Whether to add optional compiled binary output later for standalone distribution.
+These facts support reducing the interface before porting it, and moving canonical-checkout freshness to the beginning of the migration rather than leaving it among the final high-risk workflows.

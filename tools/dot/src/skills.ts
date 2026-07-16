@@ -1,6 +1,7 @@
 import { lstat, readdir, readlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ProcessRunner } from "./process";
+import { skillAgentDirectories } from "./skill-layout";
 
 async function assertLink(path: string, target: string): Promise<void> {
   let metadata;
@@ -46,28 +47,20 @@ export async function validateSkillLinks(options: {
     .filter(Boolean)
     .map((path) => path.split("/").at(-2)!)
     .sort();
-  const skillDirectories = [
-    join(options.checkoutRoot, "home/.pi/agent/skills"),
-    join(options.checkoutRoot, "home/.claude/skills"),
-  ];
+  const agentDirectories = skillAgentDirectories(options.checkoutRoot);
   for (const name of names) {
-    await assertLink(
-      join(skillDirectories[0]!, name),
-      `../../../.agents/skills/${name}`,
-    );
-    await assertLink(
-      join(skillDirectories[1]!, name),
-      `../../.agents/skills/${name}`,
-    );
+    for (const directory of agentDirectories) {
+      await assertLink(join(directory.path, name), directory.target(name));
+    }
   }
-  for (const directory of skillDirectories) {
-    const entries = await readdir(directory, { withFileTypes: true }).catch((error) => {
+  for (const directory of agentDirectories) {
+    const entries = await readdir(directory.path, { withFileTypes: true }).catch((error) => {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw error;
     });
     for (const entry of entries) {
       if (!entry.isSymbolicLink()) continue;
-      const path = join(directory, entry.name);
+      const path = join(directory.path, entry.name);
       try {
         await stat(path);
       } catch (error) {

@@ -155,8 +155,7 @@ export function createApplication(
                   });
           return { exitCode: 0, stdout, stderr: "" };
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          return { exitCode: 1, stdout: "", stderr: `dot: ${message}\n` };
+          return failureOutcome(error);
         }
       }
 
@@ -214,8 +213,7 @@ export function createApplication(
           });
           return { exitCode: 0, stdout, stderr: "" };
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          return { exitCode: 1, stdout: "", stderr: `dot: ${message}\n` };
+          return failureOutcome(error);
         }
       }
 
@@ -246,8 +244,7 @@ export function createApplication(
             : await removePackage({ checkoutRoot: dependencies.checkoutRoot, name: name! });
           return { exitCode: 0, stdout, stderr: "" };
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          return { exitCode: 1, stdout: "", stderr: `dot: ${message}\n` };
+          return failureOutcome(error);
         }
       }
 
@@ -271,8 +268,7 @@ export function createApplication(
             stderr: "",
           };
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          return { exitCode: 1, stdout: "", stderr: `dot: ${message}\n` };
+          return failureOutcome(error);
         }
       }
 

@@ -1,13 +1,10 @@
 import {
-  chmod,
   lstat,
   mkdir,
-  open,
   readFile,
-  rename,
-  rm,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { replaceFileAtomic } from "./atomic-file";
 
 function parseObject(text: string, label: string): Record<string, unknown> {
   let value: unknown;
@@ -47,24 +44,7 @@ async function currentRegularFileMatches(
 
 export async function replacePrivateFile(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = join(
-    dirname(path),
-    `.${path.split("/").at(-1)}.${process.pid}.${crypto.randomUUID()}.tmp`,
-  );
-  let handle: Awaited<ReturnType<typeof open>> | undefined;
-  try {
-    handle = await open(temporary, "wx", 0o600);
-    await handle.writeFile(content, "utf8");
-    await handle.sync();
-    await handle.close();
-    handle = undefined;
-    await chmod(temporary, 0o600);
-    await rename(temporary, path);
-  } catch (error) {
-    await handle?.close().catch(() => undefined);
-    await rm(temporary, { force: true }).catch(() => undefined);
-    throw error;
-  }
+  await replaceFileAtomic(path, content, { mode: 0o600, sync: true });
 }
 
 export async function inspectPiSettings(home: string): Promise<string[]> {

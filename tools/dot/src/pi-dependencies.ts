@@ -4,11 +4,9 @@ import {
   mkdir,
   readFile,
   readdir,
-  rename,
-  rm,
-  writeFile,
 } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import { replaceFileAtomic } from "./atomic-file";
 import type { ProcessRunner } from "./process";
 
 interface InstallState {
@@ -80,16 +78,7 @@ async function readState(path: string): Promise<InstallState | undefined> {
 
 async function writeState(path: string, state: InstallState): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  try {
-    await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, {
-      flag: "wx",
-    });
-    await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true }).catch(() => undefined);
-    throw error;
-  }
+  await replaceFileAtomic(path, `${JSON.stringify(state, null, 2)}\n`);
 }
 
 export async function reconcilePiDependencies(options: {

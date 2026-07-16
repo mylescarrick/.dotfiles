@@ -12,6 +12,7 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { ProcessRunner } from "./process";
+import { skillAgentDirectories } from "./skill-layout";
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -43,10 +44,10 @@ export async function syncSkillLinks(options: {
   readonly processes: ProcessRunner;
 }): Promise<string> {
   const canonical = join(options.checkoutRoot, "home/.agents/skills");
-  const pi = join(options.checkoutRoot, "home/.pi/agent/skills");
-  const claude = join(options.checkoutRoot, "home/.claude/skills");
-  await mkdir(pi, { recursive: true });
-  await mkdir(claude, { recursive: true });
+  const agentDirectories = skillAgentDirectories(options.checkoutRoot);
+  for (const directory of agentDirectories) {
+    await mkdir(directory.path, { recursive: true });
+  }
 
   const names: string[] = [];
   for (const entry of await readdir(canonical, { withFileTypes: true })) {
@@ -65,15 +66,16 @@ export async function syncSkillLinks(options: {
     });
     if (ignored.exitCode === 0) continue;
     names.push(entry.name);
-    await ensureLink(join(pi, entry.name), `../../../.agents/skills/${entry.name}`);
-    await ensureLink(join(claude, entry.name), `../../.agents/skills/${entry.name}`);
+    for (const directory of agentDirectories) {
+      await ensureLink(join(directory.path, entry.name), directory.target(entry.name));
+    }
   }
 
   let pruned = 0;
-  for (const directory of [pi, claude]) {
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
+  for (const directory of agentDirectories) {
+    for (const entry of await readdir(directory.path, { withFileTypes: true })) {
       if (!entry.isSymbolicLink()) continue;
-      const path = join(directory, entry.name);
+      const path = join(directory.path, entry.name);
       if (!(await exists(path))) {
         await rm(path);
         pruned += 1;

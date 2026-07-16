@@ -79,7 +79,7 @@ bun run --cwd tools/dot check  # Typecheck + tests
 | Zsh | `.zshrc` / `.zprofile` | oh-my-zsh bootstrap, EDITOR, tool inits (starship, zoxide, vp) |
 | Git | `config` | SSH signing, `pull.rebase`, conditional include |
 | Starship | `starship.toml` | 2s timeout (Vite+ shims) |
-| Pi | `settings.json` / `model-families.json` | Default provider: github-copilot; role-routed model families; Catppuccin theme |
+| Pi | `config/pi/settings.defaults.json` / `home/.pi/agent/model-families.json` | Tracked package/theme defaults sync to private runtime settings; role-routed model families |
 
 ## UNIQUE STYLES
 

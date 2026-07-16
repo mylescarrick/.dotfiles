@@ -8,7 +8,7 @@ Scope: Replace the monolithic Bash implementation with a small Bun/TypeScript CL
 
 This is **not** a line-for-line Bash-to-TypeScript port.
 
-The current `dot` script is 2,298 lines and combines repository updating, local state reconciliation, system bootstrap, package authoring, skills authoring, private Pi configuration, diagnostics, prompts, and recovery workflows. Recreating every function as a TypeScript command module would improve syntax without removing much complexity.
+The former Bash `dot` script was 2,298 lines and combined repository updating, local state reconciliation, system bootstrap, package authoring, skills authoring, private Pi configuration, diagnostics, prompts, and recovery workflows. Recreating every function as a TypeScript command module would have improved syntax without removing much complexity.
 
 The migration will instead preserve the important state and safety invariants while reducing the public interface:
 
@@ -47,7 +47,7 @@ For `dot update` only, the launcher recognizes the command and performs the Git 
 8. If `HEAD` changed, re-exec the refreshed launcher once.
 9. Execute the Bun application from the refreshed revision and run `apply`.
 
-This guarantees that the update workflow uses the revision just fetched from `origin/main`. It also fixes the current implementation's fragile rule of re-executing only when the root `dot` file changed; after the migration, any changed revision may change application behavior.
+This guarantees that the update workflow uses the revision just fetched from `origin/main`. It also replaces the former implementation's fragile rule of re-executing only when the root `dot` file changed; any changed revision may change application behavior.
 
 ### Why not update on every launch?
 
@@ -460,7 +460,7 @@ Acceptance:
 
 At refresh time:
 
-- the Bash implementation is 2,298 lines;
+- the Bash implementation was 2,298 lines;
 - the prior draft enumerated about 40 command-parity user stories;
 - all five existing shell regressions pass;
 - those regressions cover only stow and Pi private-state behavior, not parsing, checkout freshness, update re-execution, package authoring, skills, init, or diagnostics;

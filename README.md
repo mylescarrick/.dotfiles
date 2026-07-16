@@ -36,8 +36,8 @@ feature worktrees instead.
 dot update
 ```
 
-`update` fetches `origin`, permits only a clean fast-forward of canonical
-`~/.dotfiles/main`, re-executes freshly fetched launcher/application code, then
+`update` fetches `origin`, permits only a clean fast-forward of the canonical
+`~/.dotfiles` checkout on `main`, re-executes freshly fetched launcher/application code, then
 runs the same reconciliation as `dot apply`. It never resets, cleans, stashes,
 rebases, or silently discards local work.
 

@@ -54,6 +54,24 @@ describe("package authoring", () => {
     });
   });
 
+  test("preserves valid tap and version characters as one argv value", async () => {
+    const checkout = await fixture();
+    const processes = new RecordingProcesses();
+    const name = "owner/tap/formula@1.2+meta";
+
+    const outcome = await createApplication({ checkoutRoot: checkout, processes }).execute({
+      argv: ["package", "add", name],
+      cwd: checkout,
+      env: {},
+    });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(processes.requests[0]!.argv).toEqual(["brew", "install", name]);
+    expect(await readFile(join(checkout, "packages/bundle"), "utf8")).toContain(
+      `brew "${name}"`,
+    );
+  });
+
   test("uses explicit cask installation", async () => {
     const checkout = await fixture();
     const processes = new RecordingProcesses();

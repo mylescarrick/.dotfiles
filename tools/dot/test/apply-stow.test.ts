@@ -42,6 +42,7 @@ async function makeFixture(tracked: Record<string, string>): Promise<{
   await mkdir(join(checkout, "packages"), { recursive: true });
   await mkdir(join(checkout, "home"), { recursive: true });
   await writeFile(join(checkout, "packages/bundle"), 'brew "stow"\n');
+  await writeFile(join(checkout, ".gitignore"), "backups/\n");
   await writeFile(
     join(checkout, "config/pi/settings.defaults.json"),
     '{"theme":"dark","packages":[]}\n',
@@ -269,6 +270,9 @@ describe("dot apply stow", () => {
     });
 
     expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toContain("Skill links valid (0)\n");
+    expect(outcome.stdout).toContain("Packages already current\n");
+    expect(outcome.stdout).toContain("FAILED dotfile publication: GNU Stow failed");
     expect(outcome.stderr).toContain("live-file backups remain at");
     const roots = await readdir(join(fixture.checkout, "backups/stow-conflicts"));
     expect(
@@ -277,6 +281,14 @@ describe("dot apply stow", () => {
         "utf8",
       ),
     ).toBe("live\n");
+
+    const rerun = await createApplication({ checkoutRoot: fixture.checkout }).execute({
+      argv: ["apply", "--yes"],
+      cwd: fixture.checkout,
+      env: fixture.env,
+    });
+    expect(rerun.exitCode).toBe(0);
+    expect((await lstat(conflict)).isSymbolicLink()).toBe(true);
   });
 
   test("leaves generated live artifacts untouched", async () => {

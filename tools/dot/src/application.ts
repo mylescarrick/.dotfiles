@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import packageMetadata from "../package.json";
-import { apply } from "./apply";
+import { apply, ApplyFailure } from "./apply";
 import { runDoctor } from "./diagnostics";
 import { initialize } from "./init";
 import { addPackage, removePackage } from "./package-authoring";
@@ -47,6 +47,15 @@ const commands: readonly CommandDescription[] = [
   { usage: "pi auth cloudflare", summary: "Configure private Pi Cloudflare auth" },
   { usage: "help", summary: "Show this help" },
 ];
+
+function failureOutcome(error: unknown): CommandOutcome {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    exitCode: 1,
+    stdout: error instanceof ApplyFailure ? error.stdout : "",
+    stderr: `dot: ${message}\n`,
+  };
+}
 
 function renderHelp(): string {
   const commandLines = commands
@@ -107,8 +116,7 @@ export function createApplication(
           });
           return { ...outcome, stderr: "" };
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          return { exitCode: 1, stdout: "", stderr: `dot: ${message}\n` };
+          return failureOutcome(error);
         }
       }
 
@@ -292,12 +300,7 @@ export function createApplication(
             stderr: "",
           };
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          return {
-            exitCode: 1,
-            stdout: "",
-            stderr: `dot: ${message}\n`,
-          };
+          return failureOutcome(error);
         }
       }
 

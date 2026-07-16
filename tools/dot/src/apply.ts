@@ -7,6 +7,15 @@ import { validateSkillLinks } from "./skills";
 import { applyStowPlan, planStow } from "./stow";
 import type { Terminal } from "./terminal";
 
+export class ApplyFailure extends Error {
+  constructor(
+    message: string,
+    readonly stdout: string,
+  ) {
+    super(message);
+  }
+}
+
 export async function apply(options: {
   readonly acceptTracked: boolean;
   readonly checkoutRoot: string;
@@ -14,20 +23,42 @@ export async function apply(options: {
   readonly processes: ProcessRunner;
   readonly terminal: Terminal;
 }): Promise<string> {
-  // Revalidate here even when init already guarded before its bootstrap stages.
-  await guardCanonicalCheckout(options);
-  const home = options.env.HOME;
-  if (!home) throw new Error("HOME is required");
-  await planPiSettings({ checkoutRoot: options.checkoutRoot, home });
-  const skillSummary = await validateSkillLinks(options);
-  const stowPlan = await planStow({ ...options, home });
-  const packageSummary = await reconcilePackages(options);
-  const stowSummary = await applyStowPlan(stowPlan);
-  const piSettings = await planPiSettings({
-    checkoutRoot: options.checkoutRoot,
-    home,
-  });
-  const changed = await applyPiSettings(piSettings);
-  const dependencySummary = await reconcilePiDependencies({ ...options, home });
-  return `${skillSummary}${packageSummary}${stowSummary}${changed ? "Pi settings synced" : "Pi settings already current"}\n${dependencySummary}`;
+  let progress = "";
+  let stage = "checkout validation";
+  try {
+    // Revalidate here even when init already guarded before its bootstrap stages.
+    await guardCanonicalCheckout(options);
+    const home = options.env.HOME;
+    if (!home) throw new Error("HOME is required");
+
+    stage = "Pi settings preflight";
+    await planPiSettings({ checkoutRoot: options.checkoutRoot, home });
+
+    stage = "skill-link validation";
+    progress += await validateSkillLinks(options);
+
+    stage = "Stow conflict preflight";
+    const stowPlan = await planStow({ ...options, home });
+
+    stage = "package reconciliation";
+    progress += await reconcilePackages(options);
+
+    stage = "dotfile publication";
+    progress += await applyStowPlan(stowPlan);
+
+    stage = "Pi settings synchronization";
+    const piSettings = await planPiSettings({
+      checkoutRoot: options.checkoutRoot,
+      home,
+    });
+    const changed = await applyPiSettings(piSettings);
+    progress += `${changed ? "Pi settings synced" : "Pi settings already current"}\n`;
+
+    stage = "Pi dependency reconciliation";
+    progress += await reconcilePiDependencies({ ...options, home });
+    return progress;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ApplyFailure(message, `${progress}FAILED ${stage}: ${message}\n`);
+  }
 }

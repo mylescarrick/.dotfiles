@@ -5,6 +5,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   readlink,
   realpath,
   rm,
@@ -124,7 +125,8 @@ describe("dot apply Pi settings", () => {
 
     expect(outcome).toEqual({
       exitCode: 1,
-      stdout: "",
+      stdout:
+        "FAILED checkout validation: canonical checkout is behind origin/main; run 'dot update'\n",
       stderr: "dot: canonical checkout is behind origin/main; run 'dot update'\n",
     });
     expect(await Bun.file(join(fixture.home, ".pi/agent/settings.json")).exists()).toBe(false);
@@ -261,12 +263,34 @@ describe("dot apply Pi settings", () => {
 
     expect(outcome).toEqual({
       exitCode: 1,
-      stdout: "",
+      stdout: "FAILED Pi settings preflight: Pi runtime settings contains invalid JSON\n",
       stderr: "dot: Pi runtime settings contains invalid JSON\n",
     });
     expect(await readFile(settingsPath, "utf8")).toBe("{ invalid json\n");
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o640);
     expect(await Bun.file(join(fixture.home, ".dot-apply-fixture")).exists()).toBe(false);
+  });
+
+  test("preserves existing settings when the atomic replacement cannot start", async () => {
+    const fixture = await makeFixture();
+    const settingsDirectory = join(fixture.home, ".pi/agent");
+    const settingsPath = join(settingsDirectory, "settings.json");
+    const original = '{"theme":"custom","packages":[]}\n';
+    await mkdir(settingsDirectory, { recursive: true });
+    await writeFile(settingsPath, original, { mode: 0o600 });
+    await chmod(settingsDirectory, 0o500);
+
+    const outcome = await createApplication({ checkoutRoot: fixture.checkout }).execute({
+      argv: ["apply"],
+      cwd: fixture.checkout,
+      env: fixture.env,
+    });
+    await chmod(settingsDirectory, 0o700);
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toContain("FAILED Pi settings synchronization:");
+    expect(await readFile(settingsPath, "utf8")).toBe(original);
+    expect((await readdir(settingsDirectory)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
   });
 
   test("replaces a dangling legacy symlink with defaults", async () => {

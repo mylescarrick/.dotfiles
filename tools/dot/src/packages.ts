@@ -8,6 +8,17 @@ interface PackageOptions {
   readonly processes: ProcessRunner;
 }
 
+function homebrewEnvironment(
+  env: Readonly<Record<string, string | undefined>>,
+): Readonly<Record<string, string | undefined>> {
+  return {
+    ...env,
+    HOMEBREW_NO_AUTO_UPDATE: "1",
+    HOMEBREW_BUNDLE_BREW_SKIP: undefined,
+    HOMEBREW_BUNDLE_CASK_SKIP: undefined,
+  };
+}
+
 async function bundlePath(checkoutRoot: string): Promise<string> {
   const bundle = join(checkoutRoot, "packages/bundle");
   try {
@@ -18,14 +29,11 @@ async function bundlePath(checkoutRoot: string): Promise<string> {
   return bundle;
 }
 
-export async function inspectPackages(options: PackageOptions): Promise<boolean> {
-  const bundle = await bundlePath(options.checkoutRoot);
-  const env = {
-    ...options.env,
-    HOMEBREW_NO_AUTO_UPDATE: "1",
-    HOMEBREW_BUNDLE_BREW_SKIP: undefined,
-    HOMEBREW_BUNDLE_CASK_SKIP: undefined,
-  };
+async function checkPackages(
+  options: PackageOptions,
+  bundle: string,
+  env: Readonly<Record<string, string | undefined>>,
+): Promise<boolean> {
   let check;
   try {
     check = await options.processes.run({
@@ -39,15 +47,15 @@ export async function inspectPackages(options: PackageOptions): Promise<boolean>
   return check.exitCode === 0;
 }
 
+export async function inspectPackages(options: PackageOptions): Promise<boolean> {
+  const bundle = await bundlePath(options.checkoutRoot);
+  return checkPackages(options, bundle, homebrewEnvironment(options.env));
+}
+
 export async function reconcilePackages(options: PackageOptions): Promise<string> {
   const bundle = await bundlePath(options.checkoutRoot);
-  const env = {
-    ...options.env,
-    HOMEBREW_NO_AUTO_UPDATE: "1",
-    HOMEBREW_BUNDLE_BREW_SKIP: undefined,
-    HOMEBREW_BUNDLE_CASK_SKIP: undefined,
-  };
-  if (await inspectPackages(options)) return "Packages already current\n";
+  const env = homebrewEnvironment(options.env);
+  if (await checkPackages(options, bundle, env)) return "Packages already current\n";
 
   const install = await options.processes.run({
     argv: ["brew", "bundle", "install", "--no-upgrade", "--file", bundle],

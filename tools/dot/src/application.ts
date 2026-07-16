@@ -4,7 +4,7 @@ import { apply, ApplyFailure } from "./apply";
 import { runDoctor } from "./diagnostics";
 import { initialize } from "./init";
 import { addPackage, removePackage } from "./package-authoring";
-import { configureCloudflareAuth } from "./pi-auth";
+import { configureCloudflareAuth, parseCloudflareAuthArgs } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
 import { listSkills, runSkillsCli, syncSkillLinks } from "./skills-authoring";
 import { systemTerminal, type Terminal } from "./terminal";
@@ -167,47 +167,16 @@ export function createApplication(
             stderr: "dot: usage: dot pi auth cloudflare [OPTIONS]\n",
           };
         }
-        const values: Record<string, string> = {};
-        const allowed = new Set([
-          "--account-id",
-          "--gateway-id",
-          "--api-key-env",
-          "--api-key-op-ref",
-        ]);
-        for (let index = 3; index < invocation.argv.length; index += 2) {
-          const flag = invocation.argv[index];
-          const value = invocation.argv[index + 1];
-          if (
-            !flag ||
-            !allowed.has(flag) ||
-            !value ||
-            value.startsWith("-") ||
-            values[flag]
-          ) {
-            return {
-              exitCode: 2,
-              stdout: "",
-              stderr: "dot: usage: dot pi auth cloudflare [OPTIONS]\n",
-            };
-          }
-          values[flag] = value;
-        }
-        if (values["--api-key-env"] && values["--api-key-op-ref"]) {
-          return {
-            exitCode: 2,
-            stdout: "",
-            stderr: "dot: choose one Cloudflare API key source\n",
-          };
+        const parsed = parseCloudflareAuthArgs(invocation.argv.slice(3));
+        if (!parsed.ok) {
+          return { exitCode: 2, stdout: "", stderr: parsed.message };
         }
         const home = invocation.env.HOME;
         if (!home) return { exitCode: 1, stdout: "", stderr: "dot: HOME is required\n" };
         try {
           const stdout = await configureCloudflareAuth({
-            accountId: values["--account-id"],
-            apiKeyEnv: values["--api-key-env"],
-            apiKeyOpRef: values["--api-key-op-ref"],
+            ...parsed.input,
             env: invocation.env,
-            gatewayId: values["--gateway-id"],
             home,
             terminal,
           });

@@ -1,14 +1,49 @@
 import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { parseJsonObject } from "./json";
 import { replacePrivateFile } from "./pi";
 import type { Terminal } from "./terminal";
 
-function parseObject(text: string): Record<string, unknown> {
-  const value: unknown = text.trim() ? JSON.parse(text) : {};
-  if (!value || Array.isArray(value) || typeof value !== "object") {
-    throw new Error("Pi auth must contain a JSON object");
+export type CloudflareKeySource =
+  | { readonly kind: "env"; readonly name: string }
+  | { readonly kind: "op"; readonly reference: string };
+
+export interface CloudflareAuthInput {
+  readonly accountId?: string;
+  readonly gatewayId?: string;
+  readonly keySource?: CloudflareKeySource;
+}
+
+export type CloudflareArgsResult =
+  | { readonly ok: true; readonly input: CloudflareAuthInput }
+  | { readonly ok: false; readonly message: string };
+
+export function parseCloudflareAuthArgs(args: readonly string[]): CloudflareArgsResult {
+  let accountId: string | undefined;
+  let gatewayId: string | undefined;
+  let keySource: CloudflareKeySource | undefined;
+  for (let index = 0; index < args.length; index += 2) {
+    const flag = args[index];
+    const value = args[index + 1];
+    if (!value || value.startsWith("-")) {
+      return { ok: false, message: "dot: usage: dot pi auth cloudflare [OPTIONS]\n" };
+    }
+    if (flag === "--account-id" && accountId === undefined) accountId = value;
+    else if (flag === "--gateway-id" && gatewayId === undefined) gatewayId = value;
+    else if (flag === "--api-key-env" && keySource === undefined) {
+      keySource = { kind: "env", name: value };
+    } else if (flag === "--api-key-op-ref" && keySource === undefined) {
+      keySource = { kind: "op", reference: value };
+    } else if (
+      (flag === "--api-key-env" || flag === "--api-key-op-ref") &&
+      keySource !== undefined
+    ) {
+      return { ok: false, message: "dot: choose one Cloudflare API key source\n" };
+    } else {
+      return { ok: false, message: "dot: usage: dot pi auth cloudflare [OPTIONS]\n" };
+    }
   }
-  return value as Record<string, unknown>;
+  return { ok: true, input: { accountId, gatewayId, keySource } };
 }
 
 export async function inspectPiAuth(home: string): Promise<string[]> {
@@ -25,9 +60,9 @@ export async function inspectPiAuth(home: string): Promise<string[]> {
   const issues: string[] = [];
   if ((metadata.mode & 0o777) !== 0o600) issues.push("Pi auth mode is not 0600");
   try {
-    parseObject(await readFile(path, "utf8"));
+    parseJsonObject(await readFile(path, "utf8"), "Pi auth");
   } catch (error) {
-    issues.push(error instanceof SyntaxError ? "Pi auth contains invalid JSON" : (error as Error).message);
+    issues.push((error as Error).message);
   }
   return issues;
 }
@@ -36,12 +71,8 @@ function quoteResolver(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-export async function configureCloudflareAuth(options: {
-  readonly accountId?: string;
-  readonly apiKeyEnv?: string;
-  readonly apiKeyOpRef?: string;
+export async function configureCloudflareAuth(options: CloudflareAuthInput & {
   readonly env: Readonly<Record<string, string | undefined>>;
-  readonly gatewayId?: string;
   readonly home: string;
   readonly terminal: Terminal;
 }): Promise<string> {
@@ -57,18 +88,20 @@ export async function configureCloudflareAuth(options: {
     throw new Error("Cloudflare account and gateway IDs are required");
   }
 
-  const key = options.apiKeyOpRef
-    ? `!op read ${quoteResolver(options.apiKeyOpRef)}`
-    : `$${options.apiKeyEnv || "CLOUDFLARE_API_KEY"}`;
+  const keySource = options.keySource ?? {
+    kind: "env" as const,
+    name: "CLOUDFLARE_API_KEY",
+  };
+  const key =
+    keySource.kind === "op"
+      ? `!op read ${quoteResolver(keySource.reference)}`
+      : `$${keySource.name}`;
   const authPath = join(options.home, ".pi/agent/auth.json");
   let auth: Record<string, unknown> = {};
   try {
-    auth = parseObject(await readFile(authPath, "utf8"));
+    auth = parseJsonObject(await readFile(authPath, "utf8"), "Pi auth");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      if (error instanceof SyntaxError) throw new Error("Pi auth contains invalid JSON");
-      throw error;
-    }
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
 
   const upsert = (provider: string, patch: Record<string, string>) => {

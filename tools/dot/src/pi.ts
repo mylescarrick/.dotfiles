@@ -5,23 +5,11 @@ import {
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { replaceFileAtomic } from "./atomic-file";
-
-function parseObject(text: string, label: string): Record<string, unknown> {
-  let value: unknown;
-  try {
-    value = text.trim() ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(`${label} contains invalid JSON`);
-  }
-  if (value === null || Array.isArray(value) || typeof value !== "object") {
-    throw new Error(`${label} must contain a JSON object`);
-  }
-  return value as Record<string, unknown>;
-}
+import { parseJsonObject } from "./json";
 
 async function readRuntime(path: string): Promise<Record<string, unknown>> {
   try {
-    return parseObject(await readFile(path, "utf8"), "Pi runtime settings");
+    return parseJsonObject(await readFile(path, "utf8"), "Pi runtime settings");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
     throw error;
@@ -63,7 +51,7 @@ export async function inspectPiSettings(home: string): Promise<string[]> {
   const issues: string[] = [];
   if ((metadata.mode & 0o777) !== 0o600) issues.push("Pi runtime settings mode is not 0600");
   try {
-    parseObject(await readFile(path, "utf8"), "Pi runtime settings");
+    parseJsonObject(await readFile(path, "utf8"), "Pi runtime settings");
   } catch (error) {
     issues.push((error as Error).message);
   }
@@ -85,7 +73,7 @@ export async function planPiSettings(options: {
 
   let defaults: Record<string, unknown>;
   try {
-    defaults = parseObject(
+    defaults = parseJsonObject(
       await readFile(defaultsPath, "utf8"),
       "Tracked Pi settings defaults",
     );

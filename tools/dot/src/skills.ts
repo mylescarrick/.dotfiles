@@ -1,4 +1,4 @@
-import { lstat, readlink } from "node:fs/promises";
+import { lstat, readdir, readlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ProcessRunner } from "./process";
 
@@ -46,15 +46,37 @@ export async function validateSkillLinks(options: {
     .filter(Boolean)
     .map((path) => path.split("/").at(-2)!)
     .sort();
+  const skillDirectories = [
+    join(options.checkoutRoot, "home/.pi/agent/skills"),
+    join(options.checkoutRoot, "home/.claude/skills"),
+  ];
   for (const name of names) {
     await assertLink(
-      join(options.checkoutRoot, "home/.pi/agent/skills", name),
+      join(skillDirectories[0]!, name),
       `../../../.agents/skills/${name}`,
     );
     await assertLink(
-      join(options.checkoutRoot, "home/.claude/skills", name),
+      join(skillDirectories[1]!, name),
       `../../.agents/skills/${name}`,
     );
+  }
+  for (const directory of skillDirectories) {
+    const entries = await readdir(directory, { withFileTypes: true }).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    });
+    for (const entry of entries) {
+      if (!entry.isSymbolicLink()) continue;
+      const path = join(directory, entry.name);
+      try {
+        await stat(path);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          throw new Error(`tracked skill link is dangling: ${path}`);
+        }
+        throw error;
+      }
+    }
   }
   return `Skill links valid (${names.length})\n`;
 }

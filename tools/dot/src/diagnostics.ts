@@ -2,6 +2,7 @@ import { lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { guardCanonicalCheckout } from "./checkout";
 import { inspectPackages } from "./packages";
+import { inspectPiAuth } from "./pi-auth";
 import { inspectPiSettings, planPiSettings } from "./pi";
 import type { ProcessRunner } from "./process";
 import { validateSkillLinks } from "./skills";
@@ -68,7 +69,7 @@ export async function runDoctor(options: {
   }
 
   const available = new Set<string>();
-  for (const tool of ["bun", "git", "brew", "stow"] as const) {
+  for (const tool of ["bun", "git", "brew", "stow", "pi"] as const) {
     try {
       const result = await options.processes.run({
         argv: [tool, "--version"],
@@ -100,6 +101,10 @@ export async function runDoctor(options: {
   } catch (error) {
     fail("dotfiles", (error as Error).message);
   }
+
+  const authIssues = await inspectPiAuth(home);
+  for (const issue of authIssues) fail("pi-auth", issue);
+  if (authIssues.length === 0) ok("pi-auth", "private auth is valid when configured");
 
   const piIssues = await inspectPiSettings(home);
   for (const issue of piIssues) fail("pi-settings", issue);

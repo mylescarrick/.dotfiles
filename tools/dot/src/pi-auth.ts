@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { replacePrivateFile } from "./pi";
 import type { Terminal } from "./terminal";
@@ -9,6 +9,27 @@ function parseObject(text: string): Record<string, unknown> {
     throw new Error("Pi auth must contain a JSON object");
   }
   return value as Record<string, unknown>;
+}
+
+export async function inspectPiAuth(home: string): Promise<string[]> {
+  const path = join(home, ".pi/agent/auth.json");
+  let metadata;
+  try {
+    metadata = await lstat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  if (!metadata.isFile()) return ["Pi auth is not a private regular file"];
+
+  const issues: string[] = [];
+  if ((metadata.mode & 0o777) !== 0o600) issues.push("Pi auth mode is not 0600");
+  try {
+    parseObject(await readFile(path, "utf8"));
+  } catch (error) {
+    issues.push(error instanceof SyntaxError ? "Pi auth contains invalid JSON" : (error as Error).message);
+  }
+  return issues;
 }
 
 function quoteResolver(value: string): string {

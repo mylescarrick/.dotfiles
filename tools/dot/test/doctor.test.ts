@@ -63,8 +63,10 @@ async function fixture(): Promise<{
   );
   const fakeBin = join(home, "fake-bin");
   await mkdir(fakeBin);
-  await writeFile(join(fakeBin, "brew"), "#!/bin/sh\nexit 0\n");
-  await chmod(join(fakeBin, "brew"), 0o755);
+  for (const tool of ["brew", "pi"]) {
+    await writeFile(join(fakeBin, tool), "#!/bin/sh\nexit 0\n");
+    await chmod(join(fakeBin, tool), 0o755);
+  }
   return {
     checkout,
     home,
@@ -104,6 +106,7 @@ describe("dot doctor", () => {
         continue;
       }
       if (argv[0] === "brew" && argv[1] === "--version") continue;
+      if (argv[0] === "pi" && argv[1] === "--version") continue;
       if (argv[0] === "brew") {
         expect(argv.slice(1, 3)).toEqual(["bundle", "check"]);
         continue;
@@ -128,6 +131,37 @@ describe("dot doctor", () => {
     expect(outcome.stdout).toContain("FAIL  dotfiles: 1 managed path(s) drifted");
     expect(outcome.stdout).toContain("FAIL  pi-settings: Pi runtime settings mode is not 0600");
     expect(outcome.stdout).toContain("2 actionable issue(s)");
+  });
+
+  test("reports missing required Pi executable", async () => {
+    const state = await fixture();
+    await writeFile(join(state.home, "fake-bin/pi"), "#!/bin/sh\nexit 1\n");
+
+    const outcome = await createApplication({ checkoutRoot: state.checkout }).execute({
+      argv: ["doctor"],
+      cwd: state.checkout,
+      env: state.env,
+    });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toContain("FAIL  tools: pi is unavailable");
+  });
+
+  test("reports malformed and non-private Pi auth", async () => {
+    const state = await fixture();
+    await writeFile(join(state.home, ".pi/agent/auth.json"), "{ invalid\n", {
+      mode: 0o644,
+    });
+
+    const outcome = await createApplication({ checkoutRoot: state.checkout }).execute({
+      argv: ["doctor"],
+      cwd: state.checkout,
+      env: state.env,
+    });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toContain("FAIL  pi-auth: Pi auth mode is not 0600");
+    expect(outcome.stdout).toContain("FAIL  pi-auth: Pi auth contains invalid JSON");
   });
 
   test("reports valid Pi settings that are stale against tracked defaults", async () => {

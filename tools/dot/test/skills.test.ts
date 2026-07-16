@@ -67,6 +67,16 @@ describe("tracked skill links", () => {
     expect(await Bun.file(missing).exists()).toBe(false);
   });
 
+  test("reports an extra dangling managed link", async () => {
+    const checkout = await fixture();
+    const dangling = join(checkout, "home/.pi/agent/skills/gone");
+    await symlink("../../../.agents/skills/gone", dangling);
+
+    await expect(
+      validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner }),
+    ).rejects.toThrow(`tracked skill link is dangling: ${dangling}`);
+  });
+
   test("preserves a real file at a required link path", async () => {
     const checkout = await fixture({ pi: false });
     const collision = join(checkout, "home/.pi/agent/skills/example");

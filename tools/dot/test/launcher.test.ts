@@ -192,7 +192,7 @@ describe("dot launcher", () => {
   });
 
   test("bootstraps Bun interactively for init before executing the application", async () => {
-    const fixture = await makeFixture({ withBun: false });
+    const fixture = await makeFixture({ withBun: false, withGit: true });
     const installer = join(fixture.home, "bun-installer.sh");
     const curlLog = join(fixture.home, "curl-url");
     const pathLog = join(fixture.home, "bootstrap-path");
@@ -255,6 +255,34 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     );
   });
 
+  test("refuses to bootstrap Bun when canonical checkout is not on main", async () => {
+    const fixture = await makeFixture({ withBun: false, withGit: true });
+    await run(["git", "checkout", "-b", "feature-init"], fixture.checkout);
+    const child = Bun.spawn(
+      [
+        "/bin/sh",
+        "-c",
+        '( sleep .2; printf "y\\n" ) | /usr/bin/script -q /dev/null "$DOT_TEST_LAUNCHER" init',
+      ],
+      {
+        env: { ...fixture.env, DOT_TEST_LAUNCHER: fixture.launcherLink },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    const [stdout, stderr] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+
+    expect(stderr).toBe("");
+    expect(stdout).toContain(
+      "dot: canonical checkout must be on main before Bun bootstrap (found 'feature-init')",
+    );
+    expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
+  });
+
   test("refuses to bootstrap Bun from a noncanonical checkout", async () => {
     const fixture = await makeFixture({ withBun: false, withGit: true });
     const worktree = join(fixture.home, "feature-init");
@@ -289,7 +317,7 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
   });
 
   test("does not download Bun when interactive bootstrap is declined", async () => {
-    const fixture = await makeFixture({ withBun: false });
+    const fixture = await makeFixture({ withBun: false, withGit: true });
     const child = Bun.spawn(
       [
         "/bin/sh",
@@ -314,7 +342,7 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
   });
 
   test("refuses noninteractive init when Bun is unavailable", async () => {
-    const fixture = await makeFixture({ withBun: false });
+    const fixture = await makeFixture({ withBun: false, withGit: true });
     const child = Bun.spawn([fixture.launcherLink, "init"], {
       env: fixture.env,
       stdout: "pipe",

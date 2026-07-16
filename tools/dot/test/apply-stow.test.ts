@@ -14,6 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
+import { bunProcessRunner, type ProcessRequest, type ProcessRunner } from "../src/process";
 import type { Terminal } from "../src/terminal";
 
 const temporaryDirectories: string[] = [];
@@ -73,6 +74,14 @@ afterEach(async () => {
     temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
   );
 });
+
+class RecordingDelegate implements ProcessRunner {
+  readonly requests: ProcessRequest[] = [];
+  async run(request: ProcessRequest) {
+    this.requests.push(request);
+    return bunProcessRunner.run(request);
+  }
+}
 
 function scriptedTerminal(
   answers: string[],
@@ -181,7 +190,11 @@ describe("dot apply stow", () => {
     await mkdir(join(conflict, ".."), { recursive: true });
     await writeFile(conflict, "live a\n");
 
-    const outcome = await createApplication({ checkoutRoot: fixture.checkout }).execute({
+    const processes = new RecordingDelegate();
+    const outcome = await createApplication({
+      checkoutRoot: fixture.checkout,
+      processes,
+    }).execute({
       argv: ["apply"],
       cwd: fixture.checkout,
       env: fixture.env,
@@ -189,6 +202,11 @@ describe("dot apply stow", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.stderr).toContain("conflicts with tracked state; rerun with --yes");
+    expect(
+      processes.requests.some(
+        ({ argv }) => argv[0] === "brew" && argv[1] === "bundle",
+      ),
+    ).toBe(false);
     expect(await readFile(conflict, "utf8")).toBe("live a\n");
     expect(await Bun.file(join(fixture.home, ".config/b")).exists()).toBe(false);
     expect(await Bun.file(join(fixture.checkout, "backups/stow-conflicts")).exists()).toBe(false);

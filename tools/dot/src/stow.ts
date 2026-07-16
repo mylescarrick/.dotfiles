@@ -154,14 +154,21 @@ export async function inspectStow(options: {
   return drift;
 }
 
-export async function applyStow(options: {
+export interface StowOptions {
   readonly acceptTracked: boolean;
   readonly checkoutRoot: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly home: string;
   readonly processes: ProcessRunner;
   readonly terminal: Terminal;
-}): Promise<string> {
+}
+
+export interface StowPlan {
+  readonly actions: readonly PlannedAction[];
+  readonly options: StowOptions;
+}
+
+export async function planStow(options: StowOptions): Promise<StowPlan> {
   const sourceRoot = join(options.checkoutRoot, "home");
   try {
     if (!(await lstat(sourceRoot)).isDirectory()) throw new Error();
@@ -227,6 +234,11 @@ export async function applyStow(options: {
     }
   }
 
+  return { actions, options };
+}
+
+export async function applyStowPlan(plan: StowPlan): Promise<string> {
+  const { actions, options } = plan;
   const backups = actions.filter((action) => action.kind === "backup");
   let backupRoot: string | undefined;
   if (backups.length) {
@@ -279,4 +291,8 @@ export async function applyStow(options: {
   const identical = actions.filter((action) => action.kind === "remove-identical").length;
   if (identical) summaries.push(`${identical} identical live file(s) replaced`);
   return `${summaries.join("\n")}\n`;
+}
+
+export async function applyStow(options: StowOptions): Promise<string> {
+  return applyStowPlan(await planStow(options));
 }

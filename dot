@@ -12,6 +12,42 @@ usage_error() {
   exit 2
 }
 
+require_safe_canonical_checkout() {
+  action=$1
+  branch_context=$2
+  canonical=$HOME/.dotfiles
+  if [ ! -d "$canonical" ]; then
+    fail "canonical checkout not found at $canonical"
+  fi
+  canonical=$(CDPATH= cd "$canonical" && pwd -P)
+  if [ "$DOTFILES_DIR" != "$canonical" ]; then
+    fail "$action must run from the canonical checkout at $canonical"
+  fi
+
+  if ! git_dir=$(git -C "$DOTFILES_DIR" rev-parse --absolute-git-dir); then
+    fail "failed to inspect canonical checkout"
+  fi
+  for operation in \
+    MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG \
+    rebase-merge rebase-apply sequencer
+  do
+    if [ -e "$git_dir/$operation" ]; then
+      fail "canonical checkout has an unfinished Git operation"
+    fi
+  done
+
+  branch=$(git -C "$DOTFILES_DIR" branch --show-current 2>/dev/null || true)
+  if [ "$branch" != "main" ]; then
+    fail "canonical checkout must be on main$branch_context (found '${branch:-detached HEAD}')"
+  fi
+  if ! status=$(git -C "$DOTFILES_DIR" status --porcelain); then
+    fail "failed to inspect canonical checkout"
+  fi
+  if [ -n "$status" ]; then
+    fail "canonical checkout has uncommitted changes"
+  fi
+}
+
 script=$0
 case $script in
   /*) ;;
@@ -49,14 +85,7 @@ if ! bun_path=$(command -v bun); then
   if [ "$#" -ne 1 ]; then
     fail "Bun is required; run 'dot init' without options to bootstrap it."
   fi
-  canonical=$HOME/.dotfiles
-  if [ ! -d "$canonical" ]; then
-    fail "canonical checkout not found at $canonical"
-  fi
-  canonical=$(CDPATH= cd "$canonical" && pwd -P)
-  if [ "$DOTFILES_DIR" != "$canonical" ]; then
-    fail "init must run from the canonical checkout at $canonical"
-  fi
+  require_safe_canonical_checkout "init" " before Bun bootstrap"
   if [ ! -t 0 ] || [ ! -t 1 ]; then
     fail "Bun bootstrap requires an interactive terminal"
   fi
@@ -109,37 +138,7 @@ PATH=$(dirname "$bun_path"):$PATH
 export PATH
 
 if [ "${1:-}" = "update" ]; then
-  canonical=$HOME/.dotfiles
-  if [ ! -d "$canonical" ]; then
-    fail "canonical checkout not found at $canonical"
-  fi
-  canonical=$(CDPATH= cd "$canonical" && pwd -P)
-  if [ "$DOTFILES_DIR" != "$canonical" ]; then
-    fail "update must run from the canonical checkout at $canonical"
-  fi
-
-  if ! git_dir=$(git -C "$DOTFILES_DIR" rev-parse --absolute-git-dir); then
-    fail "failed to inspect canonical checkout"
-  fi
-  for operation in \
-    MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG \
-    rebase-merge rebase-apply sequencer
-  do
-    if [ -e "$git_dir/$operation" ]; then
-      fail "canonical checkout has an unfinished Git operation"
-    fi
-  done
-
-  branch=$(git -C "$DOTFILES_DIR" branch --show-current 2>/dev/null || true)
-  if [ "$branch" != "main" ]; then
-    fail "canonical checkout must be on main (found '${branch:-detached HEAD}')"
-  fi
-  if ! status=$(git -C "$DOTFILES_DIR" status --porcelain); then
-    fail "failed to inspect canonical checkout"
-  fi
-  if [ -n "$status" ]; then
-    fail "canonical checkout has uncommitted changes"
-  fi
+  require_safe_canonical_checkout "update" ""
 
   if ! git -C "$DOTFILES_DIR" fetch origin; then
     fail "failed to fetch origin"

@@ -4,7 +4,7 @@ import { reconcilePiDependencies } from "./pi-dependencies";
 import { applyPiSettings, planPiSettings } from "./pi";
 import type { ProcessRunner } from "./process";
 import { validateSkillLinks } from "./skills";
-import { applyStow } from "./stow";
+import { applyStowPlan, planStow } from "./stow";
 import type { Terminal } from "./terminal";
 
 export async function apply(options: {
@@ -20,8 +20,9 @@ export async function apply(options: {
   if (!home) throw new Error("HOME is required");
   await planPiSettings({ checkoutRoot: options.checkoutRoot, home });
   const skillSummary = await validateSkillLinks(options);
+  const stowPlan = await planStow({ ...options, home });
   const packageSummary = await reconcilePackages(options);
-  const stowSummary = await applyStow({ ...options, home });
+  const stowSummary = await applyStowPlan(stowPlan);
   const piSettings = await planPiSettings({
     checkoutRoot: options.checkoutRoot,
     home,

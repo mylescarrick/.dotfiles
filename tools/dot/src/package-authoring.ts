@@ -3,7 +3,9 @@ import { join } from "node:path";
 import type { ProcessRunner } from "./process";
 
 function validateName(name: string): void {
-  if (!name || /["\r\n]/.test(name)) throw new Error("invalid package name");
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9@+._-]*(?:\/[a-zA-Z0-9][a-zA-Z0-9@+._-]*)*$/.test(name)) {
+    throw new Error("invalid package name");
+  }
 }
 
 function parsePackageLine(line: string): { name: string; type: "brew" | "cask" } | undefined {

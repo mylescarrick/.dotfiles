@@ -140,7 +140,26 @@ describe("package authoring", () => {
     expect(processes.requests).toHaveLength(0);
   });
 
-  test("rejects missing or unsafe names before file access", async () => {
+  test.each([
+    "--force",
+    "#{system('touch /tmp/pwned')}",
+    "bad name",
+    "../formula",
+    "name, restart_service: :changed",
+  ])("rejects unsafe package name %s before file access", async (name) => {
+    const processes = new RecordingProcesses();
+    const app = createApplication({ checkoutRoot: "/missing", processes });
+    expect(
+      await app.execute({
+        argv: ["package", "add", name],
+        cwd: "/missing",
+        env: {},
+      }),
+    ).toEqual({ exitCode: 1, stdout: "", stderr: "dot: invalid package name\n" });
+    expect(processes.requests).toHaveLength(0);
+  });
+
+  test("rejects missing or quoted names before file access", async () => {
     const app = createApplication({ checkoutRoot: "/missing" });
     expect(
       await app.execute({ argv: ["package", "add"], cwd: "/missing", env: {} }),

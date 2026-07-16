@@ -255,6 +255,42 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     );
   });
 
+  test("refuses to bootstrap Bun from a checkout behind origin/main", async () => {
+    const fixture = await makeFixture({ withBun: false, withGit: true });
+    await publishChange(fixture);
+    await run(["git", "fetch", "origin", "main"], fixture.checkout);
+    const curlLog = join(fixture.home, "unexpected-curl");
+    await writeFile(
+      join(fixture.fakeBin, "curl"),
+      `#!/bin/sh\nprintf 'called\\n' > "${curlLog}"\nexit 9\n`,
+    );
+    await chmod(join(fixture.fakeBin, "curl"), 0o755);
+
+    const child = Bun.spawn(
+      [
+        "/bin/sh",
+        "-c",
+        '( sleep .2; printf "y\\n" ) | /usr/bin/script -q /dev/null "$DOT_TEST_LAUNCHER" init',
+      ],
+      {
+        env: { ...fixture.env, DOT_TEST_LAUNCHER: fixture.launcherLink },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    const [stdout, stderr] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+
+    expect(stderr).toBe("");
+    expect(stdout).toContain(
+      "dot: canonical checkout is not aligned with origin/main; refresh it before Bun bootstrap",
+    );
+    expect(await Bun.file(curlLog).exists()).toBe(false);
+  });
+
   test("refuses to bootstrap Bun when canonical checkout is not on main", async () => {
     const fixture = await makeFixture({ withBun: false, withGit: true });
     await run(["git", "checkout", "-b", "feature-init"], fixture.checkout);

@@ -156,7 +156,7 @@ describe("dot apply Pi settings", () => {
     expect(outcome).toEqual({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\n",
       stderr: "",
     });
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
@@ -183,7 +183,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\n",
     });
     const first = await lstat(settingsPath);
 
@@ -196,7 +196,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings already current\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings already current\nPi dependency workspace not tracked (skipped)\n",
     });
     const second = await lstat(settingsPath);
     expect(second.ino).toBe(first.ino);
@@ -212,7 +212,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\n",
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
   });

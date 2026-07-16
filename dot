@@ -15,6 +15,7 @@ usage_error() {
 require_safe_canonical_checkout() {
   action=$1
   branch_context=$2
+  require_aligned=$3
   canonical=$HOME/.dotfiles
   if [ ! -d "$canonical" ]; then
     fail "canonical checkout not found at $canonical"
@@ -45,6 +46,18 @@ require_safe_canonical_checkout() {
   fi
   if [ -n "$status" ]; then
     fail "canonical checkout has uncommitted changes"
+  fi
+
+  if [ "$require_aligned" = "true" ]; then
+    head=$(git -C "$DOTFILES_DIR" rev-parse HEAD)
+    if ! remote=$(
+      git -C "$DOTFILES_DIR" rev-parse --verify refs/remotes/origin/main 2>/dev/null
+    ); then
+      fail "origin/main is unavailable; refresh the checkout before Bun bootstrap"
+    fi
+    if [ "$head" != "$remote" ]; then
+      fail "canonical checkout is not aligned with origin/main; refresh it before Bun bootstrap"
+    fi
   fi
 }
 
@@ -85,7 +98,7 @@ if ! bun_path=$(command -v bun); then
   if [ "$#" -ne 1 ]; then
     fail "Bun is required; run 'dot init' without options to bootstrap it."
   fi
-  require_safe_canonical_checkout "init" " before Bun bootstrap"
+  require_safe_canonical_checkout "init" " before Bun bootstrap" "true"
   if [ ! -t 0 ] || [ ! -t 1 ]; then
     fail "Bun bootstrap requires an interactive terminal"
   fi
@@ -138,7 +151,7 @@ PATH=$(dirname "$bun_path"):$PATH
 export PATH
 
 if [ "${1:-}" = "update" ]; then
-  require_safe_canonical_checkout "update" ""
+  require_safe_canonical_checkout "update" "" "false"
 
   if ! git -C "$DOTFILES_DIR" fetch origin; then
     fail "failed to fetch origin"

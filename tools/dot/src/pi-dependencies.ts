@@ -89,7 +89,9 @@ export async function reconcilePiDependencies(options: {
 }): Promise<string> {
   const trackedWorkspace = join(options.checkoutRoot, "home/.pi");
   const trackedRootManifest = join(trackedWorkspace, "package.json");
-  if (!(await regularFile(trackedRootManifest))) return "";
+  if (!(await regularFile(trackedRootManifest))) {
+    return "Pi dependency workspace not tracked (skipped)\n";
+  }
 
   const liveWorkspace = join(options.home, ".pi");
   const liveManifest = join(liveWorkspace, "package.json");

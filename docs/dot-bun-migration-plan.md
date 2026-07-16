@@ -111,7 +111,7 @@ It owns the ordered workflow behind one deep interface:
 3. Install missing declared packages only when the Brewfile is not satisfied.
 4. Plan, back up, and apply stow changes.
 5. Merge tracked Pi defaults into private runtime settings.
-6. Synchronize canonical skill links.
+6. Validate canonical tracked skill links; GNU Stow publishes them into `$HOME`. Repair tracked link drift explicitly with `dot skills sync` so `apply` never dirties the deployment checkout.
 7. Reconcile the stowed `~/.pi` workspace dependencies when required; the running `tools/dot` package does not install its own dependencies mid-execution.
 8. Report completed, skipped, and failed stages.
 
@@ -383,7 +383,7 @@ Acceptance:
 - Add the explicit canonical-checkout guard shared by live-machine workflows.
 - Port stow inspect/plan/resolve/revalidate/apply behavior.
 - Port Pi settings private-state synchronization with atomic writes.
-- Port deterministic skills-link synchronization.
+- Port deterministic tracked skill-link validation and Stow publication; keep checkout repair in `dot skills sync`.
 - Reconcile declared packages only when missing.
 - Port existing regressions into Bun application tests, then remove equivalent shell tests rather than maintaining two suites.
 

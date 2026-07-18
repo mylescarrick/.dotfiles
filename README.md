@@ -1,190 +1,219 @@
 # Dotfiles
 
-Personal macOS development environment, managed by a single CLI: `dot`.
+Personal macOS development environment managed by `dot`.
 
-Uses GNU Stow for symlinks, Homebrew for packages, and configures Zsh
-(oh-my-zsh), Git (with a personal/work identity split), and AI coding agents
-(`pi`, Claude Code) with a shared agent-skills library.
+GNU Stow publishes tracked files into `$HOME`, Homebrew manages packages, and
+Bun runs the TypeScript CLI. The repository also configures Zsh, Git identities,
+Pi, Claude Code, and a shared agent-skills library.
 
-> For the terse, machine-oriented map of the repo, see `CLAUDE.md` / `AGENTS.md`.
-> This README is the human setup and workflow guide.
+> For the terse, machine-oriented repository map, see `AGENTS.md`.
 
 ## Quick start
 
 ```bash
 git clone https://github.com/mylescarrick/.dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
-./dot init                        # full setup
-./dot init --skip-ssh --skip-font # skip optional steps
+./dot init
 ```
 
-After `init`, `dot` is on your PATH globally. Restart the shell (or
-`source ~/.zshrc`), then run `dot doctor` to verify.
+`init` is intentionally interactive. If Bun is missing, the root launcher asks
+before downloading the official Bun installer. The Bun application then:
 
-> **Keep `~/.dotfiles` on `main`.** `dot` runs directly from the checkout, so a
-> stale branch silently serves old behavior. Refresh with `dot update`.
+1. installs Homebrew when missing;
+2. installs Pi when missing;
+3. optionally installs oh-my-zsh;
+4. applies repository-declared state;
+5. finishes with `dot doctor`.
+
+Restart the shell, or run `source ~/.zshrc`, after first setup.
+
+## Deployment checkout
+
+`~/.dotfiles` is a deployment checkout. Keep it clean and on `main`; develop in
+feature worktrees instead.
+
+```bash
+dot update
+```
+
+`update` fetches `origin`, permits only a clean fast-forward of the canonical
+`~/.dotfiles` checkout on `main`, re-executes freshly fetched launcher/application code, then
+runs the same reconciliation as `dot apply`. It never resets, cleans, stashes,
+rebases, or silently discards local work.
+
+Normal commands do not fetch. If `dot` itself is too broken to update, recover
+with the deliberately small sequence:
+
+```bash
+git -C ~/.dotfiles fetch origin
+git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
+```
 
 ## The `dot` CLI
 
 | Command | What it does |
-|---------|--------------|
-| `dot init [--skip-ssh] [--skip-font]` | Full setup (see steps below) |
-| `dot update` | Pull, upgrade Homebrew, re-stow, sync Pi settings/deps, run `pi update --all` |
-| `dot doctor` | Environment health check |
-| `dot check-packages` | Show installed vs. missing Brewfile packages |
-| `dot retry-failed` | Reinstall packages that failed during setup |
-| `dot package add/remove/list/update` | Manage the Brewfile |
-| `dot pi-auth cloudflare` | Configure private Pi Cloudflare auth entries |
-| `dot pi-settings sync` | Sync private Pi settings from tracked defaults |
-| `dot gen-ssh-key [email]` | Generate an ed25519 SSH key (named by email domain) |
-| `dot stow` | Re-create `home/` → `~` symlinks |
-| `dot link` / `dot unlink` | Add/remove the global `dot` symlink in PATH |
-| `dot edit` | Open the dotfiles dir in `$EDITOR` |
-| `dot help` | Command overview |
+|---|---|
+| `dot init` | Bootstrap a new machine, apply desired state, then diagnose it |
+| `dot apply [--yes]` | Reconcile the canonical checked-out state into the machine |
+| `dot update [--yes]` | Strictly fast-forward canonical `main`, re-exec, then apply |
+| `dot doctor` | Inspect repository-owned state without network access or repair |
+| `dot package add NAME [--cask]` | Record sorted Brewfile state, then install it |
+| `dot package remove NAME` | Remove desired Brewfile state without uninstalling |
+| `dot skills [list]` | List canonical skills as local or vendored |
+| `dot skills add REPO SKILL...` | Vendor skills into the current checkout |
+| `dot skills update` | Update vendored skills in the current checkout |
+| `dot skills remove SKILL...` | Remove local or vendored skills safely |
+| `dot skills sync` | Rebuild relative Pi and Claude Code skill links |
+| `dot pi auth cloudflare [OPTIONS]` | Configure private Pi Cloudflare auth |
+| `dot help` / `dot --version` | Show command or version information |
 
-`dot init` runs, in order: Homebrew → Brewfile packages → Stow → Pi settings → Bun →
-`pi` (via `bun install -g`) → pi extension deps → SSH key (`--skip-ssh`) →
-Nerd Font (`--skip-font`) → oh-my-zsh. Package installs are resilient:
-failures are logged to `packages/failed_packages_*.txt` and retried with
-`dot retry-failed`.
+`apply` validates the canonical checkout, validates skill links, installs only
+missing Brewfile state, safely stows `home/`, synchronizes private Pi settings,
+and runs `bun install` in `~/.pi` only when workspace state has drifted. It does
+not run broad upgrades such as `brew upgrade` or `pi update --all`; invoke those
+tools directly when wanted.
+
+Without `--yes`, an interactive Stow conflict offers use/keep/diff/abort.
+Noninteractive conflicts fail before mutation. `--yes` backs up conflicting live
+files before tracked state wins; it never bypasses checkout safety.
 
 ## Repository structure
 
-```
+```text
 ~/.dotfiles/
-├── dot                     # The CLI
-├── home/                   # Stowed to ~ (mirror of your home dir)
-│   ├── .config/
-│   │   ├── git/            # config + work_config (conditional include)
-│   │   ├── ghostty/        # Terminal
-│   │   ├── ripgrep/        # rg config
-│   │   └── starship.toml   # Prompt
-│   ├── .agents/skills/     # Canonical agent-skills library
-│   ├── .pi/                # pi workspace (extensions, skill symlinks)
-│   ├── .oh-my-zsh/custom/  # Custom zsh: aliases, git, worktree, utils
-│   ├── .local/bin/         # Personal scripts (agent-repos, coffee)
-│   ├── .zshrc / .zprofile
-│   └── .ssh/allowed_signers
-├── packages/bundle         # Base Brewfile
-├── CLAUDE.md / AGENTS.md   # Instructions for AI agents
-└── README.md
+├── dot                     # Small POSIX launcher/bootstrap
+├── tools/dot/               # Bun/TypeScript application and tests
+├── config/pi/               # Tracked defaults for private Pi runtime state
+├── home/                    # Stowed to ~ (mirrors the home directory)
+│   ├── .config/git/         # Personal/work Git identity split
+│   ├── .agents/skills/      # Canonical shared skills library
+│   ├── .pi/                 # Pi workspace and agent skill links
+│   ├── .claude/skills/      # Claude Code skill links
+│   ├── .oh-my-zsh/custom/   # Custom Zsh aliases and functions
+│   └── .zshrc / .zprofile
+├── packages/bundle          # Base Brewfile
+├── docs/
+└── AGENTS.md
 ```
 
-Edit files under `home/` (never `~` directly — stow owns those symlinks), then
-`dot stow` to apply.
-
-## Git identity
-
-Identity switches automatically by directory via a conditional include:
-
-- **Default** (everywhere): personal identity in `home/.config/git/config`
-- **Work**: anything under `~/Code/work/` uses `home/.config/git/work_config`
-
-Commits are SSH-signed. The signing keys are per-identity
-(`~/.ssh/id_ed25519_gmail.pub`, `~/.ssh/id_ed25519_knox.pub`); generate them
-with `dot gen-ssh-key <email>`.
-
-> A pre-existing `~/.gitconfig` overrides the XDG `~/.config/git/config` for any
-> values it sets. Remove or empty it so the conditional include takes effect.
-
-## Agent skills
-
-`home/.agents/skills/` is the canonical store (mostly vendored from
-[mattpocock/skills](https://github.com/mattpocock/skills), plus a few local
-ones). Agents whose global skills dir is `~/.agents/skills/` share it directly.
-
-Agents with their own global dir — `pi` (`~/.pi/agent/skills/`) and Claude Code
-(`~/.claude/skills/`) — get each skill mirrored in as a relative symlink back to
-`.agents/skills/`, matching the [`skills`](https://skills.sh) CLI's own install
-mode.
-
-Manage them with `dot skills`, which wraps the CLI so it always writes into the
-current checkout — never the live `~` symlinks, the wrong worktree, or 50+
-unrelated agent dirs — and keeps its cache/config out of the stow tree:
-
-```bash
-dot skills list                                   # vendored vs local
-dot skills add mattpocock/skills wayfinder to-spec  # vendor third-party skills
-dot skills update                                 # update all vendored skills
-dot skills remove tech-spec                        # drop a skill
-dot skills link                                    # wire local skills (mc-pr, …) into agents
-```
-
-## Pi private runtime config
-
-`~/.pi/agent/settings.json` is runtime-owned instead of stowed, so Pi can update model preferences and changelog state without dirtying the public dotfiles checkout. `dot pi-settings sync` merges tracked defaults from `config/pi/settings.defaults.json` into the live file, preserving runtime model preferences while letting dotfiles own package sources. `dot init` and `dot update` run this sync automatically.
-
-`dot pi-auth cloudflare` configures `~/.pi/agent/auth.json` for the `cloudflare-ai-gateway` and `cloudflare-workers-ai` providers. It writes private runtime state directly, preserves existing auth entries, and keeps the file at `0600`; `auth.json` is not stowed or tracked.
-
-Run interactively:
-
-```bash
-dot pi-auth cloudflare
-```
-
-Or pass values explicitly, preferably using a 1Password reference for the API token:
-
-```bash
-dot pi-auth cloudflare \
-  --account-id ... \
-  --gateway-id ... \
-  --api-key-op-ref 'op://Private/Cloudflare Pi API Token/credential'
-```
-
-Vendored (third-party) skills are tracked in `home/.agents/.skill-lock.json`;
-local shared skills (`mc-pr`, `mc-commit`, `bro`, `harness-routing`) are hand-authored under
-`home/.agents/skills/` and wired into agents with `dot skills link`. Pi-only skills live inside Pi packages under `home/.pi/packages/*/skills/` so Claude Code does not auto-discover Pi-specific behavior.
-
-For skill-writing conventions, see `docs/skills-maintenance.md`. For the overall agent stack, see `docs/agent-workflow.md`.
-
-Skills changes follow the normal flow: commit the diff and open a PR. Once it's
-merged, publish to `$HOME` with `dot update` (pulls `main` + re-stows) — or, if
-you'd rather skip the Homebrew/pi prompts, `git -C ~/.dotfiles pull && dot stow`.
-A bare `dot stow` only re-links what's already checked out, so it won't pick up a
-merged PR on its own. (If you edit directly in `~/.dotfiles` instead of via a
-branch, `dot stow` alone is enough.)
-
-> **Don't** call `skills add -g` / `skills update` directly — from a worktree it
-> writes into `~/.dotfiles` (your `main` checkout), on the canonical checkout it
-> pollutes the stow tree via `~/.config`, and without `-a pi claude-code` it
-> fans out to every known agent. `dot skills` handles all three.
+Edit tracked files under `home/`, not their live `$HOME` symlinks, then publish
+them from canonical `main` with `dot apply`. After merging a worktree change,
+use `dot update` to refresh and publish it.
 
 ## Packages
 
 ```bash
-dot package list                 # list everything in the bundle
-dot package add ripgrep          # add a formula (type auto-detected)
-dot package add raycast cask     # add a cask
-dot package remove ripgrep       # remove from the bundle
-dot package update [name]        # upgrade all / one package
-dot check-packages               # what's installed vs. missing
+dot package add ripgrep
+dot package add raycast --cask
+dot package remove ripgrep
 ```
 
-Entries stay alphabetically sorted per type. Adding a package installs it
-immediately. Manual edits to `packages/bundle` are fine too — apply with
-`brew bundle --file packages/bundle`.
+Entries remain sorted within formula and cask groups. Addition records desired
+state before installation, so a failed install remains visible to `dot doctor`
+and is retried by `dot apply`. Removal only edits desired state; uninstall
+explicitly with Homebrew if desired.
+
+Manual Brewfile edits are also valid. `dot apply` checks them with Homebrew
+auto-update disabled and installs only missing declared state with
+`--no-upgrade`.
+
+## Agent skills
+
+`home/.agents/skills/` is canonical. Pi (`~/.pi/agent/skills/`) and Claude Code
+(`~/.claude/skills/`) receive relative links back to it.
+
+```bash
+dot skills list
+dot skills add mattpocock/skills wayfinder to-spec
+dot skills update
+dot skills remove tech-spec
+dot skills sync
+```
+
+The wrapper scopes `HOME`, XDG directories, cache state, and target agents to the
+current checkout. Do not call raw `skills add -g` or `skills update`: those can
+write through live Stow links, target the wrong worktree, and fan out to
+unrelated agents.
+
+Vendored skills are tracked in `home/.agents/.skill-lock.json`; local shared
+skills are hand-authored under `home/.agents/skills/`. Pi-only skills live under
+`home/.pi/packages/*/skills/`.
+
+See `docs/skills-maintenance.md` and `docs/agent-workflow.md` for maintenance and
+workflow details.
+
+## Pi private runtime state
+
+`~/.pi/agent/settings.json` is a private regular file rather than a Stow link.
+`dot apply`, `dot update`, and `dot init` merge tracked defaults from
+`config/pi/settings.defaults.json`, preserving runtime preferences while letting
+the repository own package sources. Writes are atomic and mode `0600`.
+
+Configure Cloudflare providers with an environment resolver or 1Password
+reference; `dot` does not read or log the underlying secret:
+
+```bash
+dot pi auth cloudflare \
+  --account-id ACCOUNT \
+  --gateway-id GATEWAY \
+  --api-key-op-ref 'op://Private/Cloudflare Pi API Token/credential'
+
+# Or:
+dot pi auth cloudflare \
+  --account-id ACCOUNT \
+  --gateway-id GATEWAY \
+  --api-key-env CLOUDFLARE_API_KEY
+```
+
+`~/.pi/agent/auth.json` preserves unrelated providers and is written atomically
+at mode `0600`.
+
+## Git identity and SSH keys
+
+Git identity switches automatically by directory:
+
+- default: `home/.config/git/config`;
+- work paths under `~/Code/work/`: `home/.config/git/work_config`.
+
+Commits use SSH signing keys referenced by those files. Generate missing keys
+with native tooling, for example:
+
+```bash
+ssh-keygen -t ed25519 -C 'you@example.com' -f ~/.ssh/id_ed25519_example -N ''
+```
+
+A pre-existing `~/.gitconfig` can override XDG Git configuration. Remove or
+empty competing values if identity selection is wrong.
+
+## Verification and development
+
+```bash
+bun install --cwd tools/dot
+bun run --cwd tools/dot check
+```
+
+The suite uses temporary homes, real local Git repositories/bare remotes, and
+GNU Stow sandboxes. It does not call public Git remotes, package registries,
+SSH agents, or real installers by default.
 
 ## Troubleshooting
 
-**`dot doctor` shows stale results / old behavior** — your `~/.dotfiles` is
-likely on an old branch. Put it on `main` and refresh:
-```bash
-git -C ~/.dotfiles checkout main && dot update
-```
+**`dot update` refuses the checkout** — canonical `~/.dotfiles` must be clean,
+on `main`, free of unfinished Git operations, and not ahead/diverged from
+`origin/main`. Resolve Git state explicitly; `dot` will not guess.
+
+**Package installation failed** — the package remains declared. Correct the
+Homebrew problem, then run `dot apply`.
+
+**Stow conflict** — rerun interactively to choose, or use `dot apply --yes` to
+back up the live file under `backups/stow-conflicts/` before tracked state wins.
+Backups remain available if GNU Stow later fails.
+
+**Broken or drifted managed links** — `dot doctor` reports them; `dot apply`
+reconciles fixable managed state.
 
 **`command not found: dot`** — `source ~/.zshrc`, or ensure
-`export PATH="$HOME/.dotfiles:$PATH"` is in `~/.zprofile`.
-
-**Package install failures** — `dot check-packages`, then `dot retry-failed`.
-
-**Stow conflicts with an existing live file** — `dot stow` now backs up real files that collide with tracked dotfiles into `backups/stow-conflicts/<timestamp>/` before creating the symlink. Review the backup, then delete it when no longer needed.
-
-**Broken symlinks** — `dot doctor` reports them; `dot stow` re-creates links.
-
-**Git identity is wrong** — check for a competing `~/.gitconfig`:
-`cat ~/.gitconfig`.
-
-**pi missing** — reinstall with `bun install -g @mariozechner/pi-coding-agent`.
+`$HOME/.dotfiles` is on `PATH`; `.zprofile` in this repository configures it.
 
 ## License
 

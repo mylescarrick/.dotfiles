@@ -33,7 +33,7 @@ bun run publish:pi-packages    # publish reusable local Pi packages with bun pub
 - Use Bun commands in this workspace.
 - Keep reusable Pi-only behavior in `packages/`, not shared `~/.agents/skills`.
 - Concrete model IDs belong in `agent/model-families.json` or project `.pi/model-families.json`, not in shared skills.
-- Published Pi packages are declared in `config/pi/settings.defaults.json` and synced into runtime `~/.pi/agent/settings.json` with `dot pi-settings sync`.
+- Published Pi packages are declared in `config/pi/settings.defaults.json` and synced into private runtime `~/.pi/agent/settings.json` by canonical `dot apply` / `dot update`.
 - Delegation in Pi uses `@mobrienv/pi-tidy-subagents` by default; keep children read-only unless writes are explicitly approved, and use separate worktrees for parallel writes.
 
 ## Package ownership

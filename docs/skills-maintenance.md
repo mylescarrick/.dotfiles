@@ -11,7 +11,7 @@ Use the `writing-great-skills` vocabulary when adding or editing skills: predict
 | Pi-only skills | `home/.pi/packages/*/skills/*` | Keep Pi-specific behavior out of Claude Code. |
 | Project skills | project `.agents/skills/*` or `.pi/skills/*` | Keep project vocabulary and workflow here. |
 
-Vendored Matt Pocock skills are upstream-owned. When they mention subagents or background agents, use the local `harness-routing` overlay instead of editing them. If upstream removes or deprecates a skill, remove it with `dot skills remove <name>` and then `dot skills link`.
+Vendored Matt Pocock skills are upstream-owned. When they mention subagents or background agents, use the local `harness-routing` overlay instead of editing them. If upstream removes or deprecates a skill, remove it with `dot skills remove <name>` and then `dot skills sync`.
 
 Current audit note: `grill-me`, `grill-with-docs`, and `grilling` are all still intentionally installed because upstream `ask-matt` references them as distinct branches/wrappers.
 

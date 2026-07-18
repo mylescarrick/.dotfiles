@@ -6,7 +6,8 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 
 ```
 .dotfiles/
-├── dot                 # CLI: init/update/doctor/stow/package
+├── dot                 # POSIX launcher: bootstrap/update prelude → Bun CLI
+├── tools/dot/           # Bun/TypeScript application and tests
 ├── home/.config/       # Stowed to ~/.config/
 │   ├── git/            # Conditional work config
 │   ├── ghostty/        # Terminal
@@ -31,7 +32,7 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 |------|----------|
 | Add package | `dot package add <name>` or edit `packages/bundle` |
 | Vendor/update agent skill | `dot skills add <owner/repo> <skill...>` / `dot skills update` |
-| Add global/deployed skill | Author `home/.agents/skills/<name>/SKILL.md`, then `dot skills link` |
+| Add global/deployed skill | Author `home/.agents/skills/<name>/SKILL.md`, then `dot skills sync` |
 | Add repo-only maintenance skill | Author `.agents/skills/<name>/SKILL.md` |
 | Shell alias | `home/.oh-my-zsh/custom/aliases.zsh` |
 | Shell function | `home/.oh-my-zsh/custom/*.zsh` (git.zsh, worktree.zsh, utils.zsh) |
@@ -45,8 +46,8 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 
 - Stow layout: `home/` mirrors `~`, stow creates symlinks
 - Zsh: oh-my-zsh; custom functions/aliases live in `home/.oh-my-zsh/custom/*.zsh`, loaded after plugins — check plugin aliases/functions before adding new ones (oh-my-zsh's `git` plugin already covers most git shorthand: `git_main_branch`, `git_current_branch`, `gbda`/`gbds`, `grename`, `gdv`, etc.)
-- Agent skills: canonical copy lives in `home/.agents/skills/`; per-agent global dirs that differ from `~/.agents/skills/` (pi, Claude Code) get relative symlinks back to canonical, matching the `skills` CLI's own install behavior. Manage via `dot skills` (add/update/remove/link/list) — never raw `skills add -g`/`skills update`, which target the wrong checkout, pollute the stow tree via `~/.config`, and fan out to every known agent. Vendored skills are tracked in `home/.agents/.skill-lock.json`; local shared skills (`mc-pr`, `mc-commit`, `bro`, `harness-routing`) are hand-authored and wired in with `dot skills link`. Pi-only skills live under `home/.pi/packages/*/skills/`, not shared `~/.agents/skills/`
-- Repo-local agent resources: maintenance guidance/tools that only make sense while editing this checkout live at repo root (`.agents/skills/<name>/SKILL.md`, `.pi/skills/<name>/SKILL.md`, `.pi/extensions/<name>/index.ts`). Do not put repo-maintenance-only resources under `home/`; `dot stow` deploys only `home/*` resources to real `~` paths.
+- Agent skills: canonical copy lives in `home/.agents/skills/`; per-agent global dirs that differ from `~/.agents/skills/` (pi, Claude Code) get relative symlinks back to canonical, matching the `skills` CLI's own install behavior. Manage via `dot skills` (add/update/remove/sync/list) — never raw `skills add -g`/`skills update`, which target the wrong checkout, pollute the stow tree via `~/.config`, and fan out to every known agent. Vendored skills are tracked in `home/.agents/.skill-lock.json`; local shared skills (`mc-pr`, `mc-commit`, `bro`, `harness-routing`) are hand-authored and wired in with `dot skills sync`. Pi-only skills live under `home/.pi/packages/*/skills/`, not shared `~/.agents/skills/`
+- Repo-local agent resources: maintenance guidance/tools that only make sense while editing this checkout live at repo root (`.agents/skills/<name>/SKILL.md`, `.pi/skills/<name>/SKILL.md`, `.pi/extensions/<name>/index.ts`). Do not put repo-maintenance-only resources under `home/`; canonical `dot apply` publishes `home/*` resources to real `~` paths.
 - Pi extensions/packages: TypeScript, npm workspaces under `home/.pi/`; generic reusable local Pi packages live in `home/.pi/packages/` before publishing; published Pi packages live in `config/pi/settings.defaults.json`
 
 ## ANTI-PATTERNS
@@ -59,14 +60,16 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 ## COMMANDS
 
 ```bash
-dot init              # Full setup (brew, stow, bun, ssh, font, oh-my-zsh)
-dot update            # Pull + brew upgrade + restow + Pi settings/deps sync + pi update --all
-dot doctor            # Health check
-dot stow              # Resymlink only
-dot package add X     # Add + install package
+dot init              # Interactive bootstrap → apply → doctor
+dot apply [--yes]     # Reconcile canonical checked-out desired state
+dot update [--yes]    # Strict origin/main fast-forward → re-exec → apply
+dot doctor            # Network-free repository-owned health report
+dot package add X     # Record + install formula (use --cask explicitly)
+dot package remove X  # Remove desired state only
 dot skills update     # Update vendored agent skills to latest
-dot skills link       # Wire canonical skills (incl. local) into agent dirs
-dot gen-ssh-key       # Generate ed25519 key by email domain
+dot skills sync       # Wire canonical skills into agent dirs
+dot pi auth cloudflare  # Configure private provider auth
+bun run --cwd tools/dot check  # Typecheck + tests
 ```
 
 ## KEY CONFIGS
@@ -76,7 +79,7 @@ dot gen-ssh-key       # Generate ed25519 key by email domain
 | Zsh | `.zshrc` / `.zprofile` | oh-my-zsh bootstrap, EDITOR, tool inits (starship, zoxide, vp) |
 | Git | `config` | SSH signing, `pull.rebase`, conditional include |
 | Starship | `starship.toml` | 2s timeout (Vite+ shims) |
-| Pi | `settings.json` / `model-families.json` | Default provider: github-copilot; role-routed model families; Catppuccin theme |
+| Pi | `config/pi/settings.defaults.json` / `home/.pi/agent/model-families.json` | Tracked package/theme defaults sync to private runtime settings; role-routed model families |
 
 ## UNIQUE STYLES
 
@@ -85,7 +88,8 @@ dot gen-ssh-key       # Generate ed25519 key by email domain
 
 ## NOTES
 
-- `dot update` handles WARP VPN brew API issues automatically
+- `~/.dotfiles` is a clean deployment checkout on `main`; feature work belongs in worktrees
+- `dot update` fetches and fast-forwards only; run broad `brew upgrade` / `pi update --all` explicitly
 - Starship `command_timeout = 2000` because Vite+ node shims are slow
 - `home/.oh-my-zsh/custom/secrets.zsh` is gitignored — contains env tokens for work services
 - `.pi/agent/*` mostly gitignored; extensions + skills explicitly un-ignored; Pi runtime package settings are synced from `config/pi/settings.defaults.json`

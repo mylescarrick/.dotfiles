@@ -63,6 +63,7 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 dot init              # Interactive bootstrap → apply → doctor
 dot apply [--yes]     # Reconcile canonical checked-out desired state
 dot update [--yes]    # Strict origin/main fast-forward → re-exec → apply
+dot upgrade [--yes]   # Update → optional Homebrew upgrade → Pi update --all
 dot doctor            # Network-free repository-owned health report
 dot package add X     # Record + install formula (use --cask explicitly)
 dot package remove X  # Remove desired state only
@@ -89,7 +90,7 @@ bun run --cwd tools/dot check  # Typecheck + tests
 ## NOTES
 
 - `~/.dotfiles` is a clean deployment checkout on `main`; feature work belongs in worktrees
-- `dot update` fetches and fast-forwards only; run broad `brew upgrade` / `pi update --all` explicitly
+- `dot update` fetches and reconciles only; `dot upgrade` explicitly owns broad Homebrew/Pi upgrades
 - Starship `command_timeout = 2000` because Vite+ node shims are slow
 - `home/.oh-my-zsh/custom/secrets.zsh` is gitignored — contains env tokens for work services
 - `.pi/agent/*` mostly gitignored; extensions + skills explicitly un-ignored; Pi runtime package settings are synced from `config/pi/settings.defaults.json`

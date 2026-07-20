@@ -56,6 +56,7 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 | `dot init` | Bootstrap a new machine, apply desired state, then diagnose it |
 | `dot apply [--yes]` | Reconcile the canonical checked-out state into the machine |
 | `dot update [--yes]` | Strictly fast-forward canonical `main`, re-exec, then apply |
+| `dot upgrade [--yes]` | Update, optionally upgrade Homebrew, then update Pi and its packages |
 | `dot doctor` | Inspect repository-owned state without network access or repair |
 | `dot package add NAME [--cask]` | Record sorted Brewfile state, then install it |
 | `dot package remove NAME` | Remove desired Brewfile state without uninstalling |
@@ -70,8 +71,14 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 `apply` validates the canonical checkout, validates skill links, installs only
 missing Brewfile state, safely stows `home/`, synchronizes private Pi settings,
 and runs `bun install` in `~/.pi` only when workspace state has drifted. It does
-not run broad upgrades such as `brew upgrade` or `pi update --all`; invoke those
-tools directly when wanted.
+not run broad upgrades such as `brew upgrade` or `pi update --all`.
+
+`upgrade` first performs the same strict refresh and reconciliation as `update`.
+It then prompts before running `brew update` and `brew upgrade`, and always runs
+`pi update --all` so both Pi itself and its configured packages are current.
+Pass `--yes` to accept the Homebrew upgrade and any tracked Stow conflicts;
+noninteractive use requires that flag. It does not upgrade unrelated global Bun
+packages.
 
 Without `--yes`, an interactive Stow conflict offers use/keep/diff/abort.
 Noninteractive conflicts fail before mutation. `--yes` backs up conflicting live

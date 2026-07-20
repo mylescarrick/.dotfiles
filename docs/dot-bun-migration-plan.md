@@ -117,7 +117,7 @@ It owns the ordered workflow behind one deep interface:
 
 If `HEAD` is behind the last-fetched `origin/main`, `apply` fails with guidance to run `dot update`. Equality only means “aligned with the last fetch”; `apply` never claims remote freshness.
 
-It does **not** broadly upgrade Homebrew packages or run `pi update --all`. Those tools own their own upgrade behavior. `dot` owns convergence to repository-declared state.
+It does **not** broadly upgrade Homebrew packages or run `pi update --all`; the explicit `dot upgrade` workflow owns those newest-version operations. `apply` owns convergence to repository-declared state.
 
 A converged `apply` should be quick. Network access is allowed only when declared state is missing and requires installation; it must not occur merely to check for newer versions.
 
@@ -126,6 +126,19 @@ A converged `apply` should be quick. Network access is allowed only when declare
 Refresh canonical `origin/main` through the launcher, re-exec if the revision changed, then invoke the same implementation as `dot apply`.
 
 It replaces the current mixture of unconstrained `git pull`, optional broad Homebrew upgrades, stow, Pi sync, dependency install, and Pi upgrades. Update should be deterministic: refresh repository, then reconcile declared state.
+
+### `dot upgrade [--yes]`
+
+Run the same strict refresh and reconciliation as `dot update`, then perform an
+explicit broad upgrade workflow. Prompt before `brew update` and `brew upgrade`,
+and run `pi update --all` so Pi and its configured packages are updated
+together. `--yes` accepts the Homebrew upgrade and tracked Stow conflicts;
+noninteractive execution requires it. Unrelated global Bun packages remain
+outside `dot` ownership.
+
+Keeping this separate preserves `apply` and `update` as deterministic desired-
+state operations while restoring one deliberate entry point for newest-version
+upgrades.
 
 ### `dot doctor`
 
@@ -209,7 +222,9 @@ Tracked Pi settings synchronization is no longer a public command; it is an impl
 | `gen-ssh-key` | Document native `ssh-keygen`; remove duplicate inconsistent implementations |
 | `link` / `unlink` | `.zprofile` already puts `~/.dotfiles` on `PATH` |
 | `edit` | `$EDITOR ~/.dotfiles` is clearer and equally capable |
-| broad Homebrew/Pi upgrade workflow | Use `brew upgrade` and `pi update --all` directly |
+
+The broad Homebrew/Pi workflow was initially removed during migration and later
+restored behind the explicit `dot upgrade` boundary.
 
 No-argument `dot` shows help. Implicit mutation is not worth saving five characters.
 
@@ -453,7 +468,7 @@ Acceptance:
 - A public plugin system or generic workflow engine.
 - Automatic destructive repair of the canonical checkout.
 - Automatic network refresh on every command.
-- Broad package/tool upgrades.
+- Broad package/tool upgrades during `apply` or `update`.
 - A standalone `redot` recovery tool without evidence that manual fast-forward recovery is inadequate.
 
 ## Review Evidence

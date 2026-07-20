@@ -69,6 +69,8 @@ async function makeFixture(): Promise<{
   await mkdir(fakeBin);
   await writeFile(join(fakeBin, "brew"), "#!/bin/sh\nexit 0\n");
   await chmod(join(fakeBin, "brew"), 0o755);
+  await writeFile(join(fakeBin, "pi"), "#!/bin/sh\nexit 0\n");
+  await chmod(join(fakeBin, "pi"), 0o755);
 
   return {
     checkout,
@@ -91,7 +93,167 @@ class RecordingDelegate implements ProcessRunner {
   }
 }
 
+class FailingCommandDelegate implements ProcessRunner {
+  readonly requests: ProcessRequest[] = [];
+  constructor(private readonly failure: readonly string[]) {}
+  async run(request: ProcessRequest) {
+    this.requests.push(request);
+    if (request.argv.join("\0") === this.failure.join("\0")) {
+      return { exitCode: 1, stdout: "", stderr: "failed" };
+    }
+    return bunProcessRunner.run(request);
+  }
+}
+
 describe("dot apply Pi settings", () => {
+  test("upgrade applies state before upgrading Homebrew and Pi", async () => {
+    const fixture = await makeFixture();
+    const processes = new RecordingDelegate();
+    const outcome = await createApplication({
+      checkoutRoot: fixture.checkout,
+      processes,
+    }).execute({
+      argv: ["upgrade", "--yes"],
+      cwd: fixture.checkout,
+      env: fixture.env,
+    });
+
+    expect(outcome.exitCode).toBe(0);
+    const upgrades = processes.requests
+      .map((request) => request.argv)
+      .filter((argv) => argv[0] === "brew" || argv[0] === "pi");
+    expect(upgrades).toEqual([
+      [
+        "brew",
+        "bundle",
+        "check",
+        "--no-upgrade",
+        "--file",
+        join(fixture.checkout, "packages/bundle"),
+      ],
+      ["brew", "update"],
+      ["brew", "upgrade"],
+      ["pi", "update", "--all"],
+    ]);
+  });
+
+  test("reports completed apply stages when Homebrew upgrade fails", async () => {
+    const fixture = await makeFixture();
+    const processes = new FailingCommandDelegate(["brew", "upgrade"]);
+
+    const outcome = await createApplication({
+      checkoutRoot: fixture.checkout,
+      processes,
+    }).execute({
+      argv: ["upgrade", "--yes"],
+      cwd: fixture.checkout,
+      env: fixture.env,
+    });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toContain("Dotfiles stowed\n");
+    expect(outcome.stdout).toEndWith(
+      "FAILED Homebrew package upgrade: Homebrew package upgrade failed\n",
+    );
+    expect(outcome.stderr).toBe("dot: Homebrew package upgrade failed\n");
+  });
+
+  test("reports successful Homebrew work when Pi update fails", async () => {
+    const fixture = await makeFixture();
+    const processes = new FailingCommandDelegate(["pi", "update", "--all"]);
+
+    const outcome = await createApplication({
+      checkoutRoot: fixture.checkout,
+      processes,
+    }).execute({
+      argv: ["upgrade", "--yes"],
+      cwd: fixture.checkout,
+      env: fixture.env,
+    });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toContain("Homebrew packages upgraded\n");
+    expect(outcome.stdout).toEndWith(
+      "FAILED Pi update: Pi and configured package update failed\n",
+    );
+    expect(outcome.stderr).toBe(
+      "dot: Pi and configured package update failed\n",
+    );
+  });
+
+  test("allows interactive Homebrew opt-out but still updates Pi", async () => {
+    const fixture = await makeFixture();
+    const processes = new RecordingDelegate();
+    const prompts: string[] = [];
+    const terminal: Terminal = {
+      interactive: true,
+      async prompt(message) {
+        prompts.push(message);
+        return "n";
+      },
+      write() {},
+    };
+    const outcome = await createApplication({
+      checkoutRoot: fixture.checkout,
+      processes,
+      terminal,
+    }).execute({
+      argv: ["upgrade"],
+      cwd: fixture.checkout,
+      env: fixture.env,
+    });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(prompts).toEqual(["Upgrade Homebrew packages? [Y/n]: "]);
+    expect(
+      processes.requests
+        .map((request) => request.argv)
+        .filter((argv) => argv[0] === "brew" || argv[0] === "pi"),
+    ).toEqual([
+      [
+        "brew",
+        "bundle",
+        "check",
+        "--no-upgrade",
+        "--file",
+        join(fixture.checkout, "packages/bundle"),
+      ],
+      ["pi", "update", "--all"],
+    ]);
+    expect(outcome.stdout).toEndWith(
+      "Homebrew upgrade skipped\nPi and configured packages updated\n",
+    );
+  });
+
+  test("refuses noninteractive upgrade before subprocesses without --yes", async () => {
+    const fixture = await makeFixture();
+    const processes = new RecordingDelegate();
+    const terminal: Terminal = {
+      interactive: false,
+      async prompt() {
+        throw new Error("unexpected prompt");
+      },
+      write() {},
+    };
+
+    expect(
+      await createApplication({
+        checkoutRoot: fixture.checkout,
+        processes,
+        terminal,
+      }).execute({
+        argv: ["upgrade"],
+        cwd: fixture.checkout,
+        env: fixture.env,
+      }),
+    ).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "dot: dot upgrade requires an interactive terminal or --yes\n",
+    });
+    expect(processes.requests).toHaveLength(0);
+  });
+
   test("Bun-side update delegates to apply without Git refresh", async () => {
     const fixture = await makeFixture();
     const processes = new RecordingDelegate();

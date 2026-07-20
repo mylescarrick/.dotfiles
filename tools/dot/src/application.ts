@@ -8,6 +8,7 @@ import { configureCloudflareAuth, parseCloudflareAuthArgs } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
 import { listSkills, runSkillsCli, syncSkillLinks } from "./skills-authoring";
 import { systemTerminal, type Terminal } from "./terminal";
+import { upgrade, UpgradeFailure } from "./upgrade";
 
 export interface Invocation {
   readonly argv: readonly string[];
@@ -40,6 +41,7 @@ interface ApplicationDependencies {
 const commands: readonly CommandDescription[] = [
   { usage: "apply", summary: "Apply the checked-out desired state" },
   { usage: "update", summary: "Refresh origin/main, then apply" },
+  { usage: "upgrade", summary: "Update, then upgrade Homebrew and Pi" },
   { usage: "doctor", summary: "Inspect managed state without changing it" },
   { usage: "init", summary: "Bootstrap a new machine, then apply" },
   { usage: "package add/remove", summary: "Edit the Brewfile" },
@@ -52,7 +54,10 @@ function failureOutcome(error: unknown): CommandOutcome {
   const message = error instanceof Error ? error.message : String(error);
   return {
     exitCode: 1,
-    stdout: error instanceof ApplyFailure ? error.stdout : "",
+    stdout:
+      error instanceof ApplyFailure || error instanceof UpgradeFailure
+        ? error.stdout
+        : "",
     stderr: `dot: ${message}\n`,
   };
 }
@@ -241,7 +246,7 @@ export function createApplication(
         }
       }
 
-      if (command === "apply" || command === "update") {
+      if (command === "apply" || command === "update" || command === "upgrade") {
         if (
           invocation.argv.length > 2 ||
           (invocation.argv.length === 2 && invocation.argv[1] !== "--yes")
@@ -253,15 +258,24 @@ export function createApplication(
           };
         }
         try {
+          const options = {
+            checkoutRoot: dependencies.checkoutRoot,
+            env: invocation.env,
+            processes,
+            terminal,
+          };
           return {
             exitCode: 0,
-            stdout: await apply({
-              acceptTracked: invocation.argv[1] === "--yes",
-              checkoutRoot: dependencies.checkoutRoot,
-              env: invocation.env,
-              processes,
-              terminal,
-            }),
+            stdout:
+              command === "upgrade"
+                ? await upgrade({
+                    ...options,
+                    acceptAll: invocation.argv[1] === "--yes",
+                  })
+                : await apply({
+                    ...options,
+                    acceptTracked: invocation.argv[1] === "--yes",
+                  }),
             stderr: "",
           };
         } catch (error) {

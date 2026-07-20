@@ -8,7 +8,7 @@ fail() {
 }
 
 usage_error() {
-  printf '%s\n' "dot: usage: dot update [--yes]" >&2
+  printf 'dot: usage: dot %s [--yes]\n' "$1" >&2
   exit 2
 }
 
@@ -80,16 +80,22 @@ DOTFILES_DIR=$(CDPATH= cd "$(dirname "$script")" && pwd -P)
 readonly DOTFILES_DIR
 
 case ${1:-} in
-  -*) [ "${2:-}" = "update" ] && usage_error ;;
+  -*)
+    case ${2:-} in
+      update|upgrade) usage_error "$2" ;;
+    esac
+    ;;
 esac
 
-if [ "${1:-}" = "update" ]; then
-  case $# in
-    1) ;;
-    2) [ "$2" = "--yes" ] || usage_error ;;
-    *) usage_error ;;
-  esac
-fi
+case ${1:-} in
+  update|upgrade)
+    case $# in
+      1) ;;
+      2) [ "$2" = "--yes" ] || usage_error "$1" ;;
+      *) usage_error "$1" ;;
+    esac
+    ;;
+esac
 
 if ! bun_path=$(command -v bun); then
   if [ "${1:-}" != "init" ]; then
@@ -150,8 +156,9 @@ fi
 PATH=$(dirname "$bun_path"):$PATH
 export PATH
 
-if [ "${1:-}" = "update" ]; then
-  require_safe_canonical_checkout "update" "" "false"
+case ${1:-} in
+update|upgrade)
+  require_safe_canonical_checkout "$1" "" "false"
 
   if ! git -C "$DOTFILES_DIR" fetch origin; then
     fail "failed to fetch origin"
@@ -173,6 +180,7 @@ if [ "${1:-}" = "update" ]; then
 
     exec "$DOTFILES_DIR/dot" "$@"
   fi
-fi
+  ;;
+esac
 
 exec "$bun_path" "$DOTFILES_DIR/tools/dot/src/main.ts" "$@"

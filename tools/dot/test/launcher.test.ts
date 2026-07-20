@@ -431,48 +431,54 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
   });
 
-  test("rejects invalid update options before Bun checks or fetching", async () => {
-    const fixture = await makeFixture({ withBun: false, withGit: true });
-    const publishedHead = await publishChange(fixture);
-    const head = await run(["git", "rev-parse", "HEAD"], fixture.checkout);
+  test.each(["update", "upgrade"])(
+    "rejects invalid %s options before Bun checks or fetching",
+    async (command) => {
+      const fixture = await makeFixture({ withBun: false, withGit: true });
+      const publishedHead = await publishChange(fixture);
+      const head = await run(["git", "rev-parse", "HEAD"], fixture.checkout);
 
-    const child = Bun.spawn([fixture.launcherLink, "update", "--force"], {
-      env: fixture.env,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+      const child = Bun.spawn([fixture.launcherLink, command, "--force"], {
+        env: fixture.env,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [exitCode, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stderr).text(),
+      ]);
 
-    expect(exitCode).toBe(2);
-    expect(stderr).toBe("dot: usage: dot update [--yes]\n");
-    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(head);
-    expect(head).not.toBe(publishedHead);
-    expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
-  });
+      expect(exitCode).toBe(2);
+      expect(stderr).toBe(`dot: usage: dot ${command} [--yes]\n`);
+      expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(head);
+      expect(head).not.toBe(publishedHead);
+      expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
+    },
+  );
 
-  test("fast-forwards a clean canonical main before running update", async () => {
-    const fixture = await makeFixture({ withGit: true });
-    const publishedHead = await publishChange(fixture);
-    const oldHead = await run(["git", "rev-parse", "HEAD"], fixture.checkout);
-    expect(oldHead).not.toBe(publishedHead);
+  test.each(["update", "upgrade"])(
+    "fast-forwards a clean canonical main before running %s",
+    async (command) => {
+      const fixture = await makeFixture({ withGit: true });
+      const publishedHead = await publishChange(fixture);
+      const oldHead = await run(["git", "rev-parse", "HEAD"], fixture.checkout);
+      expect(oldHead).not.toBe(publishedHead);
 
-    const child = Bun.spawn([fixture.launcherLink, "update"], {
-      env: fixture.env,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+      const child = Bun.spawn([fixture.launcherLink, command], {
+        env: fixture.env,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
 
-    expect(await child.exited).toBe(0);
-    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(
-      publishedHead,
-    );
-    expect(await readFile(fixture.invocationLog, "utf8")).toBe(
-      `${join(fixture.checkout, "tools/dot/src/main.ts")}\nupdate\n`,
-    );
-  });
+      expect(await child.exited).toBe(0);
+      expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(
+        publishedHead,
+      );
+      expect(await readFile(fixture.invocationLog, "utf8")).toBe(
+        `${join(fixture.checkout, "tools/dot/src/main.ts")}\n${command}\n`,
+      );
+    },
+  );
 
   test("loads Bun application code from the fast-forwarded revision", async () => {
     const fixture = await makeFixture({ withGit: true });

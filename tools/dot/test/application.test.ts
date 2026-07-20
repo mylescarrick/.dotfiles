@@ -21,6 +21,7 @@ USAGE
 COMMANDS
   apply                 Apply the checked-out desired state
   update                Refresh origin/main, then apply
+  upgrade               Update, then upgrade Homebrew and Pi
   doctor                Inspect managed state without changing it
   init                  Bootstrap a new machine, then apply
   package add/remove    Edit the Brewfile
@@ -60,19 +61,22 @@ COMMANDS
     });
   });
 
-  test("rejects invalid apply arguments before inspecting the checkout", async () => {
-    expect(
-      await application.execute({
-        argv: ["apply", "--force"],
-        cwd: "/tmp/checkout",
-        env: {},
-      }),
-    ).toEqual({
-      exitCode: 2,
-      stdout: "",
-      stderr: "dot: usage: dot apply [--yes]\n",
-    });
-  });
+  test.each(["apply", "upgrade"])(
+    "rejects invalid %s arguments before inspecting the checkout",
+    async (command) => {
+      expect(
+        await application.execute({
+          argv: [command, "--force"],
+          cwd: "/tmp/checkout",
+          env: {},
+        }),
+      ).toEqual({
+        exitCode: 2,
+        stdout: "",
+        stderr: `dot: usage: dot ${command} [--yes]\n`,
+      });
+    },
+  );
 
   test("rejects an unknown command with usage guidance", async () => {
     expect(

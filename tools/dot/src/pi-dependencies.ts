@@ -4,6 +4,7 @@ import {
   mkdir,
   readFile,
   readdir,
+  stat,
 } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { replaceFileAtomic } from "./atomic-file";
@@ -26,7 +27,7 @@ async function existsDirectory(path: string): Promise<boolean> {
 
 async function regularFile(path: string): Promise<boolean> {
   try {
-    return (await lstat(path)).isFile();
+    return (await stat(path)).isFile();
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
     throw error;

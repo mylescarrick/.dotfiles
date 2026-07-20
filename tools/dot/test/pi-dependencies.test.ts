@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { reconcilePiDependencies } from "../src/pi-dependencies";
 import type { ProcessRequest, ProcessResult, ProcessRunner } from "../src/process";
 
@@ -48,6 +48,24 @@ afterEach(async () => {
 });
 
 describe("Pi dependency reconciliation", () => {
+  test("accepts a workspace manifest published by Stow", async () => {
+    const state = await fixture();
+    const trackedManifest = join(state.checkout, "home/.pi/package.json");
+    const liveManifest = join(state.liveWorkspace, "package.json");
+    await rm(liveManifest);
+    await symlink(relative(state.liveWorkspace, trackedManifest), liveManifest);
+    const processes = new InstallingProcess(state.liveWorkspace);
+
+    expect(
+      await reconcilePiDependencies({
+        checkoutRoot: state.checkout,
+        home: state.home,
+        env: { HOME: state.home },
+        processes,
+      }),
+    ).toBe("Pi dependencies installed\n");
+  });
+
   test("installs once and records convergence", async () => {
     const state = await fixture();
     const processes = new InstallingProcess(state.liveWorkspace);

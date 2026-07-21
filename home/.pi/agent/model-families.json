@@ -4,22 +4,22 @@
   "returnRole": "delivery",
   "families": {
     "azure-gpt": {
-      "description": "Azure OpenAI GPT-5.6 family: Terra medium for default delivery, Luna low for cheap scoped/verification work, Sol high for long-horizon research/planning/architecture; manually escalate Sol roles to xhigh when needed.",
+      "description": "Cost-controlled Azure OpenAI GPT-5.6 family: Terra for normal research, planning, architecture, and delivery; Luna low for verification. Select Sol explicitly only for exceptional long-horizon work.",
       "roles": {
         "research": {
           "provider": "azure-openai-responses",
-          "model": "gpt-5.6-sol",
-          "thinkingLevel": "high"
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
         },
         "architecture": {
           "provider": "azure-openai-responses",
-          "model": "gpt-5.6-sol",
+          "model": "gpt-5.6-terra",
           "thinkingLevel": "high"
         },
         "planning": {
           "provider": "azure-openai-responses",
-          "model": "gpt-5.6-sol",
-          "thinkingLevel": "high"
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
         },
         "delivery": {
           "provider": "azure-openai-responses",

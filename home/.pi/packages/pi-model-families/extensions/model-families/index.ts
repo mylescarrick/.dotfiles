@@ -41,10 +41,6 @@ type RoleRoute = {
   role: Role
   reason: string
 }
-type PromptOptionsShape = {
-  skills?: Array<string | { name?: string; path?: string; description?: string }>
-}
-
 const CONFIG_DIR_NAME = ".pi"
 const CONFIG_FILE = "model-families.json"
 const STATE_ENTRY_TYPE = "model-family-state"
@@ -450,21 +446,11 @@ function showAudit(familyName: string | undefined, config: ModelFamiliesConfig, 
   ctx.ui.notify(`Model family audit:\n${lines.join("\n")}`, "info")
 }
 
-function skillNames(options: unknown): string[] {
-  const skills = (options as PromptOptionsShape | undefined)?.skills
-  if (!Array.isArray(skills)) return []
-
-  return skills
-    .map((skill) => {
-      if (typeof skill === "string") return skill
-      return skill.name ?? skill.path?.split("/").filter(Boolean).pop() ?? ""
-    })
-    .filter(Boolean)
-}
-
-function classify(prompt: string, options: unknown): RoleRoute {
-  const skills = skillNames(options)
-  const joined = `${prompt}\n${skills.join("\n")}`
+function classify(prompt: string): RoleRoute {
+  // Classify the submitted prompt only. systemPromptOptions.skills contains every loaded skill,
+  // not just a skill invoked for this turn; including those names makes a globally installed
+  // `research` skill route every prompt to the research model.
+  const joined = prompt
 
   if (/\b(?:research|web search|search (?:the )?web|look up|current|latest|docs?|documentation|api reference|official docs?|sources?|compare options|market|vendor)\b/i.test(joined)) {
     return { role: "research", reason: "research/docs/current-info signal" }
@@ -762,10 +748,13 @@ export default function modelFamilies(pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     config = loadConfig(ctx.cwd, isProjectTrusted(ctx), ctx)
     activeFamily = config.defaultFamily
-    routingMode = config.autoRoute ? "auto" : "locked"
+    // Tidy sets this only on spawned children. During session_start Pi's extension context can
+    // still report the parent mode, so the environment marker is the reliable startup signal.
+    const isTidyChild = process.env.PI_TIDY_SUBAGENT_CHILD === "1"
+    routingMode = isTidyChild ? "locked" : config.autoRoute ? "auto" : "locked"
     lockedModelKey = undefined
 
-    const restored = readPersistedState(ctx)
+    const restored = isTidyChild ? undefined : readPersistedState(ctx)
     if (restored && config.families[restored.activeFamily] && !config.families[restored.activeFamily]?.disabled) {
       activeFamily = restored.activeFamily
       routingMode = restored.routingMode
@@ -773,6 +762,9 @@ export default function modelFamilies(pi: ExtensionAPI) {
     }
 
     setStatus(ctx)
+    // The tidy child CLI applies its exact --model/--thinking selection after session_start.
+    // Lock routing without setting a model here, so that startup selection remains authoritative.
+    if (isTidyChild) return
 
     if (routingMode === "locked" && lockedModelKey) {
       const lockedModel = parseModelKey(lockedModelKey)
@@ -820,7 +812,7 @@ export default function modelFamilies(pi: ExtensionAPI) {
       return
     }
 
-    const route = classify(event.prompt, event.systemPromptOptions)
+    const route = classify(event.prompt)
     currentTurnRole = route.role
     await applyRole(route.role, route.reason, ctx)
   })

@@ -6,6 +6,12 @@ Pi's built-in model defaults are static (`defaultProvider`, `defaultModel`, and 
 This extension adds a small routing layer on top: pick a **family**, then let each prompt route to a
 role-specific model inside that family.
 
+Routing favours cache locality and predictable cost. Automatic role targets in a family are meant to
+share one model and thinking level so ordinary turns do not switch models. Model/thinking transitions
+are applied only when they actually change; a route to the model already in effect is a no-op. Premium
+or budget models that should be used only deliberately belong in `manualTargets`, not in automatic
+roles.
+
 ## Config
 
 Global defaults live in:
@@ -47,13 +53,17 @@ Example project override:
 
 A family may define these roles:
 
-| Role | Use for | Typical thinking |
-|------|---------|------------------|
-| `research` | Docs, API/library investigation, web/current-info lookup, comparing external options | `high` |
-| `architecture` | System design, module boundaries, interface design, ADRs, domain/data/state modeling, deep refactors | `high` |
-| `planning` | PRDs, implementation plans, sequencing, proposals, approach/strategy decisions | `high` |
-| `delivery` | Normal coding, fixes, debugging, implementation, wiring features together | `low`/`medium` |
-| `verification` | Tests, lint, typecheck, validation, CI failures, review evidence, acceptance checks | `low` |
+| Role | Use for |
+|------|---------|
+| `research` | Docs, API/library investigation, web/current-info lookup, comparing external options |
+| `architecture` | System design, module boundaries, interface design, ADRs, domain/data/state modeling, deep refactors |
+| `planning` | PRDs, implementation plans, sequencing, proposals, approach/strategy decisions |
+| `delivery` | Normal coding, fixes, debugging, implementation, wiring features together |
+| `verification` | Tests, lint, typecheck, validation, CI failures, review evidence, acceptance checks |
+
+For cost stability, keep every automatic role on the same model and thinking level (the shipped
+`azure-gpt` family uses Terra/medium for all five). Reserve stronger or cheaper models for
+`manualTargets`.
 
 `architecture` decides shape; `planning` decides sequence. `delivery` changes code; `verification`
 proves the change.
@@ -112,6 +122,34 @@ model's metadata and clamps unsupported levels. The supported set is derived fro
 If `thinkingLevel` is omitted, the extension leaves the current thinking level unchanged. For
 predictable routing, define `thinkingLevel` for every role.
 
+## Manual targets
+
+A family may define `manualTargets`: named models that are never chosen automatically and must be
+selected explicitly. Use them for exceptional escalation (a stronger model) or deliberate budget work
+(a cheaper model).
+
+```json
+{
+  "families": {
+    "azure-gpt": {
+      "roles": { "delivery": { "provider": "azure-openai-responses", "model": "gpt-5.6-terra", "thinkingLevel": "medium" } },
+      "manualTargets": {
+        "sol": {
+          "description": "Exceptional long-horizon reasoning",
+          "provider": "azure-openai-responses",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        }
+      }
+    }
+  }
+}
+```
+
+Select one with `/mf target <name>` (or the `escalate` alias). This applies the target and **locks**
+routing to it for the rest of the session; run `/mf auto` to return to automatic role routing. Manual
+targets are validated by `/mf audit` alongside roles.
+
 ## Commands
 
 ```text
@@ -123,6 +161,8 @@ predictable routing, define `thinkingLevel` for every role.
 /model-family <family>        # shorthand for use <family>
 /model-family role <role> [prompt] # queue/apply a role for the next turn; optionally send prompt
 /model-family <role> [prompt] # shorthand; optionally send prompt immediately
+/model-family target <name> [prompt] # apply and lock an explicit manual target; optionally send prompt
+/model-family escalate <name> [prompt] # alias for target
 /model-family models [query]  # inspect registered model ids, inputs, auth, and thinking support
 /model-family audit [family]  # validate configured families against the current Pi model registry
 /model-family lock            # stop routing and keep the current manually selected model
@@ -136,13 +176,22 @@ Manual `/model` or Ctrl+P model changes lock routing. Use `/model-family auto` o
 
 ## Routing behavior
 
-When in auto mode, the extension classifies each user prompt just before the agent starts. Signals
-are checked in this order, so earlier matches win:
+When in auto mode, the extension classifies each user prompt just before the agent starts. Only the
+submitted prompt text is inspected — loaded skill names do not influence classification. Signals are
+checked in this order, so earlier matches win:
 
 1. docs, web/current-info, API/library questions → `research`
 2. design, architecture, planning, ADR/domain modeling, deep refactors → `architecture`/`planning`
-3. verification/test/lint/typecheck/review evidence → `verification`
-4. normal implementation/fix/debug/delivery → `delivery`
+3. normal implementation/fix/debug/delivery → `delivery`
+4. verification/test/lint/typecheck/review evidence → `verification`
 
-After an elevated role (`research`, `architecture`, or `planning`) finishes, the extension returns the
-session to the configured `returnRole` (default: `delivery`) so the footer/default model stays cheap.
+When automatic role targets share one model and thinking level (the recommended setup), classification
+never causes a model switch, so there is no post-turn reset. A switch only happens when a family
+defines genuinely different targets per role.
+
+## Tidy subagents
+
+When the process is a tidy child (`PI_TIDY_SUBAGENT_CHILD=1`), the extension locks routing at startup,
+skips restoring parent session state, and does not set a model — so the child's explicitly selected
+`--model`/`--thinking` remain authoritative. Routing commands (`/mf ...`) are disabled in child
+processes.

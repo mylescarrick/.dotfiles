@@ -4,22 +4,22 @@
   "returnRole": "delivery",
   "families": {
     "azure-gpt": {
-      "description": "Azure OpenAI GPT-5.6 family: Terra medium for default delivery, Luna low for cheap scoped/verification work, Sol high for long-horizon research/planning/architecture; manually escalate Sol roles to xhigh when needed.",
+      "description": "Cache-stable Azure OpenAI GPT-5.6 defaults: Terra medium for every automatic role. Sol high and Luna low are explicit persistent targets only.",
       "roles": {
         "research": {
           "provider": "azure-openai-responses",
-          "model": "gpt-5.6-sol",
-          "thinkingLevel": "high"
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
         },
         "architecture": {
           "provider": "azure-openai-responses",
-          "model": "gpt-5.6-sol",
-          "thinkingLevel": "high"
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
         },
         "planning": {
           "provider": "azure-openai-responses",
-          "model": "gpt-5.6-sol",
-          "thinkingLevel": "high"
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
         },
         "delivery": {
           "provider": "azure-openai-responses",
@@ -27,6 +27,20 @@
           "thinkingLevel": "medium"
         },
         "verification": {
+          "provider": "azure-openai-responses",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        }
+      },
+      "manualTargets": {
+        "sol": {
+          "description": "Exceptional long-horizon reasoning; stays locked until /mf auto.",
+          "provider": "azure-openai-responses",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "luna": {
+          "description": "Explicit low-cost bounded work; stays locked until /mf auto.",
           "provider": "azure-openai-responses",
           "model": "gpt-5.6-luna",
           "thinkingLevel": "low"

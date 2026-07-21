@@ -5,26 +5,28 @@ import {
   type ExtensionAPI,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent"
+import {
+  FALLBACK_CONFIG,
+  ROLES,
+  THINKING_LEVEL_ORDER,
+  classifyPrompt,
+  deepMerge,
+  isRecord,
+  isRole,
+  modelKey,
+  normalizeConfig,
+  planTransition,
+  resolveManualTarget,
+  targetForRole,
+  type ModelFamiliesConfig,
+  type ModelFamily,
+  type Role,
+  type RoleRoute,
+  type TargetModel,
+  type ThinkingLevel,
+} from "./policy"
 
-type Role = "research" | "architecture" | "planning" | "delivery" | "verification"
 type RoutingMode = "auto" | "locked"
-type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
-type TargetModel = {
-  provider: string
-  model: string
-  thinkingLevel?: ThinkingLevel
-}
-type ModelFamily = {
-  description?: string
-  disabled?: boolean
-  roles: Partial<Record<Role, TargetModel>>
-}
-type ModelFamiliesConfig = {
-  defaultFamily: string
-  autoRoute: boolean
-  returnRole: Role
-  families: Record<string, ModelFamily>
-}
 type PersistedState = {
   version: 1
   activeFamily: string
@@ -37,47 +39,9 @@ type CustomSessionEntry = {
   customType?: string
   data?: unknown
 }
-type RoleRoute = {
-  role: Role
-  reason: string
-}
-type PromptOptionsShape = {
-  skills?: Array<string | { name?: string; path?: string; description?: string }>
-}
-
 const CONFIG_DIR_NAME = ".pi"
 const CONFIG_FILE = "model-families.json"
 const STATE_ENTRY_TYPE = "model-family-state"
-const ROLES = ["research", "architecture", "planning", "delivery", "verification"] as const
-const ROLE_SET = new Set<string>(ROLES)
-const THINKING_LEVEL_ORDER = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const
-const THINKING_LEVELS = new Set<string>(THINKING_LEVEL_ORDER)
-
-const FALLBACK_CONFIG: ModelFamiliesConfig = {
-  defaultFamily: "copilot-budget",
-  autoRoute: true,
-  returnRole: "delivery",
-  families: {
-    "copilot-budget": {
-      description: "Budget Copilot defaults: GPT-5.5 for planning/architecture, MAI-Code for delivery.",
-      roles: {
-        research: { provider: "github-copilot", model: "gpt-5.5", thinkingLevel: "high" },
-        architecture: { provider: "github-copilot", model: "gpt-5.5", thinkingLevel: "high" },
-        planning: { provider: "github-copilot", model: "gpt-5.5", thinkingLevel: "high" },
-        delivery: { provider: "github-copilot", model: "mai-code-1-flash-picker", thinkingLevel: "low" },
-        verification: { provider: "github-copilot", model: "mai-code-1-flash-picker", thinkingLevel: "low" },
-      },
-    },
-  },
-}
-
-const ROLE_FALLBACKS: Record<Role, Role[]> = {
-  research: ["research", "architecture", "planning", "delivery"],
-  architecture: ["architecture", "planning", "research", "delivery"],
-  planning: ["planning", "architecture", "research", "delivery"],
-  delivery: ["delivery", "verification", "planning"],
-  verification: ["verification", "delivery"],
-}
 
 const COMMANDS = [
   "status",
@@ -86,6 +50,8 @@ const COMMANDS = [
   "auto",
   "default",
   "role",
+  "target",
+  "escalate",
   "research",
   "architecture",
   "planning",
@@ -97,35 +63,6 @@ const COMMANDS = [
   "reload",
 ]
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function isRole(value: unknown): value is Role {
-  return typeof value === "string" && ROLE_SET.has(value)
-}
-
-function isThinkingLevel(value: unknown): value is ThinkingLevel {
-  return typeof value === "string" && THINKING_LEVELS.has(value)
-}
-
-function deepMerge<T>(base: T, override: unknown): T {
-  if (!isRecord(base) || !isRecord(override)) {
-    return override === undefined ? base : (override as T)
-  }
-
-  const merged: Record<string, unknown> = { ...base }
-  for (const [key, value] of Object.entries(override)) {
-    const current = merged[key]
-    if (isRecord(current) && isRecord(value)) {
-      merged[key] = deepMerge(current, value)
-    } else {
-      merged[key] = value
-    }
-  }
-  return merged as T
-}
-
 function readJson(path: string, ctx?: ExtensionContext): unknown | undefined {
   if (!existsSync(path)) return undefined
 
@@ -134,59 +71,6 @@ function readJson(path: string, ctx?: ExtensionContext): unknown | undefined {
   } catch (error) {
     ctx?.ui.notify(`Model families: failed to parse ${path}: ${error instanceof Error ? error.message : String(error)}`, "warning")
     return undefined
-  }
-}
-
-function normalizeTarget(value: unknown): TargetModel | undefined {
-  if (!isRecord(value)) return undefined
-  if (typeof value.provider !== "string" || !value.provider.trim()) return undefined
-  if (typeof value.model !== "string" || !value.model.trim()) return undefined
-
-  return {
-    provider: value.provider.trim(),
-    model: value.model.trim(),
-    thinkingLevel: isThinkingLevel(value.thinkingLevel) ? value.thinkingLevel : undefined,
-  }
-}
-
-function normalizeConfig(value: unknown, ctx?: ExtensionContext): ModelFamiliesConfig {
-  const source = isRecord(value) ? value : {}
-  const rawFamilies = isRecord(source.families) ? source.families : {}
-  const families: Record<string, ModelFamily> = {}
-
-  for (const [familyName, rawFamily] of Object.entries(rawFamilies)) {
-    if (!isRecord(rawFamily)) continue
-    const rawRoles = isRecord(rawFamily.roles) ? rawFamily.roles : {}
-    const roles: Partial<Record<Role, TargetModel>> = {}
-
-    for (const [roleName, rawTarget] of Object.entries(rawRoles)) {
-      if (!isRole(roleName)) continue
-      const target = normalizeTarget(rawTarget)
-      if (target) roles[roleName] = target
-    }
-
-    if (Object.keys(roles).length === 0) {
-      ctx?.ui.notify(`Model families: ignored family ${familyName} because it has no valid roles`, "warning")
-      continue
-    }
-
-    families[familyName] = {
-      description: typeof rawFamily.description === "string" ? rawFamily.description : undefined,
-      disabled: rawFamily.disabled === true,
-      roles,
-    }
-  }
-
-  const enabledNames = Object.entries(families).filter(([, family]) => !family.disabled).map(([name]) => name)
-  const fallbackDefault = enabledNames[0] ?? Object.keys(families)[0] ?? FALLBACK_CONFIG.defaultFamily
-  const configuredDefault = typeof source.defaultFamily === "string" ? families[source.defaultFamily] : undefined
-  const defaultFamily = typeof source.defaultFamily === "string" && configuredDefault && !configuredDefault.disabled ? source.defaultFamily : fallbackDefault
-
-  return {
-    defaultFamily,
-    autoRoute: typeof source.autoRoute === "boolean" ? source.autoRoute : FALLBACK_CONFIG.autoRoute,
-    returnRole: isRole(source.returnRole) ? source.returnRole : FALLBACK_CONFIG.returnRole,
-    families,
   }
 }
 
@@ -218,7 +102,7 @@ function loadConfig(cwd: string, projectTrusted: boolean, ctx?: ExtensionContext
     }
   }
 
-  return normalizeConfig(merged, ctx)
+  return normalizeConfig(merged)
 }
 
 function parsePersistedState(value: unknown): PersistedState | undefined {
@@ -255,20 +139,8 @@ function parseModelKey(value: string): { provider: string; model: string } | und
   return provider && model ? { provider, model } : undefined
 }
 
-function modelKey(target: TargetModel): string {
-  return `${target.provider}/${target.model}`
-}
-
 function currentModelKey(ctx: ExtensionContext): string {
   return ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "none"
-}
-
-function targetForRole(family: ModelFamily, role: Role): { role: Role; target: TargetModel } | undefined {
-  for (const candidate of ROLE_FALLBACKS[role]) {
-    const target = family.roles[candidate]
-    if (target) return { role: candidate, target }
-  }
-  return undefined
 }
 
 
@@ -433,6 +305,29 @@ function auditFamily(name: string, family: ModelFamily, ctx: ExtensionContext): 
     lines.push(`  ${role}: ${available ? "✓" : "⚠"} ${modelKey(target)}${via}; available ${available ? "yes" : "no"}; auth ${authStatusLabel(auth)}; input ${model.input.join(",")}; ${thinking}${envText}`)
   }
 
+  for (const [targetName, target] of Object.entries(family.manualTargets ?? {})) {
+    const label = `target:${targetName}`
+    const model = ctx.modelRegistry.find(target.provider, target.model) as RegistryModel | undefined
+    if (!model) {
+      const suggestions = suggestEquivalentModels(target, ctx)
+      lines.push(`  ${label}: ✗ ${modelKey(target)} missing${suggestions.length ? `; similar: ${suggestions.join(", ")}` : ""}`)
+      continue
+    }
+
+    const available = ctx.modelRegistry.hasConfiguredAuth(model)
+    const auth = ctx.modelRegistry.getProviderAuthStatus(model.provider) as ProviderAuthStatusShape
+    const supported = supportedThinkingLevels(model)
+    const thinking = target.thinkingLevel
+      ? supported.includes(target.thinkingLevel)
+        ? `✓ thinking ${target.thinkingLevel}`
+        : `⚠ thinking ${target.thinkingLevel} unsupported; clamps to ${clampThinkingLevel(model, target.thinkingLevel)}`
+      : "⚠ thinking unset; current level is retained"
+    const missingEnv = missingEnvPlaceholders(model, ctx)
+    const envText = missingEnv.length ? `; missing env ${missingEnv.join(",")}` : ""
+
+    lines.push(`  ${label}: ${available ? "✓" : "⚠"} ${modelKey(target)}; available ${available ? "yes" : "no"}; auth ${authStatusLabel(auth)}; input ${model.input.join(",")}; ${thinking}${envText}`)
+  }
+
   return lines
 }
 
@@ -450,48 +345,13 @@ function showAudit(familyName: string | undefined, config: ModelFamiliesConfig, 
   ctx.ui.notify(`Model family audit:\n${lines.join("\n")}`, "info")
 }
 
-function skillNames(options: unknown): string[] {
-  const skills = (options as PromptOptionsShape | undefined)?.skills
-  if (!Array.isArray(skills)) return []
-
-  return skills
-    .map((skill) => {
-      if (typeof skill === "string") return skill
-      return skill.name ?? skill.path?.split("/").filter(Boolean).pop() ?? ""
-    })
-    .filter(Boolean)
-}
-
-function classify(prompt: string, options: unknown): RoleRoute {
-  const skills = skillNames(options)
-  const joined = `${prompt}\n${skills.join("\n")}`
-
-  if (/\b(?:research|web search|search (?:the )?web|look up|current|latest|docs?|documentation|api reference|official docs?|sources?|compare options|market|vendor)\b/i.test(joined)) {
-    return { role: "research", reason: "research/docs/current-info signal" }
-  }
-
-  if (/\b(?:architecture|architectural|system design|technical design|design doc|domain model|data model|state machine|adr|decision record|plan|planning|prd|proposal|approach|strategy|refactor|re-?architect|re-?design|deep module|interface design)\b/i.test(joined)) {
-    return { role: /\bplan|planning|prd|proposal|approach|strategy\b/i.test(joined) ? "planning" : "architecture", reason: "planning/architecture signal" }
-  }
-
-  if (/\b(?:verify|verification|test|tests|lint|typecheck|check|validate|ci|review evidence|acceptance)\b/i.test(joined)) {
-    return { role: "verification", reason: "verification signal" }
-  }
-
-  if (/\b(?:implement|build|deliver|code|fix|debug|diagnose|repair|failing|broken|bug|feature|wire up|ship)\b/i.test(joined)) {
-    return { role: "delivery", reason: "delivery signal" }
-  }
-
-  return { role: "delivery", reason: "default" }
-}
-
 function splitArgs(args: string): string[] {
   return args.trim().split(/\s+/).filter(Boolean)
 }
 
 function helpText(config: ModelFamiliesConfig): string {
   return [
-    "Usage: /model-family [status|list|use <family>|auto [family]|default|role <role> [prompt]|<role> [prompt]|models [query]|audit [family]|lock|reload]",
+    "Usage: /model-family [status|list|use <family>|auto [family]|default|role <role> [prompt]|target <name> [prompt]|escalate <name> [prompt]|<role> [prompt]|models [query]|audit [family]|lock|reload]",
     `Families: ${familyNames(config, { enabledOnly: true }).join(", ")}`,
     `Disabled: ${familyNames(config).filter((name) => config.families[name]?.disabled).join(", ") || "none"}`,
     `Roles: ${ROLES.join(", ")}`,
@@ -499,6 +359,7 @@ function helpText(config: ModelFamiliesConfig): string {
 }
 
 export default function modelFamilies(pi: ExtensionAPI) {
+  const isTidyChildProcess = process.env.PI_TIDY_SUBAGENT_CHILD === "1"
   let config = FALLBACK_CONFIG
   let activeFamily = FALLBACK_CONFIG.defaultFamily
   let routingMode: RoutingMode = FALLBACK_CONFIG.autoRoute ? "auto" : "locked"
@@ -508,7 +369,6 @@ export default function modelFamilies(pi: ExtensionAPI) {
   let ignoreThinkingSelectionsUntil = 0
   let lastStateSnapshot: string | undefined
   let nextRoute: RoleRoute | undefined
-  let currentTurnRole: Role | undefined
 
   function persistState(): void {
     const state: PersistedState = {
@@ -540,18 +400,70 @@ export default function modelFamilies(pi: ExtensionAPI) {
           return `  ${role}: ${modelKey(resolved.target)}${resolved.target.thinkingLevel ? ` (${resolved.target.thinkingLevel})` : ""}${suffix}`
         }).join("\n")
       : "  missing active family"
+    const manualLines = family && Object.keys(family.manualTargets ?? {}).length > 0
+      ? Object.entries(family.manualTargets ?? {}).map(([name, target]) =>
+          `  ${name}: ${modelKey(target)}${target.thinkingLevel ? ` (${target.thinkingLevel})` : ""}${target.description ? ` — ${target.description}` : ""}`
+        ).join("\n")
+      : "  none"
 
     ctx.ui.notify(
       [
         `Model family: mode=${routingMode}, active=${activeFamily}, default=${config.defaultFamily}`,
-        `Current model: ${currentModelKey(ctx)}`,
+        `Current model: ${currentModelKey(ctx)}; thinking: ${pi.getThinkingLevel()}`,
         `Locked model: ${lockedModelKey ?? "none"}`,
-        `Auto route: ${config.autoRoute}; return role: ${config.returnRole}`,
-        "Active family roles:",
+        `Auto route: ${config.autoRoute}; baseline role: ${config.returnRole}`,
+        "Automatic roles:",
         roleLines,
+        "Manual targets:",
+        manualLines,
       ].join("\n"),
       "info"
     )
+  }
+
+  async function applyTarget(target: TargetModel, label: string, reason: string, ctx: ExtensionContext): Promise<boolean> {
+    const targetKey = modelKey(target)
+    const beforeKey = currentModelKey(ctx)
+    const beforeThinking = pi.getThinkingLevel()
+    const transition = planTransition(beforeKey, beforeThinking, target)
+    const model = ctx.modelRegistry.find(target.provider, target.model)
+
+    if (!model) {
+      ctx.ui.notify(`Model families: missing ${targetKey} for ${activeFamily}:${label}`, "warning")
+      return false
+    }
+
+    if (transition.changeModel) {
+      selectedByExtension = true
+      ignoreThinkingSelectionsUntil = Date.now() + 750
+      try {
+        const ok = await pi.setModel(model)
+        if (!ok) {
+          ctx.ui.notify(`Model families: no API key for ${targetKey}`, "warning")
+          return false
+        }
+      } finally {
+        selectedByExtension = false
+      }
+    }
+
+    if (transition.changeThinking && target.thinkingLevel) {
+      thinkingSetByExtension = true
+      ignoreThinkingSelectionsUntil = Date.now() + 750
+      try {
+        pi.setThinkingLevel(target.thinkingLevel as Parameters<typeof pi.setThinkingLevel>[0])
+      } finally {
+        thinkingSetByExtension = false
+      }
+    }
+
+    if (transition.changeModel || transition.changeThinking) {
+      ctx.ui.notify(
+        `Model families: ${beforeKey}/${beforeThinking} → ${targetKey}/${target.thinkingLevel ?? pi.getThinkingLevel()} (${activeFamily}:${label}; ${reason})`,
+        "info",
+      )
+    }
+    return true
   }
 
   async function applyRole(requestedRole: Role, reason: string, ctx: ExtensionContext): Promise<boolean> {
@@ -567,45 +479,9 @@ export default function modelFamilies(pi: ExtensionAPI) {
       return false
     }
 
-    const { role, target } = resolved
-    const targetKey = modelKey(target)
-    const beforeKey = currentModelKey(ctx)
-    const model = ctx.modelRegistry.find(target.provider, target.model)
-
-    if (!model) {
-      ctx.ui.notify(`Model families: missing ${targetKey} for ${activeFamily}:${role}`, "warning")
-      return false
-    }
-
-    if (beforeKey !== targetKey) {
-      selectedByExtension = true
-      ignoreThinkingSelectionsUntil = Date.now() + 750
-      try {
-        const ok = await pi.setModel(model)
-        if (!ok) {
-          ctx.ui.notify(`Model families: no API key for ${targetKey}`, "warning")
-          return false
-        }
-      } finally {
-        selectedByExtension = false
-      }
-    }
-
-    if (target.thinkingLevel) {
-      thinkingSetByExtension = true
-      ignoreThinkingSelectionsUntil = Date.now() + 750
-      try {
-        pi.setThinkingLevel(target.thinkingLevel as Parameters<typeof pi.setThinkingLevel>[0])
-      } finally {
-        thinkingSetByExtension = false
-      }
-    }
-
-    setStatus(ctx, role)
-    if (beforeKey !== targetKey) {
-      ctx.ui.notify(`Model families: ${beforeKey} → ${targetKey} (${activeFamily}:${role}; ${reason})`, "info")
-    }
-    return true
+    const applied = await applyTarget(resolved.target, resolved.role, reason, ctx)
+    if (applied) setStatus(ctx, resolved.role)
+    return applied
   }
 
   async function useFamily(familyName: string, ctx: ExtensionContext): Promise<void> {
@@ -623,7 +499,6 @@ export default function modelFamilies(pi: ExtensionAPI) {
     routingMode = "auto"
     lockedModelKey = undefined
     nextRoute = undefined
-    currentTurnRole = undefined
     setStatus(ctx)
     persistState()
     await applyRole(config.returnRole, `selected family ${familyName}`, ctx)
@@ -642,14 +517,41 @@ export default function modelFamilies(pi: ExtensionAPI) {
       return
     }
 
-    if (ctx.isIdle()) {
-      pi.sendUserMessage(prompt)
-    } else {
-      pi.sendUserMessage(prompt, { deliverAs: "followUp" })
+    if (ctx.isIdle()) pi.sendUserMessage(prompt)
+    else pi.sendUserMessage(prompt, { deliverAs: "followUp" })
+  }
+
+  async function useManualTarget(name: string, prompt: string, ctx: ExtensionContext): Promise<void> {
+    const family = config.families[activeFamily]
+    const target = family ? resolveManualTarget(family, name) : undefined
+    if (!target) {
+      const available = Object.keys(family?.manualTargets ?? {})
+      ctx.ui.notify(`Model families: unknown manual target ${name || "(missing)"}; available: ${available.join(", ") || "none"}`, "warning")
+      return
+    }
+
+    const applied = await applyTarget(target, `target:${name}`, "explicit manual target", ctx)
+    if (!applied) return
+
+    routingMode = "locked"
+    lockedModelKey = modelKey(target)
+    nextRoute = undefined
+    setStatus(ctx)
+    persistState()
+    ctx.ui.notify(`Model families: locked to manual target ${activeFamily}:${name}; use /mf auto to return`, "info")
+
+    if (prompt) {
+      if (ctx.isIdle()) pi.sendUserMessage(prompt)
+      else pi.sendUserMessage(prompt, { deliverAs: "followUp" })
     }
   }
 
   async function handleCommand(args: string, ctx: ExtensionContext): Promise<void> {
+    if (isTidyChildProcess) {
+      ctx.ui.notify("Model families: routing commands are disabled in tidy child processes", "warning")
+      return
+    }
+
     const parts = splitArgs(args)
     const command = parts[0]?.toLowerCase()
 
@@ -718,6 +620,11 @@ export default function modelFamilies(pi: ExtensionAPI) {
       return
     }
 
+    if (command === "target" || command === "escalate") {
+      await useManualTarget(parts[1] ?? "", parts.slice(2).join(" "), ctx)
+      return
+    }
+
     if (isRole(command)) {
       const prompt = parts.slice(1).join(" ")
       await queueRole(command, prompt, ctx)
@@ -737,8 +644,14 @@ export default function modelFamilies(pi: ExtensionAPI) {
     getArgumentCompletions: (prefix) => {
       const parts = splitArgs(prefix)
       const last = parts.at(-1) ?? ""
-      const suggestFamilies = prefix.endsWith(" ") || ["use", "auto", "audit"].includes(parts[0] ?? "")
-      const source = suggestFamilies ? familyNames(config, { enabledOnly: !["audit"].includes(parts[0] ?? "") }) : [...COMMANDS, ...familyNames(config)]
+      const first = parts[0] ?? ""
+      const suggestFamilies = prefix.endsWith(" ") || ["use", "auto", "audit"].includes(first)
+      const suggestTargets = ["target", "escalate"].includes(first)
+      const source = suggestTargets
+        ? Object.keys(config.families[activeFamily]?.manualTargets ?? {})
+        : suggestFamilies
+          ? familyNames(config, { enabledOnly: !["audit"].includes(first) })
+          : [...COMMANDS, ...familyNames(config)]
       const items = source
         .filter((value) => value.startsWith(last))
         .map((value) => ({ value, label: value }))
@@ -762,10 +675,12 @@ export default function modelFamilies(pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     config = loadConfig(ctx.cwd, isProjectTrusted(ctx), ctx)
     activeFamily = config.defaultFamily
-    routingMode = config.autoRoute ? "auto" : "locked"
+    // Tidy sets this only on spawned children. The environment marker is available before
+    // Pi's startup model selection and is therefore the reliable child-runtime signal.
+    routingMode = isTidyChildProcess ? "locked" : config.autoRoute ? "auto" : "locked"
     lockedModelKey = undefined
 
-    const restored = readPersistedState(ctx)
+    const restored = isTidyChildProcess ? undefined : readPersistedState(ctx)
     if (restored && config.families[restored.activeFamily] && !config.families[restored.activeFamily]?.disabled) {
       activeFamily = restored.activeFamily
       routingMode = restored.routingMode
@@ -773,6 +688,9 @@ export default function modelFamilies(pi: ExtensionAPI) {
     }
 
     setStatus(ctx)
+    // The tidy child CLI applies its exact --model/--thinking selection after session_start.
+    // Lock routing without setting a model here, so that startup selection remains authoritative.
+    if (isTidyChildProcess) return
 
     if (routingMode === "locked" && lockedModelKey) {
       const lockedModel = parseModelKey(lockedModelKey)
@@ -809,26 +727,16 @@ export default function modelFamilies(pi: ExtensionAPI) {
   })
 
   pi.on("before_agent_start", async (event, ctx) => {
-    currentTurnRole = undefined
     if (routingMode === "locked") return
 
     if (nextRoute) {
       const route = nextRoute
       nextRoute = undefined
-      currentTurnRole = route.role
       await applyRole(route.role, route.reason, ctx)
       return
     }
 
-    const route = classify(event.prompt, event.systemPromptOptions)
-    currentTurnRole = route.role
+    const route = classifyPrompt(event.prompt)
     await applyRole(route.role, route.reason, ctx)
-  })
-
-  pi.on("agent_end", async (_event, ctx) => {
-    if (routingMode !== "auto" || !currentTurnRole || currentTurnRole === config.returnRole) return
-
-    currentTurnRole = undefined
-    await applyRole(config.returnRole, "return to default role after elevated turn", ctx)
   })
 }

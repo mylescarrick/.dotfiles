@@ -31,8 +31,10 @@ Use this project-local skill before editing this dotfiles repo's tracked Pi `mod
    - required env placeholders are set when a provider URL needs them
    - `thinkingLevel` is supported by that model
    - model `input` supports the task (`text` vs `text,image`)
-4. Prefer exact provider/model ids from `/mf models`; do not guess or normalize ids by hand.
-5. Use `disabled: true` for families that should remain documented/auditable but not selectable.
+4. For every `manualTargets` entry, confirm the same registry/auth/thinking/input facts as roles.
+5. Prefer exact provider/model ids from `/mf models`; do not guess or normalize ids by hand.
+6. Use `disabled: true` for families that should remain documented/auditable but not selectable.
+7. Run the extension check when touching the extension or policy: `bun run --cwd home/.pi/packages/pi-model-families/extensions/model-families check`.
 
 ## Roles
 
@@ -45,6 +47,22 @@ Use the five standard roles:
 - `verification`: tests, lint, typecheck, validation, CI failures, review/acceptance evidence
 
 `architecture` decides shape; `planning` decides sequence. `delivery` changes code; `verification` proves the change.
+
+## Cost and cache stability
+
+Automatic routing optimizes for cache locality: keep every role in a family on the **same** model and thinking level so ordinary prompts never switch models (the `azure-gpt` family uses Terra/medium for all five roles). The extension applies a model/thinking change only when it actually differs, and there is no per-turn escalate/return. Only give a role a distinct model when that role genuinely needs one.
+
+## Manual targets
+
+Expensive or cheap models that should be used only on purpose belong in a family's `manualTargets` map, never in automatic roles:
+
+```json
+"manualTargets": {
+  "sol": { "description": "...", "provider": "azure-openai-responses", "model": "gpt-5.6-sol", "thinkingLevel": "high" }
+}
+```
+
+`/mf target <name>` (alias `/mf escalate <name>`) applies and locks the target for the session; `/mf auto` returns to automatic routing. Manual targets are audited alongside roles but are never chosen by prompt classification.
 
 ## Thinking levels
 

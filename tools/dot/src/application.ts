@@ -6,7 +6,8 @@ import { initialize } from "./init";
 import { addPackage, removePackage } from "./package-authoring";
 import { configureCloudflareAuth, parseCloudflareAuthArgs } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
-import { listSkills, runSkillsCli, syncSkillLinks } from "./skills-authoring";
+import { listSkills, syncSkillLinks } from "./skills-authoring";
+import { runSkillsMutation } from "./skills-workflow";
 import { systemTerminal, type Terminal } from "./terminal";
 import { upgrade, UpgradeFailure } from "./upgrade";
 
@@ -127,7 +128,15 @@ export function createApplication(
 
       if (command === "skills") {
         const action = invocation.argv[1] ?? "list";
-        const args = invocation.argv.slice(2);
+        let args = invocation.argv.slice(2);
+        let acceptAll = false;
+        if (
+          (action === "update" || action === "add" || action === "remove") &&
+          args.at(-1) === "--yes"
+        ) {
+          acceptAll = true;
+          args = args.slice(0, -1);
+        }
         const valid =
           (action === "list" && args.length === 0) ||
           (action === "sync" && args.length === 0) ||
@@ -138,7 +147,8 @@ export function createApplication(
           return {
             exitCode: 2,
             stdout: "",
-            stderr: "dot: usage: dot skills [list|sync|update|add REPO SKILL...|remove SKILL...]\n",
+            stderr:
+              "dot: usage: dot skills [list|sync|update [--yes]|add REPO SKILL... [--yes]|remove SKILL... [--yes]]\n",
           };
         }
         try {
@@ -151,12 +161,14 @@ export function createApplication(
                     env: invocation.env,
                     processes,
                   })
-                : await runSkillsCli({
+                : await runSkillsMutation({
                     action: action as "add" | "update" | "remove",
                     args,
+                    acceptAll,
                     checkoutRoot: dependencies.checkoutRoot,
                     env: invocation.env,
                     processes,
+                    terminal,
                   });
           return { exitCode: 0, stdout, stderr: "" };
         } catch (error) {

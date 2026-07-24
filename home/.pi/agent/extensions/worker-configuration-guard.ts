@@ -17,7 +17,9 @@ const BLOCK_REASON =
 	"from the worker project to regenerate it instead.";
 
 const PROTECTED_FILE_RE = /(?:^|[^\w.-])worker-configuration\.d\.ts(?:$|[^\w.-])/;
-const OUTPUT_REDIRECTION_RE = /(^|[^<=>-])>>?/;
+const PROTECTED_FILE_OUTPUT_REDIRECTION_RE =
+	/(?:^|\s)(?:\d*)>{1,2}\s*["']?(?:[^\s"']*\/)?worker-configuration\.d\.ts["']?(?:$|\s)/;
+const HARMLESS_STDIO_REDIRECTION_RE = /\s+\d?>&\d\b/g;
 const BASH_MUTATION_RE =
 	/\b(?:tee|touch|cp|mv|rm|install|truncate|dd|rsync|python|python3|node|deno|ruby|bun|tsx|ts-node)\b|\b(?:sed|perl)\b[^\n]*(?:-i|--in-place)\b|\bgit\s+(?:checkout|restore|reset)\b/;
 const SHELL_META_RE = /[;&|<>`]/;
@@ -38,16 +40,32 @@ function referencesProtectedFile(command: string): boolean {
 	return PROTECTED_FILE_RE.test(command);
 }
 
-function isWranglerTypesOnly(command: string): boolean {
-	const normalized = command.replace(/\\\n/g, " ").trim();
+function isWranglerTypesOnly(segment: string): boolean {
+	const normalized = segment.replace(HARMLESS_STDIO_REDIRECTION_RE, "").trim();
 	return !SHELL_META_RE.test(normalized) && WRANGLER_TYPES_ONLY_RE.test(normalized);
 }
 
-function appearsToModifyProtectedFile(command: string): boolean {
-	if (!referencesProtectedFile(command)) return false;
-	if (isWranglerTypesOnly(command)) return false;
+// Splits on top-level command separators (&&, ||, ;, &, |) so a compound command
+// like `wrangler types && tsc --noEmit` or `cd worker && wrangler types` is judged
+// segment-by-segment instead of failing the all-or-nothing "pure wrangler types"
+// check just because it isn't the *only* thing on the line.
+function splitCommandSegments(command: string): string[] {
+	return command
+		.replace(/\\\n/g, " ")
+		.split(/\|\||&&|[;&|]/)
+		.map((segment) => segment.trim())
+		.filter(Boolean);
+}
 
-	return OUTPUT_REDIRECTION_RE.test(command) || BASH_MUTATION_RE.test(command);
+function segmentMutatesProtectedFile(segment: string): boolean {
+	if (!referencesProtectedFile(segment)) return false;
+	if (isWranglerTypesOnly(segment)) return false;
+
+	return PROTECTED_FILE_OUTPUT_REDIRECTION_RE.test(segment) || BASH_MUTATION_RE.test(segment);
+}
+
+function appearsToModifyProtectedFile(command: string): boolean {
+	return splitCommandSegments(command).some(segmentMutatesProtectedFile);
 }
 
 export default function (pi: ExtensionAPI) {

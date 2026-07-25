@@ -4,7 +4,7 @@ import { apply, ApplyFailure } from "./apply";
 import { runDoctor } from "./diagnostics";
 import { initialize } from "./init";
 import { addPackage, removePackage } from "./package-authoring";
-import { configureCloudflareAuth, parseCloudflareAuthArgs } from "./pi-auth";
+import { configureCloudflareAuth, configureExaAuth, parseCloudflareAuthArgs, parseExaAuthArgs } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
 import { listSkills, syncSkillLinks } from "./skills-authoring";
 import { runSkillsMutation } from "./skills-workflow";
@@ -48,6 +48,7 @@ const commands: readonly CommandDescription[] = [
   { usage: "package add/remove", summary: "Edit the Brewfile" },
   { usage: "skills", summary: "Manage the checkout-scoped skills store" },
   { usage: "pi auth cloudflare", summary: "Configure private Pi Cloudflare auth" },
+  { usage: "pi auth exa", summary: "Configure private web-tools Exa search auth" },
   { usage: "help", summary: "Show this help" },
 ];
 
@@ -170,6 +171,21 @@ export function createApplication(
                     processes,
                     terminal,
                   });
+          return { exitCode: 0, stdout, stderr: "" };
+        } catch (error) {
+          return failureOutcome(error);
+        }
+      }
+
+      if (command === "pi" && invocation.argv[1] === "auth" && invocation.argv[2] === "exa") {
+        const parsed = parseExaAuthArgs(invocation.argv.slice(3));
+        if (!parsed.ok) {
+          return { exitCode: 2, stdout: "", stderr: parsed.message };
+        }
+        const home = invocation.env.HOME;
+        if (!home) return { exitCode: 1, stdout: "", stderr: "dot: HOME is required\n" };
+        try {
+          const stdout = await configureExaAuth({ ...parsed.input, home });
           return { exitCode: 0, stdout, stderr: "" };
         } catch (error) {
           return failureOutcome(error);

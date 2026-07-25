@@ -81,6 +81,48 @@ test("ExaSearchProvider returns safe provider errors", async () => {
 	});
 });
 
+test("ExaSearchProvider sends x-api-key when an api key ref is configured", async () => {
+	const http = new RecordingHttpTextClient(
+		ok({
+			status: 200,
+			statusText: "OK",
+			headers: new Headers({ "content-type": "application/json" }),
+			bodyText: JSON.stringify({ result: { content: [{ type: "text", text: LEGACY_PROVIDER_TEXT }] } }),
+			bytes: 123,
+		}),
+	);
+	const endpoint = parsePublicHttpUrl("https://example.test/mcp");
+	const query = parseSearchQuery("example");
+	assert.equal(endpoint._tag, "ok");
+	assert.equal(query._tag, "ok");
+
+	const provider = new ExaSearchProvider(endpoint.value, http, "literal-test-key");
+	await provider.search({ query: query.value, maxResults: 5, depth: "auto" });
+
+	assert.equal(http.requests[0]?.headers["x-api-key"], "literal-test-key");
+});
+
+test("ExaSearchProvider omits x-api-key when no api key ref is configured", async () => {
+	const http = new RecordingHttpTextClient(
+		ok({
+			status: 200,
+			statusText: "OK",
+			headers: new Headers({ "content-type": "application/json" }),
+			bodyText: JSON.stringify({ result: { content: [{ type: "text", text: LEGACY_PROVIDER_TEXT }] } }),
+			bytes: 123,
+		}),
+	);
+	const endpoint = parsePublicHttpUrl("https://example.test/mcp");
+	const query = parseSearchQuery("example");
+	assert.equal(endpoint._tag, "ok");
+	assert.equal(query._tag, "ok");
+
+	const provider = new ExaSearchProvider(endpoint.value, http);
+	await provider.search({ query: query.value, maxResults: 5, depth: "auto" });
+
+	assert.equal("x-api-key" in http.requests[0]!.headers, false);
+});
+
 function isEncodedExaRequest(value: unknown): value is { readonly params: { readonly arguments: { readonly type: string } } } {
 	return (
 		typeof value === "object" &&

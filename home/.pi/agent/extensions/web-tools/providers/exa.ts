@@ -1,3 +1,4 @@
+import { resolveExaApiKeyCached } from "../exa-auth.ts";
 import { decodeTextBuffer, isAbortError, parseContentType, readBodyWithLimit } from "../network.ts";
 import { err, ok, type Result } from "../result.ts";
 import type { PublicHttpUrl } from "../types.ts";
@@ -92,6 +93,7 @@ export class ExaSearchProvider implements SearchProvider {
 	constructor(
 		private readonly endpoint: PublicHttpUrl,
 		private readonly http: HttpTextClient,
+		private readonly apiKeyRef?: string,
 	) {}
 
 	/** Search Exa through its MCP endpoint and return normalized public-web results. */
@@ -99,12 +101,14 @@ export class ExaSearchProvider implements SearchProvider {
 		input: SearchProviderRequest,
 		options: { readonly signal?: AbortSignal } = {},
 	): Promise<Result<readonly NormalizedSearchResult[], SearchProviderError>> {
+		const apiKey = this.apiKeyRef ? await resolveExaApiKeyCached(this.apiKeyRef) : undefined;
 		const response = await this.http.postJson(
 			{
 				url: this.endpoint,
 				headers: {
 					accept: "application/json, text/event-stream",
 					"content-type": "application/json",
+					...(apiKey ? { "x-api-key": apiKey } : {}),
 				},
 				body: encodeExaSearchRequest(input),
 				maxResponseBytes: MAX_SEARCH_RESPONSE_BYTES,

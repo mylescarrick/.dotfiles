@@ -27,6 +27,7 @@ COMMANDS
   package add/remove    Edit the Brewfile
   skills                Manage the checkout-scoped skills store
   pi auth cloudflare    Configure private Pi Cloudflare auth
+  pi auth exa           Configure private web-tools Exa search auth
   help                  Show this help
 `,
       stderr: "",

@@ -45,7 +45,10 @@
       "filePattern": [
         "~/.pi/agent/auth.json",
         "**/.pi/agent/auth.json",
-        "**/auth.json"
+        "**/auth.json",
+        "~/.pi/agent/web-tools-auth.json",
+        "**/.pi/agent/web-tools-auth.json",
+        "**/web-tools-auth.json"
       ],
       "cloakPattern": [
         {

@@ -46,6 +46,42 @@ export function parseCloudflareAuthArgs(args: readonly string[]): CloudflareArgs
   return { ok: true, input: { accountId, gatewayId, keySource } };
 }
 
+export type ExaKeySource =
+  | { readonly kind: "env"; readonly name: string }
+  | { readonly kind: "op"; readonly reference: string };
+
+export interface ExaAuthInput {
+  readonly keySource?: ExaKeySource;
+}
+
+export type ExaArgsResult =
+  | { readonly ok: true; readonly input: ExaAuthInput }
+  | { readonly ok: false; readonly message: string };
+
+export function parseExaAuthArgs(args: readonly string[]): ExaArgsResult {
+  let keySource: ExaKeySource | undefined;
+  for (let index = 0; index < args.length; index += 2) {
+    const flag = args[index];
+    const value = args[index + 1];
+    if (!value || value.startsWith("-")) {
+      return { ok: false, message: "dot: usage: dot pi auth exa [OPTIONS]\n" };
+    }
+    if (flag === "--api-key-env" && keySource === undefined) {
+      keySource = { kind: "env", name: value };
+    } else if (flag === "--api-key-op-ref" && keySource === undefined) {
+      keySource = { kind: "op", reference: value };
+    } else if (
+      (flag === "--api-key-env" || flag === "--api-key-op-ref") &&
+      keySource !== undefined
+    ) {
+      return { ok: false, message: "dot: choose one Exa API key source\n" };
+    } else {
+      return { ok: false, message: "dot: usage: dot pi auth exa [OPTIONS]\n" };
+    }
+  }
+  return { ok: true, input: { keySource } };
+}
+
 export async function inspectPiAuth(home: string): Promise<string[]> {
   const path = join(home, ".pi/agent/auth.json");
   let metadata;
@@ -125,4 +161,26 @@ export async function configureCloudflareAuth(options: CloudflareAuthInput & {
   upsert("cloudflare-workers-ai", { CLOUDFLARE_ACCOUNT_ID: accountId });
   await replacePrivateFile(authPath, `${JSON.stringify(auth, null, 2)}\n`);
   return "Pi Cloudflare auth configured\n";
+}
+
+export async function configureExaAuth(options: ExaAuthInput & {
+  readonly home: string;
+}): Promise<string> {
+  const keySource = options.keySource ?? { kind: "env" as const, name: "EXA_API_KEY" };
+  const key =
+    keySource.kind === "op"
+      ? `!op read ${quoteResolver(keySource.reference)}`
+      : `$${keySource.name}`;
+
+  const authPath = join(options.home, ".pi/agent/web-tools-auth.json");
+  let auth: Record<string, unknown> = {};
+  try {
+    auth = parseJsonObject(await readFile(authPath, "utf8"), "web-tools auth");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  auth.exa = { type: "api_key", key };
+  await replacePrivateFile(authPath, `${JSON.stringify(auth, null, 2)}\n`);
+  return "Exa search auth configured\n";
 }

@@ -154,3 +154,91 @@ describe("Pi Cloudflare auth", () => {
     expect(await Bun.file(join(root, ".pi/agent/auth.json")).exists()).toBe(false);
   });
 });
+
+describe("Pi Exa auth", () => {
+  test("writes an op resolver to a private web-tools auth file", async () => {
+    const root = await home();
+    const reference = "op://jhqkujv2uad3mk5izxfnl2tdki/Exa Agentic Search/API_KEY";
+
+    const outcome = await createApplication({ checkoutRoot: "/unused" }).execute({
+      argv: ["pi", "auth", "exa", "--api-key-op-ref", reference],
+      cwd: "/unused",
+      env: { HOME: root },
+    });
+
+    expect(outcome).toEqual({
+      exitCode: 0,
+      stdout: "Exa search auth configured\n",
+      stderr: "",
+    });
+    expect(outcome.stdout).not.toContain(reference);
+    const authPath = join(root, ".pi/agent/web-tools-auth.json");
+    const auth = JSON.parse(await readFile(authPath, "utf8"));
+    expect(auth.exa).toEqual({ type: "api_key", key: `!op read '${reference}'` });
+    expect((await lstat(authPath)).mode & 0o777).toBe(0o600);
+  });
+
+  test("defaults to the EXA_API_KEY environment resolver without reading its secret", async () => {
+    const root = await home();
+    const outcome = await createApplication({ checkoutRoot: "/unused" }).execute({
+      argv: ["pi", "auth", "exa"],
+      cwd: "/unused",
+      env: { HOME: root, EXA_API_KEY: "must-not-be-read-or-logged" },
+    });
+
+    expect(outcome.stdout + outcome.stderr).not.toContain("must-not-be-read-or-logged");
+    const auth = JSON.parse(await readFile(join(root, ".pi/agent/web-tools-auth.json"), "utf8"));
+    expect(auth.exa).toEqual({ type: "api_key", key: "$EXA_API_KEY" });
+  });
+
+  test("preserves unrelated web-tools auth entries", async () => {
+    const root = await home();
+    const authPath = join(root, ".pi/agent/web-tools-auth.json");
+    await mkdir(join(root, ".pi/agent"), { recursive: true });
+    await writeFile(authPath, `${JSON.stringify({ other: { keep: true } })}\n`, { mode: 0o644 });
+
+    await createApplication({ checkoutRoot: "/unused" }).execute({
+      argv: ["pi", "auth", "exa", "--api-key-env", "EXA_API_KEY"],
+      cwd: "/unused",
+      env: { HOME: root },
+    });
+
+    const auth = JSON.parse(await readFile(authPath, "utf8"));
+    expect(auth.other).toEqual({ keep: true });
+    expect(auth.exa).toEqual({ type: "api_key", key: "$EXA_API_KEY" });
+  });
+
+  test("rejects choosing two key sources", async () => {
+    const root = await home();
+    const outcome = await createApplication({ checkoutRoot: "/unused" }).execute({
+      argv: [
+        "pi",
+        "auth",
+        "exa",
+        "--api-key-env",
+        "EXA_API_KEY",
+        "--api-key-op-ref",
+        "op://vault/item/field",
+      ],
+      cwd: "/unused",
+      env: { HOME: root },
+    });
+    expect(outcome).toEqual({
+      exitCode: 2,
+      stdout: "",
+      stderr: "dot: choose one Exa API key source\n",
+    });
+    expect(await Bun.file(join(root, ".pi/agent/web-tools-auth.json")).exists()).toBe(false);
+  });
+
+  test("rejects incomplete option pairs before touching auth", async () => {
+    const root = await home();
+    const outcome = await createApplication({ checkoutRoot: "/unused" }).execute({
+      argv: ["pi", "auth", "exa", "--api-key-env"],
+      cwd: "/unused",
+      env: { HOME: root },
+    });
+    expect(outcome.exitCode).toBe(2);
+    expect(await Bun.file(join(root, ".pi/agent/web-tools-auth.json")).exists()).toBe(false);
+  });
+});

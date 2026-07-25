@@ -1,5 +1,5 @@
 {
-  "defaultFamily": "azure-gpt",
+  "defaultFamily": "claude-main",
   "autoRoute": true,
   "returnRole": "delivery",
   "families": {
@@ -42,6 +42,50 @@
         "luna": {
           "description": "Explicit low-cost bounded work; stays locked until /mf auto.",
           "provider": "azure-openai-responses",
+          "model": "gpt-5.6-luna",
+          "thinkingLevel": "low"
+        }
+      }
+    },
+    "copilot-gpt56": {
+      "description": "Cache-stable Copilot GPT-5.6 defaults: Terra medium for every automatic role. Sol high and Luna low are explicit persistent targets only.",
+      "roles": {
+        "research": {
+          "provider": "github-copilot",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        },
+        "architecture": {
+          "provider": "github-copilot",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        },
+        "planning": {
+          "provider": "github-copilot",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        },
+        "delivery": {
+          "provider": "github-copilot",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        },
+        "verification": {
+          "provider": "github-copilot",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        }
+      },
+      "manualTargets": {
+        "sol": {
+          "description": "Exceptional long-horizon reasoning; stays locked until /mf auto.",
+          "provider": "github-copilot",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "luna": {
+          "description": "Explicit low-cost bounded work; stays locked until /mf auto.",
+          "provider": "github-copilot",
           "model": "gpt-5.6-luna",
           "thinkingLevel": "low"
         }

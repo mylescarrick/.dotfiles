@@ -162,6 +162,7 @@ keeping global `compaction.enabled`).
     "npm:pine-of-glass",
     "npm:@mobrienv/pi-tidy-tools",
     "npm:@mobrienv/pi-tidy-subagents",
+    "npm:@plannotator/pi-extension",
     "../packages/pi-model-families"
   ]
 }

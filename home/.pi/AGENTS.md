@@ -43,6 +43,7 @@ bun run publish:pi-packages    # publish reusable local Pi packages with bun pub
 | `pi-model-families` | Select model provider/model/thinking by role: research, architecture, planning, delivery, verification. |
 | `@mobrienv/pi-tidy-tools` | Compact rendering for built-in Pi tool calls and `/diff` recap. |
 | `@mobrienv/pi-tidy-subagents` | Foreground/background child Pi agents for justified delegation. |
+| `@plannotator/pi-extension` | Plan mode, code review, document annotation, and last-message review via Plannotator. |
 
 ## Anti-patterns
 

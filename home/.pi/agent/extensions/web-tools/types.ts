@@ -38,6 +38,7 @@ export interface WebToolsSettings {
 		readonly timeoutSeconds: number;
 		readonly defaultMaxResults: number;
 		readonly defaultDepth: SearchDepth;
+		readonly apiKeyRef?: string;
 	};
 }
 

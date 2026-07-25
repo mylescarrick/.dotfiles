@@ -175,6 +175,24 @@ dot pi auth cloudflare \
 `~/.pi/agent/auth.json` preserves unrelated providers and is written atomically
 at mode `0600`.
 
+The `web-tools` extension's `websearch` tool (Exa) follows the same pattern but
+uses its own private file, since Exa is not a Pi model provider and never
+touches `auth.json`:
+
+```bash
+dot pi auth exa --api-key-op-ref 'op://vault/Exa Agentic Search/API_KEY'
+
+# Or:
+dot pi auth exa --api-key-env EXA_API_KEY
+```
+
+This writes `~/.pi/agent/web-tools-auth.json` (mode `0600`) with a resolver
+string (`!op read '...'` or `$ENV_NAME`) — never the raw secret. `websearch`
+stays disabled until a key resolver is configured; the extension resolves the
+reference itself (running the `op` command or reading the env var) lazily on
+first search and caches the result for the process lifetime, since Exa's MCP
+endpoint auth isn't handled by pi-ai's provider credential store.
+
 ## Git identity and SSH keys
 
 Git identity switches automatically by directory:

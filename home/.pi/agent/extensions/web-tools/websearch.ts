@@ -171,7 +171,7 @@ function createDefaultWebSearchComposition(): WebSearchToolComposition {
 function createSearchProvider(settings: WebToolsSettings["search"]): SearchProvider {
 	switch (settings.provider) {
 		case "exa":
-			return new ExaSearchProvider(settings.endpoint, new FetchHttpTextClient());
+			return new ExaSearchProvider(settings.endpoint, new FetchHttpTextClient(), settings.apiKeyRef);
 	}
 }
 
@@ -201,7 +201,7 @@ function renderSafeWebSearchError(error: WebSearchBoundaryError): string {
 		case "EmptySearchQuery":
 			return "Search query cannot be empty";
 		case "SearchDisabled":
-			return "websearch is disabled in web-tools settings. Enable it to use this tool.";
+			return "websearch is disabled: no Exa API key is configured. Run `dot pi auth exa` to enable it.";
 		case "SearchProviderUnavailable":
 			return "Search provider unavailable";
 		case "SearchProviderStatusRejected":

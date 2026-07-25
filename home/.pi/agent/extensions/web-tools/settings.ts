@@ -1,3 +1,4 @@
+import { readExaApiKeyRef } from "./exa-auth.ts";
 import {
 	parsePublicHttpUrl,
 	type PublicHttpUrl,
@@ -44,7 +45,6 @@ const DEFAULTS = {
 	fetchBlockPrivateHosts: true,
 	fetchMaxRedirects: FETCH_MAX_REDIRECTS,
 	fetchFallbackUserAgent: "opencode",
-	searchEnabled: false,
 	searchProvider: "exa",
 	searchEndpoint: "https://mcp.exa.ai/mcp",
 	searchTimeoutSeconds: SEARCH_TIMEOUT_SECONDS.default,
@@ -94,8 +94,9 @@ export function parseEnumSetting<T extends string>(
 	return allowed.includes(normalized) ? normalized : fallback;
 }
 
-/** Return hardcoded web-tools settings. */
+/** Return web-tools settings; search is enabled only when an Exa API key is configured via `dot pi auth exa`. */
 export function getWebToolsSettings(): WebToolsSettings {
+	const apiKeyRef = readExaApiKeyRef();
 	return {
 		fetch: {
 			defaultFormat: DEFAULTS.fetchDefaultFormat,
@@ -106,12 +107,13 @@ export function getWebToolsSettings(): WebToolsSettings {
 			fallbackUserAgent: DEFAULTS.fetchFallbackUserAgent,
 		},
 		search: {
-			enabled: DEFAULTS.searchEnabled,
+			enabled: apiKeyRef !== undefined,
 			provider: DEFAULTS.searchProvider,
 			endpoint: mustParsePublicHttpUrl(DEFAULTS.searchEndpoint),
 			timeoutSeconds: DEFAULTS.searchTimeoutSeconds,
 			defaultMaxResults: DEFAULTS.searchDefaultMaxResults,
 			defaultDepth: DEFAULTS.searchDefaultDepth,
+			apiKeyRef,
 		},
 	};
 }

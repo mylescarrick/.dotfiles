@@ -1,7 +1,11 @@
 import { guardCanonicalCheckout } from "./checkout";
 import { reconcilePackages } from "./packages";
 import { reconcilePiDependencies } from "./pi-dependencies";
-import { applyPiSettings, planPiSettings } from "./pi";
+import {
+  applyPiSettings,
+  planPiClaudeBridgeSettings,
+  planPiSettings,
+} from "./pi";
 import type { ProcessRunner } from "./process";
 import { validateSkillLinks } from "./skills";
 import { applyStowPlan, planStow } from "./stow";
@@ -32,7 +36,10 @@ export async function apply(options: {
     if (!home) throw new Error("HOME is required");
 
     stage = "Pi settings preflight";
-    await planPiSettings({ checkoutRoot: options.checkoutRoot, home });
+    await Promise.all([
+      planPiSettings({ checkoutRoot: options.checkoutRoot, home }),
+      planPiClaudeBridgeSettings({ checkoutRoot: options.checkoutRoot, home }),
+    ]);
 
     stage = "skill-link validation";
     progress += await validateSkillLinks(options);
@@ -51,8 +58,16 @@ export async function apply(options: {
       checkoutRoot: options.checkoutRoot,
       home,
     });
-    const changed = await applyPiSettings(piSettings);
+    const piClaudeBridgeSettings = await planPiClaudeBridgeSettings({
+      checkoutRoot: options.checkoutRoot,
+      home,
+    });
+    const [changed, bridgeChanged] = await Promise.all([
+      applyPiSettings(piSettings),
+      applyPiSettings(piClaudeBridgeSettings),
+    ]);
     progress += `${changed ? "Pi settings synced" : "Pi settings already current"}\n`;
+    progress += `${bridgeChanged ? "Pi Claude Bridge settings synced" : "Pi Claude Bridge settings already current"}\n`;
 
     stage = "Pi dependency reconciliation";
     progress += await reconcilePiDependencies({ ...options, home });

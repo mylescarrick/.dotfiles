@@ -36,6 +36,10 @@ async function fixture(): Promise<{
     join(checkout, "config/pi/settings.defaults.json"),
     '{"theme":"dark","packages":[]}\n',
   );
+  await writeFile(
+    join(checkout, "config/pi/claude-bridge.defaults.json"),
+    '{"provider":{"pathToClaudeCodeExecutable":"/opt/homebrew/bin/claude"}}\n',
+  );
   await writeFile(join(checkout, "packages/bundle"), 'brew "stow"\n');
   await writeFile(join(checkout, "home/.managed"), "tracked\n");
   await run(["git", "init", "--initial-branch=main"], checkout);

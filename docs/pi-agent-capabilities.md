@@ -180,8 +180,11 @@ Related keys (`docs/settings.md`): `hideThinkingBlock`, `thinkingBudgets` (per-l
 `:thinking` suffix, e.g. `sonnet:high`), `--models <patterns>`, `--thinking <level>`,
 `--api-key`, `--list-models`. Runtime: the `/model` command.
 
-**Anthropic bridge** (`~/.pi/agent/claude-bridge.json`): `askClaude` + `provider.plan` settings for
-the `pi-claude-bridge` package.
+**Anthropic bridge** (`~/.pi/agent/claude-bridge.json`): `askClaude` + provider settings for
+the `pi-claude-bridge` package. `dot apply` syncs this private runtime file from
+`config/pi/claude-bridge.defaults.json`; it pins
+`provider.pathToClaudeCodeExecutable` to `/opt/homebrew/bin/claude` so the bridge uses the current
+installed Claude Code CLI rather than its potentially stale SDK-bundled binary.
 
 **Env vars** (`README.md:656`): `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`,
 `PI_PACKAGE_DIR`, `PI_OFFLINE`, `PI_SKIP_VERSION_CHECK`, `PI_TELEMETRY`, `PI_CACHE_RETENTION`.

@@ -213,21 +213,21 @@
       }
     },
     "claude-main": {
-      "description": "Claude Bridge mainline: Opus 4.8 for planning/architecture, Sonnet 5 for building.",
+      "description": "Claude Bridge mainline: Opus 5 for planning/architecture, Sonnet 5 for building.",
       "roles": {
         "research": {
           "provider": "claude-bridge",
-          "model": "claude-opus-4-8",
+          "model": "claude-opus-5",
           "thinkingLevel": "high"
         },
         "architecture": {
           "provider": "claude-bridge",
-          "model": "claude-opus-4-8",
+          "model": "claude-opus-5",
           "thinkingLevel": "high"
         },
         "planning": {
           "provider": "claude-bridge",
-          "model": "claude-opus-4-8",
+          "model": "claude-opus-5",
           "thinkingLevel": "high"
         },
         "delivery": {

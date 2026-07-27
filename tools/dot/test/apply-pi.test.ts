@@ -53,6 +53,18 @@ async function makeFixture(): Promise<{
       2,
     )}\n`,
   );
+  await writeFile(
+    join(checkout, "config/pi/claude-bridge.defaults.json"),
+    `${JSON.stringify(
+      {
+        provider: {
+          pathToClaudeCodeExecutable: "/opt/homebrew/bin/claude",
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
   await run(["git", "init", "--initial-branch=main"], checkout);
   await run(["git", "config", "user.name", "Dot Tests"], checkout);
   await run(["git", "config", "user.email", "dot@example.test"], checkout);
@@ -318,7 +330,7 @@ describe("dot apply Pi settings", () => {
     expect(outcome).toEqual({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings synced\nPi dependency workspace not tracked (skipped)\n",
       stderr: "",
     });
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
@@ -334,6 +346,7 @@ describe("dot apply Pi settings", () => {
   test("creates private settings and leaves an exact rerun untouched", async () => {
     const fixture = await makeFixture();
     const settingsPath = join(fixture.home, ".pi/agent/settings.json");
+    const bridgeSettingsPath = join(fixture.home, ".pi/agent/claude-bridge.json");
     const app = createApplication({ checkoutRoot: fixture.checkout });
 
     expect(
@@ -345,9 +358,16 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings synced\nPi dependency workspace not tracked (skipped)\n",
     });
     const first = await lstat(settingsPath);
+    const firstBridgeSettings = await lstat(bridgeSettingsPath);
+    expect(JSON.parse(await readFile(bridgeSettingsPath, "utf8"))).toMatchObject({
+      provider: {
+        pathToClaudeCodeExecutable: "/opt/homebrew/bin/claude",
+      },
+    });
+    expect(firstBridgeSettings.mode & 0o777).toBe(0o600);
 
     expect(
       await app.execute({
@@ -358,11 +378,14 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings already current\nPi dependency workspace not tracked (skipped)\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings already current\nPi Claude Bridge settings already current\nPi dependency workspace not tracked (skipped)\n",
     });
     const second = await lstat(settingsPath);
+    const secondBridgeSettings = await lstat(bridgeSettingsPath);
     expect(second.ino).toBe(first.ino);
     expect(second.mtimeMs).toBe(first.mtimeMs);
+    expect(secondBridgeSettings.ino).toBe(firstBridgeSettings.ino);
+    expect(secondBridgeSettings.mtimeMs).toBe(firstBridgeSettings.mtimeMs);
 
     await chmod(settingsPath, 0o644);
     expect(
@@ -374,7 +397,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings already current\nPi dependency workspace not tracked (skipped)\n",
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
   });

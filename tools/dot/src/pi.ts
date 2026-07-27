@@ -16,6 +16,12 @@ async function readRuntime(path: string): Promise<Record<string, unknown>> {
   }
 }
 
+function asJsonObject(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
 async function currentRegularFileMatches(
   path: string,
   desired: string,
@@ -89,6 +95,43 @@ export async function planPiSettings(options: {
   if (Object.hasOwn(defaults, "packages")) merged.packages = defaults.packages;
   const desired = `${JSON.stringify(merged, null, 2)}\n`;
 
+  return {
+    changed: !(await currentRegularFileMatches(settingsPath, desired)),
+    desired,
+    settingsPath,
+  };
+}
+
+export async function planPiClaudeBridgeSettings(options: {
+  readonly checkoutRoot: string;
+  readonly home: string;
+}): Promise<PiSettingsPlan> {
+  const defaultsPath = join(options.checkoutRoot, "config/pi/claude-bridge.defaults.json");
+  const settingsPath = join(options.home, ".pi/agent/claude-bridge.json");
+
+  let defaults: Record<string, unknown>;
+  try {
+    defaults = parseJsonObject(
+      await readFile(defaultsPath, "utf8"),
+      "Tracked Pi Claude Bridge defaults",
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(`tracked Pi Claude Bridge defaults are missing at ${defaultsPath}`);
+    }
+    throw error;
+  }
+
+  const current = await readRuntime(settingsPath);
+  const defaultProvider = asJsonObject(defaults.provider);
+  const provider = {
+    ...defaultProvider,
+    ...asJsonObject(current.provider),
+  };
+  const executable = defaultProvider.pathToClaudeCodeExecutable;
+  if (typeof executable === "string") provider.pathToClaudeCodeExecutable = executable;
+
+  const desired = `${JSON.stringify({ ...defaults, ...current, provider }, null, 2)}\n`;
   return {
     changed: !(await currentRegularFileMatches(settingsPath, desired)),
     desired,

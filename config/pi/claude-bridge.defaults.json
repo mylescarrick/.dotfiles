@@ -1,0 +1,11 @@
+{
+  "askClaude": {
+    "enabled": true,
+    "allowFullMode": true
+  },
+  "provider": {
+    "plan": "max",
+    "longContextExtraUsage": false,
+    "pathToClaudeCodeExecutable": "/opt/homebrew/bin/claude"
+  }
+}

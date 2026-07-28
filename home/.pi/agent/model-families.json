@@ -218,17 +218,17 @@
         "research": {
           "provider": "claude-bridge",
           "model": "claude-opus-5",
-          "thinkingLevel": "high"
+          "thinkingLevel": "medium"
         },
         "architecture": {
           "provider": "claude-bridge",
           "model": "claude-opus-5",
-          "thinkingLevel": "high"
+          "thinkingLevel": "medium"
         },
         "planning": {
           "provider": "claude-bridge",
           "model": "claude-opus-5",
-          "thinkingLevel": "high"
+          "thinkingLevel": "medium"
         },
         "delivery": {
           "provider": "claude-bridge",

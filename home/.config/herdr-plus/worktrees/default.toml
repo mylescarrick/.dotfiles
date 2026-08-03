@@ -1,0 +1,19 @@
+# Wildcard worktree auto-layout: applies to every repo that has no layout of its
+# own. herdr-plus opens these tabs, with their commands already running, the
+# moment herdr creates or opens a worktree.
+#
+# To specialise a repo, add a sibling file with repo = "<repo-basename>" (and
+# optionally branch = "<branch>", which wins over a repo-only match).
+# To disable the feature entirely, delete every file in this directory.
+
+repo = "*"
+
+[[tabs]]
+name = "pi"
+command = "pi"
+
+[[tabs]]
+name = "review"
+
+[[tabs]]
+name = "shell"

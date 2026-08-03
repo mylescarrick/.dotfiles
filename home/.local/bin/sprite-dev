@@ -1,0 +1,344 @@
+#!/usr/bin/env bash
+# sprite-dev - Manage Fly.io Sprites as remote agentic-coding boxes.
+#
+# Provisions this dotfiles checkout, Bun, Pi and Herdr inside a sprite, then
+# manages checkpoints, tunnels and attachment.
+#
+# Sprites do not expose SSH. Topology B (herdr running inside the sprite, with a
+# local thin client over `herdr --remote`) needs an SSH server in the sprite
+# tunnelled through `sprite proxy`; until that is verified, `attach` uses the
+# console path. See docs/herdr-sprites.md.
+#
+# Flag names for the `sprite` CLI were reconstructed from published docs. Run any
+# command with --dry-run first and diff it against `sprite <cmd> --help`.
+
+set -euo pipefail
+
+DOTFILES_REPO="${SPRITE_DEV_DOTFILES_REPO:-https://github.com/mylescarrick/.dotfiles.git}"
+GOLDEN_LABEL="${SPRITE_DEV_GOLDEN_LABEL:-golden}"
+REMOTE_ENV_FILE=".config/sprite-dev/env"
+DRY_RUN=false
+
+usage() {
+    cat <<'EOF'
+Usage: sprite-dev <command> [options]
+
+Commands:
+  create <name>
+      Create a sprite, then provision it. Skips creation if it already exists.
+
+  provision <name> [--full]
+      Install Bun, Pi, Herdr and oh-my-zsh, clone this dotfiles repo, stow
+      home/, and run `herdr integration install pi`.
+      --full also attempts `dot apply --yes` (expect Homebrew cask failures on
+      Linux; see the follow-ups in docs/herdr-sprites.md).
+
+  env <name> VAR=op://... | VAR=value ...
+      Write secrets into the sprite's env file (mode 0600), resolving any
+      op:// reference locally with the 1Password CLI. Take the golden
+      checkpoint BEFORE this: checkpoints capture the filesystem.
+
+  attach <name>
+      Open an interactive shell in the sprite and start Herdr.
+
+  console <name>
+      Open a plain interactive shell, no Herdr.
+
+  exec <name> -- <command>...
+      Run one command in the sprite.
+
+  golden <name>
+      Create the golden base checkpoint (label from $SPRITE_DEV_GOLDEN_LABEL).
+
+  checkpoint <name> [label]
+      Create a checkpoint.
+
+  restore <name> <label>
+      Restore a checkpoint.
+
+  tunnel <name> <LOCAL:REMOTE>...
+      Forward ports from localhost into the sprite.
+
+  list
+      List sprites.
+
+  destroy <name>
+      Delete a sprite permanently.
+
+Options:
+  -n, --dry-run   Print the commands instead of running them
+  -h, --help      Show this help
+
+Examples:
+  sprite-dev create knox-api
+  sprite-dev golden knox-api
+  sprite-dev env knox-api CLOUDFLARE_API_KEY=op://Private/Cloudflare\ Pi\ API\ Token/credential
+  sprite-dev attach knox-api
+  sprite-dev tunnel knox-api 5173:5173 3000:3000
+EOF
+}
+
+die() {
+    echo "sprite-dev: $*" >&2
+    exit 1
+}
+
+run() {
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '+'
+        printf ' %q' "$@"
+        printf '\n'
+        return 0
+    fi
+    "$@"
+}
+
+require_sprite_cli() {
+    command -v sprite >/dev/null 2>&1 || die \
+        "sprite CLI not found. Install with: curl -fsSL https://sprites.dev/install.sh | bash"
+}
+
+sprite_exists() {
+    sprite list 2>/dev/null | grep -Fqw -- "$1"
+}
+
+# Run a script inside the sprite over stdin, so quoting stays sane.
+remote_script() {
+    local name="$1"
+    if [[ "$DRY_RUN" == true ]]; then
+        echo "+ sprite exec -s ${name} -- bash -s   # <<'REMOTE' script on stdin"
+        cat >/dev/null
+        return 0
+    fi
+    sprite exec -s "$name" -- bash -s
+}
+
+cmd_create() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "Usage: sprite-dev create <name>"
+
+    if sprite_exists "$name"; then
+        echo "Sprite '$name' already exists; provisioning it."
+    else
+        run sprite create "$name"
+    fi
+    shift
+    cmd_provision "$name" "$@"
+}
+
+cmd_provision() {
+    local name="${1:-}" full=false
+    [[ -n "$name" ]] || die "Usage: sprite-dev provision <name> [--full]"
+    shift || true
+    [[ "${1:-}" == "--full" ]] && full=true
+
+    echo "Provisioning '$name' from $DOTFILES_REPO"
+    remote_script "$name" <<REMOTE
+set -euo pipefail
+
+export DOTFILES_REPO="$DOTFILES_REPO"
+export SPRITE_DEV_FULL="$full"
+
+# Bun (the dot CLI runtime).
+if ! command -v bun >/dev/null 2>&1; then
+  curl -fsSL https://bun.sh/install | bash
+fi
+export BUN_INSTALL="\${BUN_INSTALL:-\$HOME/.bun}"
+export PATH="\$BUN_INSTALL/bin:\$HOME/.local/bin:\$PATH"
+
+# Pi: the harness. Sprites preinstall Claude/Codex/Gemini but not Pi.
+command -v pi >/dev/null 2>&1 || npm i -g @earendil-works/pi-coding-agent
+
+# Herdr: the multiplexer, running inside the sprite.
+command -v herdr >/dev/null 2>&1 || curl -fsSL https://herdr.dev/install.sh | sh
+
+# oh-my-zsh, because the tracked .zshrc bootstraps it.
+if [ ! -d "\$HOME/.oh-my-zsh" ]; then
+  RUNZSH=no CHSH=no sh -c \
+    "\$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+fi
+
+# The dotfiles checkout.
+if [ -d "\$HOME/.dotfiles/.git" ]; then
+  git -C "\$HOME/.dotfiles" fetch origin
+  git -C "\$HOME/.dotfiles" merge --ff-only refs/remotes/origin/main || true
+else
+  git clone "\$DOTFILES_REPO" "\$HOME/.dotfiles"
+fi
+
+command -v stow >/dev/null 2>&1 || {
+  (sudo apt-get update -qq && sudo apt-get install -y -qq stow) || \
+    echo "sprite-dev: install GNU Stow manually, then re-run provision" >&2
+}
+
+# Same invocation dot uses, minus the Homebrew phase: packages/bundle is
+# macOS-oriented and its casks cannot install here.
+if command -v stow >/dev/null 2>&1; then
+  stow -R -v \
+    --ignore='node_modules|dist|out|coverage|logs|\.cache|build|\.DS_Store|\.tsbuildinfo' \
+    -d "\$HOME/.dotfiles" -t "\$HOME" home
+fi
+
+# Pi workspace dependencies and skill links.
+[ -f "\$HOME/.pi/package.json" ] && bun install --cwd "\$HOME/.pi" || true
+(cd "\$HOME/.dotfiles" && ./dot skills sync) || \
+  echo "sprite-dev: 'dot skills sync' failed; run it by hand" >&2
+
+# Hook-based agent state beats screen-pattern matching.
+herdr integration install pi || \
+  echo "sprite-dev: 'herdr integration install pi' failed; check herdr >= 0.7.0" >&2
+
+if [ "\$SPRITE_DEV_FULL" = "true" ]; then
+  (cd "\$HOME/.dotfiles" && ./dot apply --yes) || \
+    echo "sprite-dev: 'dot apply' failed (expected: macOS casks); continuing" >&2
+fi
+
+# Source injected secrets from every interactive shell.
+mkdir -p "\$HOME/.config/sprite-dev"
+touch "\$HOME/$REMOTE_ENV_FILE"
+chmod 600 "\$HOME/$REMOTE_ENV_FILE"
+for rc in "\$HOME/.zshrc" "\$HOME/.bashrc"; do
+  [ -e "\$rc" ] || continue
+  grep -q 'sprite-dev/env' "\$rc" 2>/dev/null && continue
+  printf '\n[ -f "\$HOME/%s" ] && . "\$HOME/%s"\n' "$REMOTE_ENV_FILE" "$REMOTE_ENV_FILE" >>"\$rc"
+done
+
+echo "sprite-dev: provisioned."
+REMOTE
+}
+
+cmd_env() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "Usage: sprite-dev env <name> VAR=value|VAR=op://... ..."
+    shift
+    [[ $# -gt 0 ]] || die "No VAR=value pairs given"
+
+    local pairs=() entry key value
+    for entry in "$@"; do
+        [[ "$entry" == *=* ]] || die "Not a VAR=value pair: $entry"
+        key="${entry%%=*}"
+        value="${entry#*=}"
+        if [[ "$value" == op://* ]]; then
+            command -v op >/dev/null 2>&1 || die "1Password CLI not found; needed for $key"
+            value="$(op read "$value")" || die "Could not read $key from 1Password"
+        fi
+        pairs+=("export ${key}=$(printf '%q' "$value")")
+    done
+
+    echo "Writing ${#pairs[@]} variable(s) into '$name' (mode 0600)"
+    if [[ "$DRY_RUN" == true ]]; then
+        echo "+ sprite exec -s ${name} -- bash -s   # writes ~/$REMOTE_ENV_FILE (values redacted)"
+        for entry in "$@"; do echo "    ${entry%%=*}=<redacted>"; done
+        return 0
+    fi
+
+    {
+        echo "set -euo pipefail"
+        echo "mkdir -p \"\$HOME/$(dirname "$REMOTE_ENV_FILE")\""
+        echo "umask 077"
+        echo "cat >\"\$HOME/$REMOTE_ENV_FILE\" <<'ENVEOF'"
+        printf '%s\n' "${pairs[@]}"
+        echo "ENVEOF"
+        echo "chmod 600 \"\$HOME/$REMOTE_ENV_FILE\""
+        echo "echo 'sprite-dev: env written.'"
+    } | sprite exec -s "$name" -- bash -s
+
+    cat <<'EOF'
+
+Now point Pi's auth at those env vars from inside the sprite, e.g.:
+  dot pi auth cloudflare --account-id ID --gateway-id ID --api-key-env CLOUDFLARE_API_KEY
+  dot pi auth exa --api-key-env EXA_API_KEY
+EOF
+}
+
+cmd_attach() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "Usage: sprite-dev attach <name>"
+    run sprite console -s "$name" -- herdr
+}
+
+cmd_console() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "Usage: sprite-dev console <name>"
+    run sprite console -s "$name"
+}
+
+cmd_exec() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "Usage: sprite-dev exec <name> -- <command>..."
+    shift
+    [[ "${1:-}" == "--" ]] && shift
+    [[ $# -gt 0 ]] || die "No command given"
+    run sprite exec -s "$name" -- "$@"
+}
+
+cmd_checkpoint() {
+    local name="${1:-}" label="${2:-}"
+    [[ -n "$name" ]] || die "Usage: sprite-dev checkpoint <name> [label]"
+    if [[ -n "$label" ]]; then
+        run sprite checkpoint create -s "$name" "$label"
+    else
+        run sprite checkpoint create -s "$name"
+    fi
+}
+
+cmd_golden() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "Usage: sprite-dev golden <name>"
+    echo "Creating golden checkpoint '$GOLDEN_LABEL' for '$name'."
+    echo "Do this before 'sprite-dev env' so no secrets land in the image."
+    cmd_checkpoint "$name" "$GOLDEN_LABEL"
+}
+
+cmd_restore() {
+    local name="${1:-}" label="${2:-}"
+    [[ -n "$name" && -n "$label" ]] || die "Usage: sprite-dev restore <name> <label>"
+    run sprite restore "$label" -s "$name"
+}
+
+cmd_tunnel() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "Usage: sprite-dev tunnel <name> <LOCAL:REMOTE>..."
+    shift
+    [[ $# -gt 0 ]] || die "No LOCAL:REMOTE port mappings given"
+    run sprite proxy -s "$name" "$@"
+}
+
+cmd_destroy() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "Usage: sprite-dev destroy <name>"
+    if [[ "$DRY_RUN" != true ]]; then
+        printf "Permanently delete sprite '%s'? [y/N] " "$name"
+        read -r reply
+        [[ "$reply" == [yY] ]] || { echo "Aborted."; return 1; }
+    fi
+    run sprite destroy "$name"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -n|--dry-run) DRY_RUN=true; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) break ;;
+    esac
+done
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+    create)     require_sprite_cli; cmd_create "$@" ;;
+    provision)  require_sprite_cli; cmd_provision "$@" ;;
+    env)        require_sprite_cli; cmd_env "$@" ;;
+    attach)     require_sprite_cli; cmd_attach "$@" ;;
+    console)    require_sprite_cli; cmd_console "$@" ;;
+    exec)       require_sprite_cli; cmd_exec "$@" ;;
+    golden)     require_sprite_cli; cmd_golden "$@" ;;
+    checkpoint) require_sprite_cli; cmd_checkpoint "$@" ;;
+    restore)    require_sprite_cli; cmd_restore "$@" ;;
+    tunnel)     require_sprite_cli; cmd_tunnel "$@" ;;
+    list)       require_sprite_cli; run sprite list ;;
+    destroy)    require_sprite_cli; cmd_destroy "$@" ;;
+    "")         usage; exit 1 ;;
+    *)          echo "Unknown command: $cmd" >&2; usage; exit 1 ;;
+esac

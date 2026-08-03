@@ -1,11 +1,37 @@
 onboarding = false
 
+[terminal]
+shell_mode = "auto"
+new_cwd = "follow"
+
 [theme]
 name = "catppuccin"
 
 [ui]
+sidebar_width = 32
 agent_panel_sort = "priority"
 
 [ui.toast]
 delivery = "herdr"
 delay_seconds = 1
+
+[ui.sound]
+enabled = false
+
+# tmux muscle memory; reload a running session with prefix+Shift+r.
+[keys]
+prefix = "ctrl+b"
+
+# Plugin actions from cloudmanic/herdr-plus.
+# Install with: herdr plugin install cloudmanic/herdr-plus  (requires herdr >= 0.7.0)
+[[keys.command]]
+key = "prefix+p"
+type = "plugin_action"
+command = "cloudmanic.herdr-plus.projects"
+description = "open project workspace"
+
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "cloudmanic.herdr-plus.quick-actions"
+description = "run quick action"

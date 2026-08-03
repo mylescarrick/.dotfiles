@@ -11,6 +11,8 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 ├── home/.config/       # Stowed to ~/.config/
 │   ├── git/            # Conditional work config
 │   ├── ghostty/        # Terminal
+│   ├── herdr/          # Agent multiplexer: theme, ui, prefix, plugin bindings
+│   ├── herdr-plus/     # herdr-plus plugin: worktree auto-layouts, branch prefix
 │   ├── starship.toml   # Prompt (2s timeout for Vite+)
 │   └── ripgrep/        # rg config
 ├── home/.zshrc, .zprofile  # Stowed to ~
@@ -34,6 +36,9 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 | Vendor/update agent skill | `dot skills add <owner/repo> <skill...>` / `dot skills update` |
 | Add global/deployed skill | Author `home/.agents/skills/<name>/SKILL.md`, then `dot skills sync` |
 | Add repo-only maintenance skill | Author `.agents/skills/<name>/SKILL.md` |
+| Herdr config / keybindings | `home/.config/herdr/config.toml` (reload: `prefix+Shift+r`) |
+| Worktree tab layout | `home/.config/herdr-plus/worktrees/*.toml` (`repo = "*"` is the default) |
+| Remote sprite lifecycle | `home/.local/bin/sprite-dev`; rationale in `docs/herdr-sprites.md` |
 | Shell alias | `home/.oh-my-zsh/custom/aliases.zsh` |
 | Shell function | `home/.oh-my-zsh/custom/*.zsh` (git.zsh, worktree.zsh, utils.zsh) |
 | Git alias | `home/.config/git/config` [alias] section |

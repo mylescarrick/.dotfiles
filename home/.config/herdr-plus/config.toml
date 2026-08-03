@@ -1,0 +1,15 @@
+# cloudmanic/herdr-plus global settings.
+#
+# herdr-plus reads its config from herdr's managed plugin directory when running
+# under herdr, and falls back to ~/.config/herdr-plus/ otherwise. Confirm which
+# applies with:
+#
+#   herdr plugin config-dir cloudmanic.herdr-plus
+#
+# If the managed directory differs from this path, symlink it here rather than
+# letting Stow manage a directory herdr provisions.
+
+[worktree]
+# Used verbatim, so the trailing slash is required. Bare branch names typed in
+# the worktree prompt get this prefix; names containing "/" are used as-is.
+branch_prefix = "myles/"

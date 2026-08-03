@@ -6,7 +6,9 @@ This repo configures a small agent stack. Keep each layer's job distinct.
 
 | Layer | Owns | Use when |
 |---|---|---|
-| Supacode | repos, worktrees, tabs, surfaces | You need workspace structure or multiple terminal surfaces. |
+| Herdr | repos, worktrees, tabs, surfaces, agent state | You need workspace structure or multiple terminal surfaces. Preferred. |
+| Supacode | the same, incumbent | Still fine; being migrated away from. See `docs/herdr-sprites.md`. |
+| Sprites | remote persistent execution | Work should outlive the laptop, or needs isolation from it. Optional. |
 | Pi | coding-agent loop and tools | You are doing normal implementation, planning, research, or review. |
 | Pi packages | reusable Pi behavior | The behavior is Pi-specific and should travel between projects. |
 | Pi tidy subagents | foreground/background child Pi agents | You need justified parallel or fresh-context work inside a Pi session. |
@@ -50,6 +52,20 @@ Guardrails:
 - read-only unless the user approved writes
 - parallel writes require separate worktrees and non-overlapping scopes
 - parent session summarizes child output; use artifacts for full details
+
+## Surfaces and remote execution
+
+Herdr is the workspace/agent multiplexer: `herdr worktree create|open|remove` owns
+worktrees, and `herdr-plus` worktree auto-layouts start each worktree's tabs with their
+commands already running. `pi` is a first-class Herdr agent kind, so pane state
+(`idle`/`working`/`blocked`/`done`) is real, not inferred — install the hook path with
+`herdr integration install pi`.
+
+Fly.io Sprites are optional remote sandboxes: persistent Linux boxes that hibernate when
+idle. One sprite per repo, many worktrees inside it. Manage them with `sprite-dev`.
+
+Full rationale, topology trade-offs, auth handling, and the config this repo tracks are in
+`docs/herdr-sprites.md`.
 
 ## Harness routing
 

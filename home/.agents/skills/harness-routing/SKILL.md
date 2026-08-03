@@ -1,6 +1,6 @@
 ---
 name: harness-routing
-description: Use when choosing workflow/tooling across Pi, Claude Code, Supacode, model roles, delegation, subagents, background agents, or worktrees.
+description: Use when choosing workflow/tooling across Pi, Claude Code, Herdr, Sprites, Supacode, model roles, delegation, subagents, background agents, or worktrees.
 ---
 
 # Harness Routing
@@ -10,9 +10,16 @@ Route work to the lowest-overhead workflow that preserves the right safety bound
 ## Routing rules
 
 1. **Identify the active harness.** Do not infer Pi from `command -v pi`; use the actual conversation/runtime context.
-2. **Choose the surface.** Use Supacode for repo/worktree/tab organization. Use the current agent session for normal single-threaded work. Use Pi tidy subagents or Claude Code native subagents only when delegation clears the threshold.
+2. **Choose the surface.** Use Herdr for repo/worktree/tab organization — `herdr worktree create|open|remove`, with `herdr-plus` auto-layouts starting each worktree's tabs. Supacode is the incumbent and still acceptable. Use the current agent session for normal single-threaded work. Use Pi tidy subagents or Claude Code native subagents only when delegation clears the threshold.
 3. **Choose the model level by role.** Say `research`, `architecture`, `planning`, `delivery`, or `verification`; concrete model IDs belong in config such as `model-families.json`, not in skills.
 4. **Choose delegation only when it pays.** Inline is default. Delegate for broad independent research, fresh-context review, independent hypothesis checks, or approved worktree-scoped execution.
+
+## Execution location
+
+Default to local. Move to a Fly.io Sprite only when the work should outlive the laptop or
+needs isolation from it; then use one sprite per repo with worktrees inside it, managed by
+`sprite-dev`. Sprites do not expose SSH, and Pi is not preinstalled — provisioning is
+`sprite-dev provision`. See `docs/herdr-sprites.md`.
 
 ## Harness modes
 

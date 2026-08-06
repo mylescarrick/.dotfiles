@@ -13,10 +13,11 @@ Route work to the lowest-overhead workflow that preserves the right safety bound
 2. **Choose the surface.** Use Supacode for repo/worktree/tab organization. Use the current agent session for normal single-threaded work. Use Pi tidy subagents or Claude Code native subagents only when delegation clears the threshold.
 3. **Choose the model level by role.** Say `research`, `architecture`, `planning`, `delivery`, or `verification`; concrete model IDs belong in config such as `model-families.json`, not in skills.
 4. **Choose delegation only when it pays.** Inline is default. Delegate for broad independent research, fresh-context review, independent hypothesis checks, or approved worktree-scoped execution.
+5. **Preserve the active model family during delegation.** If the user has explicitly chosen a provider/model family (for example Cloudflare Workers AI or GitHub Copilot), keep subagents on that same family unless the user explicitly asks for a different harness/model. Do not silently route Pi tidy subagents to Claude bridge or another provider just because delegation is happening.
 
 ## Harness modes
 
-- **Pi:** use `pi-model-families` for model roles when available. Use `@mobrienv/pi-tidy-subagents` (`subagent` / `subagent_control`) for justified foreground/background delegation. Keep children read-only unless the user approved writes, and use separate worktrees for parallel writes.
+- **Pi:** use `pi-model-families` for model roles when available. Use `@mobrienv/pi-tidy-subagents` (`subagent` / `subagent_control`) for justified foreground/background delegation. Keep children read-only unless the user approved writes, and use separate worktrees for parallel writes. If the active family is Cloudflare or GitHub Copilot, keep the child on that family unless the user explicitly requests otherwise.
 - **Claude Code:** use native Claude Code subagents/worktrees when appropriate.
 - **Other/default:** avoid harness-specific features unless the current runtime explicitly supports them.
 

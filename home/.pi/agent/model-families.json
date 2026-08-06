@@ -135,6 +135,50 @@
         }
       }
     },
+    "cf-gh-56": {
+      "description": "Cloudflare Kimi K2.7 Code for normal work; GitHub Copilot GPT-5.6 Terra/Luna for deliberate escalation or budget targets.",
+      "roles": {
+        "research": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "medium"
+        },
+        "architecture": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "medium"
+        },
+        "planning": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "medium"
+        },
+        "delivery": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "medium"
+        },
+        "verification": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "medium"
+        }
+      },
+      "manualTargets": {
+        "terra": {
+          "description": "Explicit high-capability fallback for the hardest, longest-horizon work; stays locked until /mf auto.",
+          "provider": "github-copilot",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "high"
+        },
+        "luna": {
+          "description": "Explicit budget fallback for bounded work; stays locked until /mf auto.",
+          "provider": "github-copilot",
+          "model": "gpt-5.6-luna",
+          "thinkingLevel": "low"
+        }
+      }
+    },
     "copilot-main": {
       "description": "Main Copilot defaults: GPT-5.5 for research/planning/architecture, Kimi K2.7 Code for delivery/verification.",
       "roles": {

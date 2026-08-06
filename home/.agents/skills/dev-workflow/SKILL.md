@@ -57,9 +57,20 @@ After each slice:
 
 Completion: every completed task has fresh evidence; no source change follows that evidence.
 
+## 5. Manage context aggressively
+
+Treat context budget as a first-class constraint, especially on smaller-context models.
+
+- Prefer focused prompts over large dumps of code or logs. Read files directly, summarize the important parts, and keep the next turn tight.
+- When a task is getting large or long-running, compact the state into a short summary before continuing: what changed, what is still uncertain, what remains to verify, and what the next step is.
+- If the conversation is growing stale or the repo is large, start a fresh plan/progress file or a new subagent session rather than forcing the same context window to carry everything.
+- Use a new subagent when a task is broad, independent, or needs a fresh context slice; do not keep piling more context onto a single turn.
+- When the task becomes hard enough to need a stronger model, switch explicitly with `/mf target <name>` or a manual model override, rather than letting the session drift.
+
 ## Guardrails
 
 - Project instructions, conventions, and local skills always win.
 - A passing check and a review are separate evidence.
 - Do not commit or open a PR without fresh applicable verification and the required user approval.
 - Use the narrowest skill that owns the concern; this router owns sequence, not the underlying specialty.
+- When delegating to Pi tidy subagents, keep the child on the current selected family/provider unless the user explicitly asks for a different harness or model. Do not silently switch to Claude bridge or another provider just because delegation is happening.

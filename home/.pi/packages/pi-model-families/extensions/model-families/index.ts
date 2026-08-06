@@ -218,9 +218,9 @@ function envPlaceholders(value: string | undefined): string[] {
   return [...names].filter(Boolean)
 }
 
-function missingEnvPlaceholders(model: RegistryModel, ctx: ExtensionContext): string[] {
-  const authStorageWithProviderEnv = ctx.modelRegistry.authStorage as { getProviderEnv?: (provider: string) => Record<string, string> | undefined }
-  const providerEnv = authStorageWithProviderEnv.getProviderEnv?.(model.provider) ?? {}
+export function missingEnvPlaceholders(model: RegistryModel, ctx: ExtensionContext): string[] {
+  const authStorageWithProviderEnv = ctx.modelRegistry.authStorage as { getProviderEnv?: (provider: string) => Record<string, string> | undefined } | undefined
+  const providerEnv = authStorageWithProviderEnv?.getProviderEnv?.(model.provider) ?? {}
   return envPlaceholders(model.baseUrl).filter((name) => !process.env[name] && !providerEnv[name])
 }
 

@@ -91,36 +91,49 @@
         }
       }
     },
-    "open-weight-cloudflare": {
-      "description": "Open-weight-ish models via Cloudflare Workers AI / AI Gateway: GLM for research and architecture, Kimi Code for delivery.",
+    "cf-main": {
+      "description": "Cache-stable Cloudflare Workers AI defaults: Kimi K2.7 Code medium for every automatic role. GLM 5.2 high and GLM 4.7 Flash low are explicit persistent targets only.",
       "roles": {
         "research": {
           "provider": "cloudflare-workers-ai",
-          "model": "@cf/zai-org/glm-5.2",
-          "thinkingLevel": "high"
+          "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "medium"
         },
         "architecture": {
           "provider": "cloudflare-workers-ai",
-          "model": "@cf/zai-org/glm-5.2",
-          "thinkingLevel": "high"
+          "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "medium"
         },
         "planning": {
           "provider": "cloudflare-workers-ai",
-          "model": "@cf/zai-org/glm-5.2",
-          "thinkingLevel": "high"
+          "model": "@cf/moonshotai/kimi-k2.7-code",
+          "thinkingLevel": "medium"
         },
         "delivery": {
           "provider": "cloudflare-workers-ai",
           "model": "@cf/moonshotai/kimi-k2.7-code",
-          "thinkingLevel": "low"
+          "thinkingLevel": "medium"
         },
         "verification": {
           "provider": "cloudflare-workers-ai",
           "model": "@cf/moonshotai/kimi-k2.7-code",
-          "thinkingLevel": "low"
+          "thinkingLevel": "medium"
         }
       },
-      "disabled": true
+      "manualTargets": {
+        "glm": {
+          "description": "Second-opinion flagship agentic coder, text-only; stays locked until /mf auto.",
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/zai-org/glm-5.2",
+          "thinkingLevel": "high"
+        },
+        "flash": {
+          "description": "Explicit low-cost bounded work, text-only; stays locked until /mf auto.",
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/zai-org/glm-4.7-flash",
+          "thinkingLevel": "low"
+        }
+      }
     },
     "copilot-main": {
       "description": "Main Copilot defaults: GPT-5.5 for research/planning/architecture, Kimi K2.7 Code for delivery/verification.",

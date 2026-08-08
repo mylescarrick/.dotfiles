@@ -69,7 +69,7 @@ export async function runDoctor(options: {
   }
 
   const available = new Set<string>();
-  for (const tool of ["bun", "git", "brew", "stow", "pi"] as const) {
+  for (const tool of ["bun", "git", "brew", "stow", "pi", "frog"] as const) {
     try {
       const result = await options.processes.run({
         argv: [tool, "--version"],

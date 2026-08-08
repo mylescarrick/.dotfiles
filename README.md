@@ -21,9 +21,10 @@ before downloading the official Bun installer. The Bun application then:
 
 1. installs Homebrew when missing;
 2. installs Pi when missing;
-3. optionally installs oh-my-zsh;
-4. applies repository-declared state;
-5. finishes with `dot doctor`.
+3. installs Frog when missing;
+4. optionally installs oh-my-zsh;
+5. applies repository-declared state;
+6. finishes with `dot doctor`.
 
 Restart the shell, or run `source ~/.zshrc`, after first setup.
 

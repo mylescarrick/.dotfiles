@@ -49,6 +49,7 @@ describe("machine bootstrap", () => {
     const processes = new ScriptedProcesses([
       { exitCode: 0, stdout: "brew", stderr: "" },
       { exitCode: 0, stdout: "pi", stderr: "" },
+      { exitCode: 0, stdout: "frog", stderr: "" },
     ]);
 
     const result = await bootstrapMachine({
@@ -58,10 +59,13 @@ describe("machine bootstrap", () => {
       terminal: terminal(),
     });
 
-    expect(result.stdout).toBe("Homebrew already installed\nPi already installed\noh-my-zsh already installed\n");
+    expect(result.stdout).toBe(
+      "Homebrew already installed\nPi already installed\nFrog already installed\noh-my-zsh already installed\n",
+    );
     expect(processes.requests.map((request) => request.argv)).toEqual([
       ["brew", "--version"],
       ["pi", "--version"],
+      ["frog", "--version"],
     ]);
   });
 
@@ -73,6 +77,7 @@ describe("machine bootstrap", () => {
       { exitCode: 0, stdout: "", stderr: "" },
       { exitCode: 0, stdout: "brew", stderr: "" },
       { exitCode: 0, stdout: "pi", stderr: "" },
+      { exitCode: 0, stdout: "frog", stderr: "" },
     ]);
 
     const result = await bootstrapMachine({
@@ -102,6 +107,7 @@ describe("machine bootstrap", () => {
       { exitCode: 127, stdout: "", stderr: "missing" },
       { exitCode: 0, stdout: "", stderr: "" },
       { exitCode: 0, stdout: "pi", stderr: "" },
+      { exitCode: 0, stdout: "frog", stderr: "" },
     ]);
 
     const result = await bootstrapMachine({
@@ -138,11 +144,52 @@ describe("machine bootstrap", () => {
     ).rejects.toThrow("Pi installation failed");
   });
 
+  test("installs missing Frog as a required tool", async () => {
+    const root = await home();
+    const processes = new ScriptedProcesses([
+      { exitCode: 0, stdout: "brew", stderr: "" },
+      { exitCode: 0, stdout: "pi", stderr: "" },
+      { exitCode: 127, stdout: "", stderr: "missing" },
+      { exitCode: 0, stdout: "", stderr: "" },
+      { exitCode: 0, stdout: "frog", stderr: "" },
+    ]);
+
+    const result = await bootstrapMachine({
+      checkoutRoot: join(root, ".dotfiles"),
+      env: { HOME: root },
+      processes,
+      terminal: terminal(),
+    });
+
+    expect(result.stdout).toContain("Frog installed\n");
+    expect(processes.requests[3]!.argv).toEqual(["bun", "add", "-g", "frog"]);
+  });
+
+  test("stops when required Frog installation fails", async () => {
+    const root = await home();
+    const processes = new ScriptedProcesses([
+      { exitCode: 0, stdout: "brew", stderr: "" },
+      { exitCode: 0, stdout: "pi", stderr: "" },
+      { exitCode: 127, stdout: "", stderr: "missing" },
+      { exitCode: 1, stdout: "", stderr: "failed" },
+    ]);
+
+    await expect(
+      bootstrapMachine({
+        checkoutRoot: join(root, ".dotfiles"),
+        env: { HOME: root },
+        processes,
+        terminal: terminal(),
+      }),
+    ).rejects.toThrow("Frog installation failed");
+  });
+
   test("continues when optional oh-my-zsh installation fails", async () => {
     const root = await home(false);
     const processes = new ScriptedProcesses([
       { exitCode: 0, stdout: "brew", stderr: "" },
       { exitCode: 0, stdout: "pi", stderr: "" },
+      { exitCode: 0, stdout: "frog", stderr: "" },
       { exitCode: 0, stdout: "", stderr: "" },
       { exitCode: 1, stdout: "", stderr: "failed" },
     ]);
@@ -155,12 +202,12 @@ describe("machine bootstrap", () => {
     });
 
     expect(result.stdout).toContain("oh-my-zsh installation failed (continuing)\n");
-    expect(processes.requests[2]!.argv.slice(0, 3)).toEqual([
+    expect(processes.requests[3]!.argv.slice(0, 3)).toEqual([
       "curl",
       "-fsSL",
       "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh",
     ]);
-    expect(processes.requests[3]!.argv[0]).toBe("/bin/sh");
+    expect(processes.requests[4]!.argv[0]).toBe("/bin/sh");
   });
 
   test("treats declined oh-my-zsh installation as optional", async () => {
@@ -168,6 +215,7 @@ describe("machine bootstrap", () => {
     const processes = new ScriptedProcesses([
       { exitCode: 0, stdout: "brew", stderr: "" },
       { exitCode: 0, stdout: "pi", stderr: "" },
+      { exitCode: 0, stdout: "frog", stderr: "" },
     ]);
     const tty = terminal(["n"]);
 
@@ -179,7 +227,7 @@ describe("machine bootstrap", () => {
     });
 
     expect(result.stdout).toContain("oh-my-zsh skipped\n");
-    expect(processes.requests).toHaveLength(2);
+    expect(processes.requests).toHaveLength(3);
   });
 
   test("refuses noninteractive bootstrap before subprocesses", async () => {

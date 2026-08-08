@@ -63,7 +63,7 @@ async function fixture(): Promise<{
   );
   const fakeBin = join(home, "fake-bin");
   await mkdir(fakeBin);
-  for (const tool of ["brew", "pi"]) {
+  for (const tool of ["brew", "pi", "frog"]) {
     await writeFile(join(fakeBin, tool), "#!/bin/sh\nexit 0\n");
     await chmod(join(fakeBin, tool), 0o755);
   }
@@ -107,6 +107,7 @@ describe("dot doctor", () => {
       }
       if (argv[0] === "brew" && argv[1] === "--version") continue;
       if (argv[0] === "pi" && argv[1] === "--version") continue;
+      if (argv[0] === "frog" && argv[1] === "--version") continue;
       if (argv[0] === "brew") {
         expect(argv.slice(1, 3)).toEqual(["bundle", "check"]);
         continue;

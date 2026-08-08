@@ -75,6 +75,7 @@ class FreshBootstrapProcesses implements ProcessRunner {
   readonly requests: ProcessRequest[] = [];
   private brewInstalled = false;
   private piInstalled = false;
+  private frogInstalled = false;
 
   constructor(private readonly failPiInstall = false) {}
 
@@ -108,6 +109,17 @@ class FreshBootstrapProcesses implements ProcessRunner {
     ) {
       if (this.failPiInstall) return { exitCode: 1, stdout: "", stderr: "failed" };
       this.piInstalled = true;
+      return { exitCode: 0, stdout: "", stderr: "" };
+    }
+    if (command === "frog" && args[0] === "--version") {
+      return {
+        exitCode: this.frogInstalled ? 0 : 127,
+        stdout: "",
+        stderr: "",
+      };
+    }
+    if (command === "bun" && args.join(" ") === "add -g frog") {
+      this.frogInstalled = true;
       return { exitCode: 0, stdout: "", stderr: "" };
     }
     if (command === "/bin/sh") {

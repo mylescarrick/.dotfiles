@@ -2,6 +2,9 @@
 # Note: require_sha disabled to prevent installation failures
 cask_args appdir: "/Applications"
 
+# Sysinternals ZoomIt for Mac
+tap "microsoft/sysinternalstap"
+
 brew "ast-grep"
 brew "azure-cli"
 brew "btop"
@@ -39,4 +42,5 @@ cask "handy"
 cask "raycast"
 # cask "spotify"
 cask "yaak@beta"
+cask "zoomit"
 

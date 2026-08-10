@@ -125,6 +125,15 @@ Manual Brewfile edits are also valid. `dot apply` checks them with Homebrew
 auto-update disabled and installs only missing declared state with
 `--no-upgrade`.
 
+Third-party taps are declared with `tap` lines in `packages/bundle`, but
+Homebrew refuses to load casks from an untrusted tap, and trust is machine-local
+state in `~/.homebrew/trust.json`. Each new machine therefore needs the trust
+granted once before `dot apply` can install such a cask:
+
+```bash
+brew trust --cask microsoft/sysinternalstap/zoomit
+```
+
 ## Agent skills
 
 `home/.agents/skills/` is canonical. Pi (`~/.pi/agent/skills/`) and Claude Code

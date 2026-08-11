@@ -1,16 +1,6 @@
-import {
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  readlink,
-  rm,
-  stat,
-  symlink,
-} from "node:fs/promises";
-import { join } from "node:path";
+import { lstat, mkdir, mkdtemp, readdir, readFile, readlink, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ProcessRunner } from "./process";
 import { skillAgentDirectories } from "./skill-layout";
 
@@ -53,14 +43,7 @@ export async function syncSkillLinks(options: {
   for (const entry of await readdir(canonical, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const ignored = await options.processes.run({
-      argv: [
-        "git",
-        "-C",
-        options.checkoutRoot,
-        "check-ignore",
-        "-q",
-        `home/.agents/skills/${entry.name}`,
-      ],
+      argv: ["git", "-C", options.checkoutRoot, "check-ignore", "-q", `home/.agents/skills/${entry.name}`],
       cwd: options.checkoutRoot,
       env: options.env,
     });
@@ -94,15 +77,15 @@ function validateSkillName(name: string): void {
 function scopedEnvironment(
   checkoutRoot: string,
   sink: string,
-  env: Readonly<Record<string, string | undefined>>,
+  env: Readonly<Record<string, string | undefined>>
 ): Readonly<Record<string, string | undefined>> {
   return {
     ...env,
-    HOME: join(checkoutRoot, "home"),
-    XDG_CONFIG_HOME: join(sink, "config"),
-    XDG_CACHE_HOME: join(sink, "cache"),
-    XDG_DATA_HOME: join(sink, "data"),
     BUN_INSTALL_CACHE_DIR: join(sink, "bun"),
+    HOME: join(checkoutRoot, "home"),
+    XDG_CACHE_HOME: join(sink, "cache"),
+    XDG_CONFIG_HOME: join(sink, "config"),
+    XDG_DATA_HOME: join(sink, "data"),
   };
 }
 
@@ -121,19 +104,7 @@ export async function runSkillsCli(options: {
     let argv: [string, ...string[]];
     if (options.action === "add") {
       const [repo, ...skills] = options.args;
-      argv = [
-        "bunx",
-        "skills@latest",
-        "add",
-        repo!,
-        "-g",
-        "-y",
-        "-s",
-        ...skills,
-        "-a",
-        "pi",
-        "claude-code",
-      ];
+      argv = ["bunx", "skills@latest", "add", repo!, "-g", "-y", "-s", ...skills, "-a", "pi", "claude-code"];
     } else if (options.action === "update") {
       argv = ["bunx", "skills@latest", "update", "-g", "-y"];
     } else {
@@ -160,14 +131,14 @@ export async function runSkillsCli(options: {
       throw new Error(`skills ${options.action} failed`);
     }
   } finally {
-    await rm(sink, { recursive: true, force: true });
+    await rm(sink, { force: true, recursive: true });
   }
 
   if (options.action === "remove") {
     for (const name of options.args) {
       await rm(join(options.checkoutRoot, "home/.agents/skills", name), {
-        recursive: true,
         force: true,
+        recursive: true,
       });
     }
   }
@@ -183,7 +154,7 @@ export async function listSkills(checkoutRoot: string): Promise<string> {
   } catch {}
   const lines: string[] = [];
   for (const entry of (await readdir(canonical, { withFileTypes: true })).sort((a, b) =>
-    a.name.localeCompare(b.name),
+    a.name.localeCompare(b.name)
   )) {
     if (!entry.isDirectory()) continue;
     lines.push(`${entry.name}\t${lock.includes(`"${entry.name}": {`) ? "vendored" : "local"}`);

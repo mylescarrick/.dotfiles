@@ -12,37 +12,37 @@ import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 const PROTECTED_FILE = "worker-configuration.d.ts";
 
 const BLOCK_REASON =
-	`BLOCKED: ${PROTECTED_FILE} is generated and must not be manually ` +
-	"created, edited, deleted, or overwritten by an agent. Run `wrangler types` " +
-	"from the worker project to regenerate it instead.";
+  `BLOCKED: ${PROTECTED_FILE} is generated and must not be manually ` +
+  "created, edited, deleted, or overwritten by an agent. Run `wrangler types` " +
+  "from the worker project to regenerate it instead.";
 
 const PROTECTED_FILE_RE = /(?:^|[^\w.-])worker-configuration\.d\.ts(?:$|[^\w.-])/;
 const PROTECTED_FILE_OUTPUT_REDIRECTION_RE =
-	/(?:^|\s)(?:\d*)>{1,2}\s*["']?(?:[^\s"']*\/)?worker-configuration\.d\.ts["']?(?:$|\s)/;
+  /(?:^|\s)(?:\d*)>{1,2}\s*["']?(?:[^\s"']*\/)?worker-configuration\.d\.ts["']?(?:$|\s)/;
 const HARMLESS_STDIO_REDIRECTION_RE = /\s+\d?>&\d\b/g;
 const BASH_MUTATION_RE =
-	/\b(?:tee|touch|cp|mv|rm|install|truncate|dd|rsync|python|python3|node|deno|ruby|bun|ts-node)\b|(?<![.\w])tsx\b|\b(?:sed|perl)\b[^\n]*(?:-i|--in-place)\b|\bgit\s+(?:checkout|restore|reset)\b/;
+  /\b(?:tee|touch|cp|mv|rm|install|truncate|dd|rsync|python|python3|node|deno|ruby|bun|ts-node)\b|(?<![.\w])tsx\b|\b(?:sed|perl)\b[^\n]*(?:-i|--in-place)\b|\bgit\s+(?:checkout|restore|reset)\b/;
 const SHELL_META_RE = /[;&|<>`]/;
 const WRANGLER_TYPES_ONLY_RE =
-	/^\s*(?:(?:env|export)\s+[^\s]+\s+)*((?:\.\/node_modules\/\.bin\/)?wrangler|(?:npx|bunx)\s+wrangler|(?:npm|pnpm|yarn|bun)\s+(?:exec\s+|dlx\s+)?wrangler)\s+types(?:\s+[^;&|<>`]*)?\s*$/;
+  /^\s*(?:(?:env|export)\s+[^\s]+\s+)*((?:\.\/node_modules\/\.bin\/)?wrangler|(?:npx|bunx)\s+wrangler|(?:npm|pnpm|yarn|bun)\s+(?:exec\s+|dlx\s+)?wrangler)\s+types(?:\s+[^;&|<>`]*)?\s*$/;
 
 function normalizeToolPath(path: string): string {
-	return path.replace(/^@/, "").replaceAll("\\", "/");
+  return path.replace(/^@/, "").replaceAll("\\", "/");
 }
 
 function isProtectedPath(path: unknown): boolean {
-	if (typeof path !== "string") return false;
-	const normalized = normalizeToolPath(path);
-	return normalized.split("/").at(-1) === PROTECTED_FILE;
+  if (typeof path !== "string") return false;
+  const normalized = normalizeToolPath(path);
+  return normalized.split("/").at(-1) === PROTECTED_FILE;
 }
 
 function referencesProtectedFile(command: string): boolean {
-	return PROTECTED_FILE_RE.test(command);
+  return PROTECTED_FILE_RE.test(command);
 }
 
 function isWranglerTypesOnly(segment: string): boolean {
-	const normalized = segment.replace(HARMLESS_STDIO_REDIRECTION_RE, "").trim();
-	return !SHELL_META_RE.test(normalized) && WRANGLER_TYPES_ONLY_RE.test(normalized);
+  const normalized = segment.replace(HARMLESS_STDIO_REDIRECTION_RE, "").trim();
+  return !SHELL_META_RE.test(normalized) && WRANGLER_TYPES_ONLY_RE.test(normalized);
 }
 
 // Splits on top-level command separators (&&, ||, ;, &, |) so a compound command
@@ -50,43 +50,43 @@ function isWranglerTypesOnly(segment: string): boolean {
 // segment-by-segment instead of failing the all-or-nothing "pure wrangler types"
 // check just because it isn't the *only* thing on the line.
 function splitCommandSegments(command: string): string[] {
-	return command
-		.replace(/\\\n/g, " ")
-		.split(/\|\||&&|[;&|]/)
-		.map((segment) => segment.trim())
-		.filter(Boolean);
+  return command
+    .replace(/\\\n/g, " ")
+    .split(/\|\||&&|[;&|]/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
 }
 
 function segmentMutatesProtectedFile(segment: string): boolean {
-	if (!referencesProtectedFile(segment)) return false;
-	if (isWranglerTypesOnly(segment)) return false;
+  if (!referencesProtectedFile(segment)) return false;
+  if (isWranglerTypesOnly(segment)) return false;
 
-	return PROTECTED_FILE_OUTPUT_REDIRECTION_RE.test(segment) || BASH_MUTATION_RE.test(segment);
+  return PROTECTED_FILE_OUTPUT_REDIRECTION_RE.test(segment) || BASH_MUTATION_RE.test(segment);
 }
 
 function appearsToModifyProtectedFile(command: string): boolean {
-	return splitCommandSegments(command).some(segmentMutatesProtectedFile);
+  return splitCommandSegments(command).some(segmentMutatesProtectedFile);
 }
 
 export default function (pi: ExtensionAPI) {
-	pi.on("tool_call", (event, ctx) => {
-		if (isToolCallEventType("write", event) || isToolCallEventType("edit", event)) {
-			if (isProtectedPath(event.input.path)) {
-				if (ctx.hasUI) {
-					ctx.ui.notify(`Blocked manual change to ${PROTECTED_FILE}; run wrangler types.`, "warning");
-				}
-				return { block: true, reason: BLOCK_REASON };
-			}
+  pi.on("tool_call", (event, ctx) => {
+    if (isToolCallEventType("write", event) || isToolCallEventType("edit", event)) {
+      if (isProtectedPath(event.input.path)) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(`Blocked manual change to ${PROTECTED_FILE}; run wrangler types.`, "warning");
+        }
+        return { block: true, reason: BLOCK_REASON };
+      }
 
-			return;
-		}
+      return;
+    }
 
-		if (!isToolCallEventType("bash", event)) return;
-		if (!appearsToModifyProtectedFile(event.input.command)) return;
+    if (!isToolCallEventType("bash", event)) return;
+    if (!appearsToModifyProtectedFile(event.input.command)) return;
 
-		if (ctx.hasUI) {
-			ctx.ui.notify(`Blocked manual change to ${PROTECTED_FILE}; run wrangler types.`, "warning");
-		}
-		return { block: true, reason: BLOCK_REASON };
-	});
+    if (ctx.hasUI) {
+      ctx.ui.notify(`Blocked manual change to ${PROTECTED_FILE}; run wrangler types.`, "warning");
+    }
+    return { block: true, reason: BLOCK_REASON };
+  });
 }

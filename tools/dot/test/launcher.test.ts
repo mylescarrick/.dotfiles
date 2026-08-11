@@ -10,23 +10,21 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 const launcherPath = resolve(import.meta.dir, "../../../dot");
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
 });
 
 async function run(command: string[], cwd?: string): Promise<string> {
   const child = Bun.spawn(command, {
     cwd,
-    stdout: "pipe",
     stderr: "pipe",
+    stdout: "pipe",
   });
   const [exitCode, stdout, stderr] = await Promise.all([
     child.exited,
@@ -39,9 +37,7 @@ async function run(command: string[], cwd?: string): Promise<string> {
   return stdout.trim();
 }
 
-async function makeFixture(
-  options: { withBun?: boolean; withGit?: boolean } = {},
-): Promise<{
+async function makeFixture(options: { withBun?: boolean; withGit?: boolean } = {}): Promise<{
   checkout: string;
   env: Record<string, string>;
   fakeBin: string;
@@ -65,7 +61,7 @@ async function makeFixture(
   if (options.withBun !== false) {
     await writeFile(
       join(fakeBin, "bun"),
-      "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$DOT_TEST_INVOCATION_LOG\"\n[ -z \"${DOT_TEST_MAIN_CONTENT_LOG:-}\" ] || cat \"$1\" > \"$DOT_TEST_MAIN_CONTENT_LOG\"\nexit 0\n",
+      '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOT_TEST_INVOCATION_LOG"\n[ -z "${DOT_TEST_MAIN_CONTENT_LOG:-}" ] || cat "$1" > "$DOT_TEST_MAIN_CONTENT_LOG"\nexit 0\n'
     );
     await chmod(join(fakeBin, "bun"), 0o755);
   }
@@ -85,24 +81,21 @@ async function makeFixture(
 
   return {
     checkout,
+    env: {
+      ...process.env,
+      DOT_TEST_INVOCATION_LOG: invocationLog,
+      HOME: root,
+      PATH: `${fakeBin}:/usr/bin:/bin`,
+    },
     fakeBin,
     home: root,
     invocationLog,
     launcherLink,
     origin,
-    env: {
-      ...process.env,
-      HOME: root,
-      PATH: `${fakeBin}:/usr/bin:/bin`,
-      DOT_TEST_INVOCATION_LOG: invocationLog,
-    },
   };
 }
 
-async function makePublisher(fixture: {
-  home: string;
-  origin: string;
-}): Promise<string> {
+async function makePublisher(fixture: { home: string; origin: string }): Promise<string> {
   const publisher = join(fixture.home, `publisher-${crypto.randomUUID()}`);
   await run(["git", "clone", fixture.origin, publisher]);
   await run(["git", "config", "user.name", "Dot Publisher"], publisher);
@@ -110,10 +103,7 @@ async function makePublisher(fixture: {
   return publisher;
 }
 
-async function publishChange(fixture: {
-  home: string;
-  origin: string;
-}): Promise<string> {
+async function publishChange(fixture: { home: string; origin: string }): Promise<string> {
   const publisher = await makePublisher(fixture);
   await writeFile(join(publisher, "published.txt"), "new revision\n");
   await run(["git", "add", "published.txt"], publisher);
@@ -122,25 +112,16 @@ async function publishChange(fixture: {
   return run(["git", "rev-parse", "HEAD"], publisher);
 }
 
-async function publishApplicationChange(fixture: {
-  home: string;
-  origin: string;
-}): Promise<string> {
+async function publishApplicationChange(fixture: { home: string; origin: string }): Promise<string> {
   const publisher = await makePublisher(fixture);
-  await writeFile(
-    join(publisher, "tools/dot/src/main.ts"),
-    "// refreshed Bun application\n",
-  );
+  await writeFile(join(publisher, "tools/dot/src/main.ts"), "// refreshed Bun application\n");
   await run(["git", "add", "tools/dot/src/main.ts"], publisher);
   await run(["git", "commit", "-m", "update application"], publisher);
   await run(["git", "push", "origin", "main"], publisher);
   return run(["git", "rev-parse", "HEAD"], publisher);
 }
 
-async function publishLauncherChange(fixture: {
-  home: string;
-  origin: string;
-}): Promise<string> {
+async function publishLauncherChange(fixture: { home: string; origin: string }): Promise<string> {
   const publisher = await makePublisher(fixture);
   await writeFile(
     join(publisher, "dot"),
@@ -148,7 +129,7 @@ async function publishLauncherChange(fixture: {
 printf 'refreshed\\n' > "$DOT_TEST_REFRESH_LOG"
 exec bun "$HOME/.dotfiles/tools/dot/src/main.ts" "$@"
 `,
-    { mode: 0o755 },
+    { mode: 0o755 }
   );
   await run(["git", "add", "dot"], publisher);
   await run(["git", "commit", "-m", "update launcher"], publisher);
@@ -161,19 +142,16 @@ describe("dot launcher", () => {
     const fixture = await makeFixture();
     const child = Bun.spawn([join(fixture.checkout, "dot"), "--version"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
 
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(0);
     expect(stderr).toBe("");
     expect(await readFile(fixture.invocationLog, "utf8")).toBe(
-      `${join(fixture.checkout, "tools/dot/src/main.ts")}\n--version\n`,
+      `${join(fixture.checkout, "tools/dot/src/main.ts")}\n--version\n`
     );
   });
 
@@ -181,13 +159,13 @@ describe("dot launcher", () => {
     const fixture = await makeFixture();
     const child = Bun.spawn([fixture.launcherLink, "help"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
 
     expect(await child.exited).toBe(0);
     expect(await readFile(fixture.invocationLog, "utf8")).toBe(
-      `${join(fixture.checkout, "tools/dot/src/main.ts")}\nhelp\n`,
+      `${join(fixture.checkout, "tools/dot/src/main.ts")}\nhelp\n`
     );
   });
 
@@ -208,14 +186,14 @@ printf '%s\\n' "$@" > "${fixture.invocationLog}"
 printf '%s\\n' "$PATH" > "${pathLog}"
 BUN
 chmod +x "$BUN_INSTALL/bin/bun"
-`,
+`
     );
     await writeFile(
       join(fixture.fakeBin, "curl"),
       `#!/bin/sh
 printf '%s\\n' "$2" > "$DOT_TEST_CURL_LOG"
 cp "$DOT_TEST_BUN_INSTALLER" "$4"
-`,
+`
     );
     await chmod(join(fixture.fakeBin, "curl"), 0o755);
 
@@ -234,9 +212,9 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
           DOT_TEST_LAUNCHER: fixture.launcherLink,
           DOT_TEST_SECRET: "must-not-reach-installer",
         },
-        stdout: "pipe",
         stderr: "pipe",
-      },
+        stdout: "pipe",
+      }
     );
     const [exitCode, stdout, stderr] = await Promise.all([
       child.exited,
@@ -251,7 +229,7 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     expect(await readFile(curlLog, "utf8")).toBe("https://bun.sh/install\n");
     expect(await readFile(pathLog, "utf8")).toStartWith(`${bunInstall}/bin:`);
     expect(await readFile(fixture.invocationLog, "utf8")).toBe(
-      `${join(fixture.checkout, "tools/dot/src/main.ts")}\ninit\n`,
+      `${join(fixture.checkout, "tools/dot/src/main.ts")}\ninit\n`
     );
   });
 
@@ -260,10 +238,7 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     await publishChange(fixture);
     await run(["git", "fetch", "origin", "main"], fixture.checkout);
     const curlLog = join(fixture.home, "unexpected-curl");
-    await writeFile(
-      join(fixture.fakeBin, "curl"),
-      `#!/bin/sh\nprintf 'called\\n' > "${curlLog}"\nexit 9\n`,
-    );
+    await writeFile(join(fixture.fakeBin, "curl"), `#!/bin/sh\nprintf 'called\\n' > "${curlLog}"\nexit 9\n`);
     await chmod(join(fixture.fakeBin, "curl"), 0o755);
 
     const child = Bun.spawn(
@@ -274,9 +249,9 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
       ],
       {
         env: { ...fixture.env, DOT_TEST_LAUNCHER: fixture.launcherLink },
-        stdout: "pipe",
         stderr: "pipe",
-      },
+        stdout: "pipe",
+      }
     );
     const [stdout, stderr] = await Promise.all([
       new Response(child.stdout).text(),
@@ -286,7 +261,7 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     expect(stderr).toBe("");
     expect(stdout).toContain(
-      "dot: canonical checkout is not aligned with origin/main; refresh it before Bun bootstrap",
+      "dot: canonical checkout is not aligned with origin/main; refresh it before Bun bootstrap"
     );
     expect(await Bun.file(curlLog).exists()).toBe(false);
   });
@@ -302,9 +277,9 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
       ],
       {
         env: { ...fixture.env, DOT_TEST_LAUNCHER: fixture.launcherLink },
-        stdout: "pipe",
         stderr: "pipe",
-      },
+        stdout: "pipe",
+      }
     );
     const [stdout, stderr] = await Promise.all([
       new Response(child.stdout).text(),
@@ -314,7 +289,7 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     expect(stderr).toBe("");
     expect(stdout).toContain(
-      "dot: canonical checkout must be on main before Bun bootstrap (found 'feature-init')",
+      "dot: canonical checkout must be on main before Bun bootstrap (found 'feature-init')"
     );
     expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
   });
@@ -322,10 +297,7 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
   test("refuses to bootstrap Bun from a noncanonical checkout", async () => {
     const fixture = await makeFixture({ withBun: false, withGit: true });
     const worktree = join(fixture.home, "feature-init");
-    await run(
-      ["git", "worktree", "add", "-b", "feature-init", worktree],
-      fixture.checkout,
-    );
+    await run(["git", "worktree", "add", "-b", "feature-init", worktree], fixture.checkout);
 
     const child = Bun.spawn(
       [
@@ -335,9 +307,9 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
       ],
       {
         env: { ...fixture.env, DOT_TEST_LAUNCHER: join(worktree, "dot") },
-        stdout: "pipe",
         stderr: "pipe",
-      },
+        stdout: "pipe",
+      }
     );
     const [stdout, stderr] = await Promise.all([
       new Response(child.stdout).text(),
@@ -346,9 +318,7 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     ]);
 
     expect(stderr).toBe("");
-    expect(stdout).toContain(
-      `dot: init must run from the canonical checkout at ${fixture.checkout}`,
-    );
+    expect(stdout).toContain(`dot: init must run from the canonical checkout at ${fixture.checkout}`);
     expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
   });
 
@@ -362,9 +332,9 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
       ],
       {
         env: { ...fixture.env, DOT_TEST_LAUNCHER: fixture.launcherLink },
-        stdout: "pipe",
         stderr: "pipe",
-      },
+        stdout: "pipe",
+      }
     );
     const [stdout, stderr] = await Promise.all([
       new Response(child.stdout).text(),
@@ -381,13 +351,10 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     const fixture = await makeFixture({ withBun: false, withGit: true });
     const child = Bun.spawn([fixture.launcherLink, "init"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(1);
     expect(stderr).toBe("dot: Bun bootstrap requires an interactive terminal\n");
@@ -397,8 +364,8 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     const fixture = await makeFixture({ withBun: false });
     const child = Bun.spawn([fixture.launcherLink, "doctor"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
 
     const [exitCode, stdout, stderr] = await Promise.all([
@@ -407,10 +374,10 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
       new Response(child.stderr).text(),
     ]);
 
-    expect({ exitCode, stdout, stderr }).toEqual({
+    expect({ exitCode, stderr, stdout }).toEqual({
       exitCode: 1,
-      stdout: "",
       stderr: "dot: Bun is required; run 'dot init' to bootstrap it.\n",
+      stdout: "",
     });
   });
 
@@ -418,13 +385,10 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     const fixture = await makeFixture();
     const child = Bun.spawn([fixture.launcherLink, "--yes", "update"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(2);
     expect(stderr).toBe("dot: usage: dot update [--yes]\n");
@@ -440,20 +404,17 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
       const child = Bun.spawn([fixture.launcherLink, command, "--force"], {
         env: fixture.env,
-        stdout: "pipe",
         stderr: "pipe",
+        stdout: "pipe",
       });
-      const [exitCode, stderr] = await Promise.all([
-        child.exited,
-        new Response(child.stderr).text(),
-      ]);
+      const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
       expect(exitCode).toBe(2);
       expect(stderr).toBe(`dot: usage: dot ${command} [--yes]\n`);
       expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(head);
       expect(head).not.toBe(publishedHead);
       expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
-    },
+    }
   );
 
   test.each(["update", "upgrade"])(
@@ -466,18 +427,16 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
       const child = Bun.spawn([fixture.launcherLink, command], {
         env: fixture.env,
-        stdout: "pipe",
         stderr: "pipe",
+        stdout: "pipe",
       });
 
       expect(await child.exited).toBe(0);
-      expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(
-        publishedHead,
-      );
+      expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(publishedHead);
       expect(await readFile(fixture.invocationLog, "utf8")).toBe(
-        `${join(fixture.checkout, "tools/dot/src/main.ts")}\n${command}\n`,
+        `${join(fixture.checkout, "tools/dot/src/main.ts")}\n${command}\n`
       );
-    },
+    }
   );
 
   test("loads Bun application code from the fast-forwarded revision", async () => {
@@ -487,15 +446,13 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     const child = Bun.spawn([fixture.launcherLink, "update"], {
       env: { ...fixture.env, DOT_TEST_MAIN_CONTENT_LOG: contentLog },
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
 
     expect(await child.exited).toBe(0);
     expect(await readFile(contentLog, "utf8")).toBe("// refreshed Bun application\n");
-    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(
-      publishedHead,
-    );
+    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(publishedHead);
   });
 
   test("re-executes launcher code from the fast-forwarded revision", async () => {
@@ -505,15 +462,13 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     const child = Bun.spawn([fixture.launcherLink, "update"], {
       env: { ...fixture.env, DOT_TEST_REFRESH_LOG: refreshLog },
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
 
     expect(await child.exited).toBe(0);
     expect(await readFile(refreshLog, "utf8")).toBe("refreshed\n");
-    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(
-      publishedHead,
-    );
+    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(publishedHead);
   });
 
   test("refuses to update a dirty canonical checkout", async () => {
@@ -523,13 +478,10 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     const child = Bun.spawn([fixture.launcherLink, "update"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(1);
     expect(stderr).toBe("dot: canonical checkout has uncommitted changes\n");
@@ -544,13 +496,10 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     const child = Bun.spawn([fixture.launcherLink, "update"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(1);
     expect(stderr).toBe("dot: canonical checkout has an unfinished Git operation\n");
@@ -563,13 +512,10 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     const child = Bun.spawn([fixture.launcherLink, "update"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(1);
     expect(stderr).toContain("dot: failed to inspect canonical checkout\n");
@@ -585,21 +531,14 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     const child = Bun.spawn([fixture.launcherLink, "update"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain(
-      "dot: canonical main is ahead of or diverged from origin/main\n",
-    );
-    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(
-      localHead,
-    );
+    expect(stderr).toContain("dot: canonical main is ahead of or diverged from origin/main\n");
+    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(localHead);
     expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
   });
 
@@ -613,43 +552,28 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     const child = Bun.spawn([fixture.launcherLink, "update"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain(
-      "dot: canonical main is ahead of or diverged from origin/main\n",
-    );
-    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(
-      localHead,
-    );
+    expect(stderr).toContain("dot: canonical main is ahead of or diverged from origin/main\n");
+    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(localHead);
     expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
   });
 
   test("fails clearly when origin/main does not exist", async () => {
     const fixture = await makeFixture({ withGit: true });
-    await run(
-      ["git", "--git-dir", fixture.origin, "update-ref", "-d", "refs/heads/main"],
-    );
-    await run(
-      ["git", "update-ref", "-d", "refs/remotes/origin/main"],
-      fixture.checkout,
-    );
+    await run(["git", "--git-dir", fixture.origin, "update-ref", "-d", "refs/heads/main"]);
+    await run(["git", "update-ref", "-d", "refs/remotes/origin/main"], fixture.checkout);
 
     const child = Bun.spawn([fixture.launcherLink, "update"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(1);
     expect(stderr).toContain("dot: origin/main is unavailable after fetch\n");
@@ -663,13 +587,10 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     const child = Bun.spawn([fixture.launcherLink, "update"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(1);
     expect(stderr).toContain("dot: failed to fetch origin\n");
@@ -680,42 +601,30 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
   test("refuses to update from a noncanonical worktree", async () => {
     const fixture = await makeFixture({ withGit: true });
     const worktree = join(fixture.home, "feature-worktree");
-    await run(
-      ["git", "worktree", "add", "-b", "feature-worktree", worktree],
-      fixture.checkout,
-    );
+    await run(["git", "worktree", "add", "-b", "feature-worktree", worktree], fixture.checkout);
 
     const child = Bun.spawn([join(worktree, "dot"), "update"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toBe(
-      `dot: update must run from the canonical checkout at ${fixture.checkout}\n`,
-    );
+    expect(stderr).toBe(`dot: update must run from the canonical checkout at ${fixture.checkout}\n`);
     expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
   });
 
   test.each([
     {
+      expected: "dot: canonical checkout must be on main (found 'feature')\n",
       name: "another branch",
-      prepare: (checkout: string) =>
-        run(["git", "checkout", "-b", "feature"], checkout),
-      expected:
-        "dot: canonical checkout must be on main (found 'feature')\n",
+      prepare: (checkout: string) => run(["git", "checkout", "-b", "feature"], checkout),
     },
     {
+      expected: "dot: canonical checkout must be on main (found 'detached HEAD')\n",
       name: "detached HEAD",
-      prepare: (checkout: string) =>
-        run(["git", "checkout", "--detach"], checkout),
-      expected:
-        "dot: canonical checkout must be on main (found 'detached HEAD')\n",
+      prepare: (checkout: string) => run(["git", "checkout", "--detach"], checkout),
     },
   ])("refuses to update from $name", async ({ prepare, expected }) => {
     const fixture = await makeFixture({ withGit: true });
@@ -724,13 +633,10 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
 
     const child = Bun.spawn([fixture.launcherLink, "update"], {
       env: fixture.env,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
-    const [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
     expect(exitCode).toBe(1);
     expect(stderr).toBe(expected);

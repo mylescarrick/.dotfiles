@@ -5,7 +5,7 @@ import type { Terminal } from "./terminal";
 export class UpgradeFailure extends Error {
   constructor(
     message: string,
-    readonly stdout: string,
+    readonly stdout: string
   ) {
     super(message);
   }
@@ -18,7 +18,7 @@ export async function upgrade(options: {
   readonly processes: ProcessRunner;
   readonly terminal: Terminal;
 }): Promise<string> {
-  if (!options.acceptAll && !options.terminal.interactive) {
+  if (!(options.acceptAll || options.terminal.interactive)) {
     throw new Error("dot upgrade requires an interactive terminal or --yes");
   }
 
@@ -32,11 +32,7 @@ export async function upgrade(options: {
 
   let upgradeHomebrew = options.acceptAll;
   while (!options.acceptAll) {
-    const answer = (
-      await options.terminal.prompt("Upgrade Homebrew packages? [Y/n]: ")
-    )
-      .trim()
-      .toLowerCase();
+    const answer = (await options.terminal.prompt("Upgrade Homebrew packages? [Y/n]: ")).trim().toLowerCase();
     if (answer === "" || answer === "y" || answer === "yes") {
       upgradeHomebrew = true;
       break;
@@ -65,10 +61,7 @@ export async function upgrade(options: {
         output: "inherit",
       });
       if (result.exitCode !== 0) {
-        throw new UpgradeFailure(
-          command.failure,
-          `${progress}FAILED ${command.stage}: ${command.failure}\n`,
-        );
+        throw new UpgradeFailure(command.failure, `${progress}FAILED ${command.stage}: ${command.failure}\n`);
       }
     }
     progress += "Homebrew packages upgraded\n";

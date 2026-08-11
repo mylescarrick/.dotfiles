@@ -28,15 +28,7 @@ export async function validateSkillLinks(options: {
   readonly processes: ProcessRunner;
 }): Promise<string> {
   const result = await options.processes.run({
-    argv: [
-      "git",
-      "-C",
-      options.checkoutRoot,
-      "ls-files",
-      "-z",
-      "--",
-      "home/.agents/skills/*/SKILL.md",
-    ],
+    argv: ["git", "-C", options.checkoutRoot, "ls-files", "-z", "--", "home/.agents/skills/*/SKILL.md"],
     cwd: options.checkoutRoot,
     env: options.env,
   });

@@ -8,64 +8,64 @@ export type SkillSource =
   | { kind: "unknown"; root: string };
 
 export interface LocatedSkillFile {
+  editable: boolean;
   filePath: string;
   source: SkillSource;
-  editable: boolean;
 }
 
 export type SkillDiagnosticSeverity = "info" | "warning" | "error";
 
 export interface SkillDiagnostic {
-  severity: SkillDiagnosticSeverity;
   message: string;
+  severity: SkillDiagnosticSeverity;
 }
 
 export interface SkillRecord {
-  id: string;
-  name: string;
-  description: string;
-  filePath: string;
   baseDir: string;
-  source: SkillSource;
-  editable: boolean;
-  mode: SkillInvocationMode;
+  description: string;
   diagnostics: SkillDiagnostic[];
+  editable: boolean;
+  filePath: string;
+  id: string;
+  mode: SkillInvocationMode;
+  name: string;
+  source: SkillSource;
 }
 
 export interface SkillDraft {
-  skill: SkillRecord;
   desiredMode: SkillInvocationMode;
+  skill: SkillRecord;
 }
 
 export interface FrontmatterDocument {
-  raw: string;
-  hasFrontmatter: boolean;
-  frontmatterStart: number;
-  frontmatterEnd: number;
-  contentStart: number;
-  frontmatterText: string;
   bodyText: string;
+  contentStart: number;
   fields: Record<string, unknown>;
+  frontmatterEnd: number;
+  frontmatterStart: number;
+  frontmatterText: string;
+  hasFrontmatter: boolean;
   lineEnding: "\n" | "\r\n";
+  raw: string;
 }
 
 export interface FrontmatterPatch {
-  oldText: string;
   newText: string;
+  oldText: string;
 }
 
 export interface SkillChange {
-  skill: SkillRecord;
   filePath: string;
   from: SkillInvocationMode;
-  to: SkillInvocationMode;
   patch: FrontmatterPatch;
+  skill: SkillRecord;
+  to: SkillInvocationMode;
 }
 
 export interface ApplyResult {
   applied: SkillChange[];
-  skipped: Array<{ skill: SkillRecord; reason: string }>;
   errors: Array<{ skill?: SkillRecord; message: string }>;
+  skipped: Array<{ skill: SkillRecord; reason: string }>;
 }
 
 export interface SkillToggleUiResult {

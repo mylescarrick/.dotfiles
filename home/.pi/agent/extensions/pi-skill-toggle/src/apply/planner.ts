@@ -1,9 +1,9 @@
-import type { FileSystem } from "../ports/fs.ts";
 import type { FrontmatterCodec } from "../frontmatter/parser.ts";
 import type { FrontmatterPatcher } from "../frontmatter/patcher.ts";
-import type { SkillChange, SkillDraft, SkillRecord } from "../types.ts";
 import { hasDuplicateDisableModelInvocation } from "../frontmatter/validation.ts";
 import { classifyInvocationMode } from "../inventory/classifier.ts";
+import type { FileSystem } from "../ports/fs.ts";
+import type { SkillChange, SkillDraft, SkillRecord } from "../types.ts";
 
 export interface SkillTogglePlanner {
   plan(records: SkillRecord[], drafts: SkillDraft[]): Promise<SkillChange[]>;
@@ -13,7 +13,7 @@ export class DefaultSkillTogglePlanner implements SkillTogglePlanner {
   constructor(
     private readonly fs: FileSystem,
     private readonly codec: FrontmatterCodec,
-    private readonly patcher: FrontmatterPatcher,
+    private readonly patcher: FrontmatterPatcher
   ) {}
 
   async plan(records: SkillRecord[], drafts: SkillDraft[]): Promise<SkillChange[]> {
@@ -22,7 +22,7 @@ export class DefaultSkillTogglePlanner implements SkillTogglePlanner {
 
     for (const draft of drafts) {
       const record = recordById.get(draft.skill.id);
-      if (!record || !record.editable) continue;
+      if (!(record && record.editable)) continue;
 
       const raw = await this.fs.readFile(record.filePath);
       const doc = this.codec.parse(raw);
@@ -36,11 +36,11 @@ export class DefaultSkillTogglePlanner implements SkillTogglePlanner {
       if (patch.oldText === patch.newText) continue;
 
       changes.push({
-        skill: { ...record, mode: currentMode },
         filePath: record.filePath,
         from: currentMode,
-        to: draft.desiredMode,
         patch,
+        skill: { ...record, mode: currentMode },
+        to: draft.desiredMode,
       });
     }
 

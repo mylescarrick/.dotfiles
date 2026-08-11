@@ -12,7 +12,7 @@ class RecordingProcesses implements ProcessRunner {
   constructor(private readonly exitCode = 0) {}
   async run(request: ProcessRequest) {
     this.requests.push(request);
-    return { exitCode: this.exitCode, stdout: "", stderr: "" };
+    return { exitCode: this.exitCode, stderr: "", stdout: "" };
   }
 }
 
@@ -22,15 +22,13 @@ async function fixture(): Promise<string> {
   await mkdir(join(checkout, "packages"));
   await writeFile(
     join(checkout, "packages/bundle"),
-    'brew "btop"\nbrew "stow"\n\ncask "discord"\ncask "raycast"\n',
+    'brew "btop"\nbrew "stow"\n\ncask "discord"\ncask "raycast"\n'
   );
   return checkout;
 }
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
 });
 
 describe("package authoring", () => {
@@ -45,7 +43,7 @@ describe("package authoring", () => {
 
     expect(outcome.exitCode).toBe(0);
     expect(await readFile(join(checkout, "packages/bundle"), "utf8")).toBe(
-      'brew "btop"\nbrew "ripgrep"\nbrew "stow"\n\ncask "discord"\ncask "raycast"\n',
+      'brew "btop"\nbrew "ripgrep"\nbrew "stow"\n\ncask "discord"\ncask "raycast"\n'
     );
     expect(processes.requests[0]).toMatchObject({
       argv: ["brew", "install", "ripgrep"],
@@ -67,9 +65,7 @@ describe("package authoring", () => {
 
     expect(outcome.exitCode).toBe(0);
     expect(processes.requests[0]!.argv).toEqual(["brew", "install", name]);
-    expect(await readFile(join(checkout, "packages/bundle"), "utf8")).toContain(
-      `brew "${name}"`,
-    );
+    expect(await readFile(join(checkout, "packages/bundle"), "utf8")).toContain(`brew "${name}"`);
   });
 
   test("uses explicit cask installation", async () => {
@@ -80,12 +76,7 @@ describe("package authoring", () => {
       cwd: checkout,
       env: {},
     });
-    expect(processes.requests[0]!.argv).toEqual([
-      "brew",
-      "install",
-      "--cask",
-      "ghostty",
-    ]);
+    expect(processes.requests[0]!.argv).toEqual(["brew", "install", "--cask", "ghostty"]);
   });
 
   test("keeps failed installation declared for a later apply", async () => {
@@ -101,9 +92,7 @@ describe("package authoring", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.stderr).toContain("remains declared for the next dot apply");
-    expect(await readFile(join(checkout, "packages/bundle"), "utf8")).toContain(
-      'brew "jq"',
-    );
+    expect(await readFile(join(checkout, "packages/bundle"), "utf8")).toContain('brew "jq"');
   });
 
   test("rejects a package already declared as the other type", async () => {
@@ -126,7 +115,7 @@ describe("package authoring", () => {
     const checkout = await fixture();
     await writeFile(
       join(checkout, "packages/bundle"),
-      'brew "postgresql@16", restart_service: :changed\nbrew "stow"\n',
+      'brew "postgresql@16", restart_service: :changed\nbrew "stow"\n'
     );
     const processes = new RecordingProcesses();
     const outcome = await createApplication({ checkoutRoot: checkout, processes }).execute({
@@ -136,9 +125,7 @@ describe("package authoring", () => {
     });
 
     expect(outcome.exitCode).toBe(0);
-    expect(await readFile(join(checkout, "packages/bundle"), "utf8")).not.toContain(
-      "postgresql@16",
-    );
+    expect(await readFile(join(checkout, "packages/bundle"), "utf8")).not.toContain("postgresql@16");
     expect(processes.requests).toHaveLength(0);
   });
 
@@ -152,9 +139,7 @@ describe("package authoring", () => {
     });
 
     expect(outcome.exitCode).toBe(0);
-    expect(await readFile(join(checkout, "packages/bundle"), "utf8")).not.toContain(
-      'brew "stow"',
-    );
+    expect(await readFile(join(checkout, "packages/bundle"), "utf8")).not.toContain('brew "stow"');
     expect(processes.requests).toHaveLength(0);
   });
 
@@ -172,22 +157,22 @@ describe("package authoring", () => {
         argv: ["package", "add", name],
         cwd: "/missing",
         env: {},
-      }),
-    ).toEqual({ exitCode: 1, stdout: "", stderr: "dot: invalid package name\n" });
+      })
+    ).toEqual({ exitCode: 1, stderr: "dot: invalid package name\n", stdout: "" });
     expect(processes.requests).toHaveLength(0);
   });
 
   test("rejects missing or quoted names before file access", async () => {
     const app = createApplication({ checkoutRoot: "/missing" });
-    expect(
-      await app.execute({ argv: ["package", "add"], cwd: "/missing", env: {} }),
-    ).toMatchObject({ exitCode: 2 });
+    expect(await app.execute({ argv: ["package", "add"], cwd: "/missing", env: {} })).toMatchObject({
+      exitCode: 2,
+    });
     expect(
       await app.execute({
         argv: ["package", "add", 'bad"name'],
         cwd: "/missing",
         env: {},
-      }),
+      })
     ).toMatchObject({ exitCode: 1, stderr: "dot: invalid package name\n" });
   });
 });

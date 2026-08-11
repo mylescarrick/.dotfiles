@@ -1,33 +1,35 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-type CloakPatternSpec = string | {
-  pattern: string;
-  replace?: string;
-  flags?: string;
-};
+type CloakPatternSpec =
+  | string
+  | {
+      pattern: string;
+      replace?: string;
+      flags?: string;
+    };
 
 interface CloakRuleConfig {
-  filePattern: string | string[];
   cloakPattern: CloakPatternSpec | CloakPatternSpec[];
+  filePattern: string | string[];
   replace?: string;
 }
 
 interface CloakConfig {
-  enabled?: boolean;
   cloakCharacter?: string;
   cloakLength?: number | null;
-  tryAllPatterns?: boolean;
+  enabled?: boolean;
   patterns?: CloakRuleConfig[];
+  tryAllPatterns?: boolean;
 }
 
 interface CompiledCloakPattern {
-  source: string;
   regex: RegExp;
   replace?: string;
+  source: string;
 }
 
 interface CompiledCloakRule {
@@ -37,19 +39,19 @@ interface CompiledCloakRule {
 }
 
 interface RuntimeState {
-  configPath: string;
   config: CloakConfig;
-  rules: CompiledCloakRule[];
+  configPath: string;
   error?: string;
+  rules: CompiledCloakRule[];
 }
 
 const DEFAULT_CONFIG_PATH = join(getAgentDir(), "cloak.json");
 const DEFAULT_CONFIG: CloakConfig = {
-  enabled: true,
   cloakCharacter: "*",
   cloakLength: null,
-  tryAllPatterns: true,
+  enabled: true,
   patterns: [],
+  tryAllPatterns: true,
 };
 
 function toArray<T>(value: T | T[] | undefined): T[] {
@@ -125,16 +127,16 @@ function ensureGlobalFlags(flags?: string): string {
 function compilePattern(spec: CloakPatternSpec, ruleReplace?: string): CompiledCloakPattern {
   if (typeof spec === "string") {
     return {
-      source: spec,
       regex: new RegExp(spec, "g"),
       replace: ruleReplace,
+      source: spec,
     };
   }
 
   return {
-    source: spec.pattern,
     regex: new RegExp(spec.pattern, ensureGlobalFlags(spec.flags)),
     replace: spec.replace ?? ruleReplace,
+    source: spec.pattern,
   };
 }
 
@@ -160,20 +162,20 @@ export function loadState(configPath: string = DEFAULT_CONFIG_PATH): RuntimeStat
     };
 
     return {
-      configPath,
       config,
+      configPath,
       rules: (config.patterns ?? []).map(compileRule),
     };
   } catch (error) {
     const isMissingFile = error instanceof Error && "code" in error && error.code === "ENOENT";
 
     return {
-      configPath,
       config: DEFAULT_CONFIG,
-      rules: [],
+      configPath,
       error: isMissingFile
         ? `pi-cloak config not found at ${configPath}`
         : `pi-cloak failed to load ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
+      rules: [],
     };
   }
 }
@@ -182,12 +184,7 @@ function getPathCandidates(rawPath: string, cwd: string): string[] {
   const cleanPath = normalizePath(stripLeadingAt(rawPath));
   const absolutePath = normalizePath(resolve(cwd, expandHome(stripLeadingAt(rawPath))));
 
-  return Array.from(new Set([
-    cleanPath,
-    absolutePath,
-    basename(cleanPath),
-    basename(absolutePath),
-  ]));
+  return Array.from(new Set([cleanPath, absolutePath, basename(cleanPath), basename(absolutePath)]));
 }
 
 function ruleMatchesPath(rule: CompiledCloakRule, rawPath: string, cwd: string): boolean {
@@ -261,7 +258,7 @@ function buildMaskedReplacement(
   captures: string[],
   replace: string | undefined,
   cloakCharacter: string,
-  cloakLength: number | null | undefined,
+  cloakLength: number | null | undefined
 ): string {
   const visible = replace ? applyReplacementTemplate(replace, match, captures) : match.slice(0, 1);
   const targetLength = cloakLength ?? Math.max(match.length, visible.length);
@@ -273,8 +270,8 @@ function buildMaskedReplacement(
 function applyPatternsToLine(
   line: string,
   patterns: CompiledCloakPattern[],
-  config: CloakConfig,
-): { line: string; changed: boolean; } {
+  config: CloakConfig
+): { line: string; changed: boolean } {
   let updated = line;
   let changed = false;
 
@@ -287,7 +284,7 @@ function applyPatternsToLine(
         captures,
         pattern.replace,
         config.cloakCharacter ?? "*",
-        config.cloakLength,
+        config.cloakLength
       );
 
       if (replacement !== match) {
@@ -306,7 +303,7 @@ function applyPatternsToLine(
     }
   }
 
-  return { line: updated, changed };
+  return { changed, line: updated };
 }
 
 export function cloakText(rawText: string, rawPath: string, cwd: string, state: RuntimeState): string {

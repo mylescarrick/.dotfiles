@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import {
-  chmod,
-  mkdir,
-  mkdtemp,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
@@ -32,13 +26,10 @@ async function fixture(): Promise<{
   await mkdir(join(checkout, "packages"), { recursive: true });
   await mkdir(join(checkout, "home"), { recursive: true });
   await mkdir(join(home, ".oh-my-zsh"));
-  await writeFile(
-    join(checkout, "config/pi/settings.defaults.json"),
-    '{"theme":"dark","packages":[]}\n',
-  );
+  await writeFile(join(checkout, "config/pi/settings.defaults.json"), '{"theme":"dark","packages":[]}\n');
   await writeFile(
     join(checkout, "config/pi/claude-bridge.defaults.json"),
-    '{"provider":{"pathToClaudeCodeExecutable":"/opt/homebrew/bin/claude"}}\n',
+    '{"provider":{"pathToClaudeCodeExecutable":"/opt/homebrew/bin/claude"}}\n'
   );
   await writeFile(join(checkout, "packages/bundle"), 'brew "stow"\n');
   await writeFile(join(checkout, "home/.managed"), "tracked\n");
@@ -58,8 +49,8 @@ async function fixture(): Promise<{
   }
   return {
     checkout,
-    home,
     env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}` },
+    home,
   };
 }
 
@@ -85,48 +76,45 @@ class FreshBootstrapProcesses implements ProcessRunner {
     if (command === "brew" && args[0] === "--version") {
       return {
         exitCode: this.brewInstalled ? 0 : 127,
-        stdout: "",
         stderr: "",
+        stdout: "",
       };
     }
     if (command === "curl") {
-      return { exitCode: 0, stdout: "", stderr: "" };
+      return { exitCode: 0, stderr: "", stdout: "" };
     }
     if (command === "/bin/bash") {
       this.brewInstalled = true;
-      return { exitCode: 0, stdout: "", stderr: "" };
+      return { exitCode: 0, stderr: "", stdout: "" };
     }
     if (command === "pi" && args[0] === "--version") {
       return {
         exitCode: this.piInstalled ? 0 : 127,
-        stdout: "",
         stderr: "",
+        stdout: "",
       };
     }
-    if (
-      command === "bun" &&
-      args.join(" ") === "install -g @mariozechner/pi-coding-agent"
-    ) {
-      if (this.failPiInstall) return { exitCode: 1, stdout: "", stderr: "failed" };
+    if (command === "bun" && args.join(" ") === "install -g @mariozechner/pi-coding-agent") {
+      if (this.failPiInstall) return { exitCode: 1, stderr: "failed", stdout: "" };
       this.piInstalled = true;
-      return { exitCode: 0, stdout: "", stderr: "" };
+      return { exitCode: 0, stderr: "", stdout: "" };
     }
     if (command === "frog" && args[0] === "--version") {
       return {
         exitCode: this.frogInstalled ? 0 : 127,
-        stdout: "",
         stderr: "",
+        stdout: "",
       };
     }
     if (command === "bun" && args.join(" ") === "add -g frog") {
       this.frogInstalled = true;
-      return { exitCode: 0, stdout: "", stderr: "" };
+      return { exitCode: 0, stderr: "", stdout: "" };
     }
     if (command === "/bin/sh") {
-      return { exitCode: 0, stdout: "", stderr: "" };
+      return { exitCode: 0, stderr: "", stdout: "" };
     }
     if (command === "brew" && args[0] === "bundle") {
-      return { exitCode: 0, stdout: "", stderr: "" };
+      return { exitCode: 0, stderr: "", stdout: "" };
     }
     return bunProcessRunner.run(request);
   }
@@ -143,9 +131,7 @@ function answeringTerminal(answers: string[]): Terminal {
 }
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
 });
 
 describe("dot init", () => {
@@ -185,10 +171,7 @@ describe("dot init", () => {
   test("refuses noncanonical init before system bootstrap", async () => {
     const state = await fixture();
     const worktree = join(state.home, "feature-init");
-    await run(
-      ["git", "worktree", "add", "-b", "feature-init", worktree],
-      state.checkout,
-    );
+    await run(["git", "worktree", "add", "-b", "feature-init", worktree], state.checkout);
     const processes = new FreshBootstrapProcesses();
 
     const outcome = await createApplication({
@@ -199,13 +182,11 @@ describe("dot init", () => {
 
     expect(outcome).toEqual({
       exitCode: 1,
-      stdout: "",
       stderr: `dot: machine mutation must run from the canonical checkout at ${state.checkout}\n`,
+      stdout: "",
     });
     expect(
-      processes.requests.some(({ argv }) =>
-        ["brew", "pi", "curl", "bun", "stow"].includes(argv[0]),
-      ),
+      processes.requests.some(({ argv }) => ["brew", "pi", "curl", "bun", "stow"].includes(argv[0]))
     ).toBe(false);
   });
 
@@ -220,14 +201,12 @@ describe("dot init", () => {
 
     expect(outcome).toEqual({
       exitCode: 1,
-      stdout: "",
       stderr: "dot: Pi installation failed\n",
+      stdout: "",
     });
     expect(await Bun.file(join(state.home, ".managed")).exists()).toBe(false);
     expect(await Bun.file(join(state.home, ".pi/agent/settings.json")).exists()).toBe(false);
-    expect(
-      processes.requests.some(({ argv }) => argv[0] === "stow"),
-    ).toBe(false);
+    expect(processes.requests.some(({ argv }) => argv[0] === "stow")).toBe(false);
   });
 
   test("rejects init options before bootstrap", async () => {
@@ -238,8 +217,8 @@ describe("dot init", () => {
     });
     expect(outcome).toEqual({
       exitCode: 2,
-      stdout: "",
       stderr: "dot: usage: dot init\n",
+      stdout: "",
     });
   });
 
@@ -252,8 +231,8 @@ describe("dot init", () => {
     });
     expect(outcome).toEqual({
       exitCode: 1,
-      stdout: "",
       stderr: "dot: dot init requires an interactive terminal\n",
+      stdout: "",
     });
   });
 });

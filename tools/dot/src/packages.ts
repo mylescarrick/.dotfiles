@@ -9,13 +9,13 @@ interface PackageOptions {
 }
 
 function homebrewEnvironment(
-  env: Readonly<Record<string, string | undefined>>,
+  env: Readonly<Record<string, string | undefined>>
 ): Readonly<Record<string, string | undefined>> {
   return {
     ...env,
-    HOMEBREW_NO_AUTO_UPDATE: "1",
     HOMEBREW_BUNDLE_BREW_SKIP: undefined,
     HOMEBREW_BUNDLE_CASK_SKIP: undefined,
+    HOMEBREW_NO_AUTO_UPDATE: "1",
   };
 }
 
@@ -32,7 +32,7 @@ async function bundlePath(checkoutRoot: string): Promise<string> {
 async function checkPackages(
   options: PackageOptions,
   bundle: string,
-  env: Readonly<Record<string, string | undefined>>,
+  env: Readonly<Record<string, string | undefined>>
 ): Promise<boolean> {
   let check;
   try {

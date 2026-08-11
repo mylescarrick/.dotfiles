@@ -1,15 +1,15 @@
-import { complete, type Api, type Model, type UserMessage } from "@earendil-works/pi-ai";
+import { type Api, complete, type Model, type UserMessage } from "@earendil-works/pi-ai";
 import {
   BorderedLoader,
-  Theme,
   type ExtensionAPI,
   type ExtensionContext,
+  type Theme,
 } from "@earendil-works/pi-coding-agent";
 import {
   type Component,
-  type Focusable,
   Editor,
   type EditorTheme,
+  type Focusable,
   Key,
   matchesKey,
   type TUI,
@@ -19,8 +19,8 @@ import {
 } from "@earendil-works/pi-tui";
 
 interface ExtractedQuestion {
-  question: string;
   context?: string;
+  question: string;
 }
 
 interface ExtractionResult {
@@ -28,9 +28,9 @@ interface ExtractionResult {
 }
 
 type ExtractionOutcome =
-  | { type: "success"; result: ExtractionResult; }
-  | { type: "cancelled"; }
-  | { type: "error"; message: string; };
+  | { type: "success"; result: ExtractionResult }
+  | { type: "cancelled" }
+  | { type: "error"; message: string };
 
 const SYSTEM_PROMPT = `You extract questions from assistant text that still need answers from the user.
 
@@ -60,22 +60,24 @@ Rules:
 - If there are no user-answerable questions, return {"questions": []}.`;
 
 interface ExtractionModelPreference {
-  provider: string;
   modelId: string;
+  provider: string;
 }
 
 const EXTRACTION_MODEL_PREFERENCES: readonly ExtractionModelPreference[] = [
-  { provider: "openai-codex", modelId: "gpt-5.5" },
-  { provider: "anthropic", modelId: "claude-haiku-4-5" },
+  { modelId: "gpt-5.5", provider: "openai-codex" },
+  { modelId: "claude-haiku-4-5", provider: "anthropic" },
 ];
 
 function formatExtractionModelPreferences(preferences: readonly ExtractionModelPreference[]): string {
   return preferences.map((candidate) => `${candidate.provider}/${candidate.modelId}`).join(", ");
 }
 
-function getTextParts(content: Array<{ type: string; text?: string; }>): string[] {
+function getTextParts(content: Array<{ type: string; text?: string }>): string[] {
   return content
-    .filter((part): part is { type: "text"; text: string; } => part.type === "text" && typeof part.text === "string")
+    .filter(
+      (part): part is { type: "text"; text: string } => part.type === "text" && typeof part.text === "string"
+    )
     .map((part) => part.text);
 }
 
@@ -119,7 +121,7 @@ function normalizeExtractedQuestions(result: ExtractionResult): ExtractionResult
     if (seen.has(key)) continue;
     seen.add(key);
 
-    questions.push({ question, context });
+    questions.push({ context, question });
   }
 
   return { questions };
@@ -131,8 +133,8 @@ function parseExtractionResult(text: string): ExtractionOutcome {
       const parsed = JSON.parse(candidate) as ExtractionResult;
       if (parsed && Array.isArray(parsed.questions)) {
         return {
-          type: "success",
           result: normalizeExtractedQuestions(parsed),
+          type: "success",
         };
       }
     } catch {
@@ -141,8 +143,8 @@ function parseExtractionResult(text: string): ExtractionOutcome {
   }
 
   return {
-    type: "error",
     message: "Question extraction returned invalid JSON.",
+    type: "error",
   };
 }
 
@@ -178,7 +180,7 @@ function findLastCompletedAssistantMessage(ctx: ExtensionContext): {
     }
 
     if (!text) continue;
-    return { text, skippedIncomplete };
+    return { skippedIncomplete, text };
   }
 
   return { skippedIncomplete };
@@ -187,12 +189,13 @@ function findLastCompletedAssistantMessage(ctx: ExtensionContext): {
 async function selectExtractionModel(
   modelRegistry: {
     find: (provider: string, modelId: string) => Model<Api> | undefined;
-    getApiKeyAndHeaders: (model: Model<Api>) => Promise<
-      | { ok: true; apiKey?: string; headers?: Record<string, string>; }
-      | { ok: false; error: string; }
+    getApiKeyAndHeaders: (
+      model: Model<Api>
+    ) => Promise<
+      { ok: true; apiKey?: string; headers?: Record<string, string> } | { ok: false; error: string }
     >;
   },
-  preferences: readonly ExtractionModelPreference[],
+  preferences: readonly ExtractionModelPreference[]
 ): Promise<Model<Api> | undefined> {
   for (const candidate of preferences) {
     const model = modelRegistry.find(candidate.provider, candidate.modelId);
@@ -251,18 +254,18 @@ class AnswerComponent implements Component, Focusable {
     private readonly questions: ExtractedQuestion[],
     private readonly tui: TUI,
     private readonly theme: Theme,
-    private readonly done: (result: string | null) => void,
+    private readonly done: (result: string | null) => void
   ) {
     this.answers = questions.map(() => "");
 
     const editorTheme: EditorTheme = {
       borderColor: (text: string) => this.theme.fg("borderAccent", text),
       selectList: {
+        description: (text: string) => this.theme.fg("muted", text),
+        noMatch: (text: string) => this.theme.fg("warning", text),
+        scrollInfo: (text: string) => this.theme.fg("dim", text),
         selectedPrefix: (text: string) => this.theme.fg("accent", text),
         selectedText: (text: string) => this.theme.fg("accent", text),
-        description: (text: string) => this.theme.fg("muted", text),
-        scrollInfo: (text: string) => this.theme.fg("dim", text),
-        noMatch: (text: string) => this.theme.fg("warning", text),
       },
     };
 
@@ -346,20 +349,20 @@ class AnswerComponent implements Component, Focusable {
       return;
     }
 
-    if (matchesKey(data, Key.up) && this.editor.getText() === "") {
-      if (this.currentIndex > 0) {
-        this.navigateTo(this.currentIndex - 1);
-        this.tui.requestRender();
-        return;
-      }
+    if (matchesKey(data, Key.up) && this.editor.getText() === "" && this.currentIndex > 0) {
+      this.navigateTo(this.currentIndex - 1);
+      this.tui.requestRender();
+      return;
     }
 
-    if (matchesKey(data, Key.down) && this.editor.getText() === "") {
-      if (this.currentIndex < this.questions.length - 1) {
-        this.navigateTo(this.currentIndex + 1);
-        this.tui.requestRender();
-        return;
-      }
+    if (
+      matchesKey(data, Key.down) &&
+      this.editor.getText() === "" &&
+      this.currentIndex < this.questions.length - 1
+    ) {
+      this.navigateTo(this.currentIndex + 1);
+      this.tui.requestRender();
+      return;
     }
 
     if (matchesKey(data, Key.enter) && !matchesKey(data, Key.shift("enter"))) {
@@ -399,20 +402,24 @@ class AnswerComponent implements Component, Focusable {
     };
 
     lines.push(this.border(`╭${"─".repeat(innerWidth)}╮`));
-    pushBoxLine(` ${this.theme.fg("accent", this.theme.bold("Questions"))}${this.theme.fg("dim", ` (${this.currentIndex + 1}/${this.questions.length})`)}`);
+    pushBoxLine(
+      ` ${this.theme.fg("accent", this.theme.bold("Questions"))}${this.theme.fg("dim", ` (${this.currentIndex + 1}/${this.questions.length})`)}`
+    );
     pushBoxLine(` ${this.theme.fg("muted", `Answered ${answered}/${this.questions.length}`)}`);
-    pushBoxLine(` ${this.questions
-      .map((_, index) => {
-        const label = String(index + 1);
-        if (index === this.currentIndex) {
-          return this.theme.bg("selectedBg", this.theme.fg("text", ` ${label} `));
-        }
-        if (this.answers[index]?.trim()) {
-          return this.theme.fg("success", label);
-        }
-        return this.theme.fg("dim", label);
-      })
-      .join(" ")}`);
+    pushBoxLine(
+      ` ${this.questions
+        .map((_, index) => {
+          const label = String(index + 1);
+          if (index === this.currentIndex) {
+            return this.theme.bg("selectedBg", this.theme.fg("text", ` ${label} `));
+          }
+          if (this.answers[index]?.trim()) {
+            return this.theme.fg("success", label);
+          }
+          return this.theme.fg("dim", label);
+        })
+        .join(" ")}`
+    );
     lines.push(this.border(`├${"─".repeat(innerWidth)}┤`));
 
     for (const line of wrapTextWithAnsi(`${this.theme.bold("Q: ")}${question.question}`, contentWidth)) {
@@ -421,7 +428,10 @@ class AnswerComponent implements Component, Focusable {
 
     if (question.context) {
       pushBoxLine();
-      for (const line of wrapTextWithAnsi(this.theme.fg("muted", `Context: ${question.context}`), contentWidth)) {
+      for (const line of wrapTextWithAnsi(
+        this.theme.fg("muted", `Context: ${question.context}`),
+        contentWidth
+      )) {
         pushBoxLine(` ${line}`);
       }
     }
@@ -480,7 +490,7 @@ export default function (pi: ExtensionAPI) {
     if (!lastAssistantText) {
       ctx.ui.notify(
         skippedIncomplete ? "No completed assistant message found yet" : "No assistant messages found",
-        "error",
+        "error"
       );
       return;
     }
@@ -494,7 +504,7 @@ export default function (pi: ExtensionAPI) {
     if (!extractionModel) {
       ctx.ui.notify(
         `No configured extraction model is available with a configured API key. Checked: ${formatExtractionModelPreferences(extractionModelPreferences)}`,
-        "error",
+        "error"
       );
       return;
     }
@@ -503,7 +513,7 @@ export default function (pi: ExtensionAPI) {
       const loader = new BorderedLoader(
         tui,
         theme,
-        `Extracting questions using ${extractionModel.provider}/${extractionModel.id}...`,
+        `Extracting questions using ${extractionModel.provider}/${extractionModel.id}...`
       );
       loader.onAbort = () => done({ type: "cancelled" });
 
@@ -512,26 +522,26 @@ export default function (pi: ExtensionAPI) {
         if (!auth.ok) {
           const authError = "error" in auth ? auth.error : "Unknown auth error";
           return {
-            type: "error",
             message: `No auth available for ${extractionModel.provider}/${extractionModel.id}: ${authError}`,
+            type: "error",
           } as ExtractionOutcome;
         }
 
         const userMessage: UserMessage = {
+          content: [{ text: lastAssistantText, type: "text" }],
           role: "user",
-          content: [{ type: "text", text: lastAssistantText }],
           timestamp: Date.now(),
         };
 
         const response = await complete(
           extractionModel,
-          { systemPrompt: SYSTEM_PROMPT, messages: [userMessage] },
+          { messages: [userMessage], systemPrompt: SYSTEM_PROMPT },
           {
             apiKey: auth.apiKey,
             headers: auth.headers,
             signal: loader.signal,
             ...(extractionModel.provider === "openai-codex" ? { reasoningEffort: "none" } : {}),
-          },
+          }
         );
 
         if (response.stopReason === "aborted") {
@@ -542,8 +552,8 @@ export default function (pi: ExtensionAPI) {
         if (!responseText) {
           const fallback = fallbackExtractQuestions(lastAssistantText);
           return {
-            type: "success",
             result: fallback,
+            type: "success",
           } as ExtractionOutcome;
         }
 
@@ -552,8 +562,8 @@ export default function (pi: ExtensionAPI) {
           const fallback = fallbackExtractQuestions(lastAssistantText);
           if (fallback.questions.length > 0) {
             return {
-              type: "success",
               result: fallback,
+              type: "success",
             } as ExtractionOutcome;
           }
         }
@@ -565,8 +575,8 @@ export default function (pi: ExtensionAPI) {
         .then(done)
         .catch((error) => {
           done({
-            type: "error",
             message: error instanceof Error ? error.message : String(error),
+            type: "error",
           });
         });
 
@@ -588,9 +598,9 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    const answersResult = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
-      return new AnswerComponent(extractionOutcome.result.questions, tui, theme, done);
-    });
+    const answersResult = await ctx.ui.custom<string | null>(
+      (tui, theme, _kb, done) => new AnswerComponent(extractionOutcome.result.questions, tui, theme, done)
+    );
 
     if (answersResult === null) {
       ctx.ui.notify("Cancelled", "info");
@@ -610,12 +620,8 @@ export default function (pi: ExtensionAPI) {
     handler: async (_args, ctx) => answerHandler(ctx),
   });
 
-
-
   pi.registerShortcut("ctrl+.", {
     description: "Extract and answer questions",
     handler: answerHandler,
   });
-
-
 }

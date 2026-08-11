@@ -30,10 +30,7 @@
       "replace": "$1"
     },
     {
-      "filePattern": [
-        "**/*.json",
-        "**/*.jsonc"
-      ],
+      "filePattern": ["**/*.json", "**/*.jsonc"],
       "cloakPattern": [
         {
           "pattern": "(\\\"(?:CLOUDFLARE_ACCESS_TEAM_DOMAIN|CLOUDFLARE_ACCESS_AUD)\\\"\\s*:\\s*\\\")[^\\\"]+",

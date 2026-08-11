@@ -1,12 +1,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AtomicSkillChangeWriter } from "./apply/writer.ts";
 import { DefaultSkillTogglePlanner } from "./apply/planner.ts";
+import { AtomicSkillChangeWriter } from "./apply/writer.ts";
+import { runToggleSkillsCommand } from "./command.ts";
 import { DefaultSkillLocator } from "./discovery/skill-locator.ts";
-import { MinimalFrontmatterPatcher } from "./frontmatter/patcher.ts";
 import { SimpleFrontmatterCodec } from "./frontmatter/parser.ts";
+import { MinimalFrontmatterPatcher } from "./frontmatter/patcher.ts";
 import { DefaultSkillInventory } from "./inventory/loader.ts";
 import { NodeFileSystem } from "./ports/fs.ts";
-import { runToggleSkillsCommand } from "./command.ts";
 
 export default function piSkillToggle(pi: ExtensionAPI) {
   const fs = new NodeFileSystem();

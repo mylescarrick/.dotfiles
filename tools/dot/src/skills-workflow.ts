@@ -34,11 +34,7 @@ async function isCanonicalMainCheckout(options: {
 }
 
 function timestamp(now: Date): string {
-  return now
-    .toISOString()
-    .replace(/[-:.]/g, "")
-    .replace("T", "-")
-    .slice(0, 15);
+  return now.toISOString().replace(/[-:.]/g, "").replace("T", "-").slice(0, 15);
 }
 
 function commitSubjectFor(action: "add" | "update" | "remove", args: readonly string[]): string {
@@ -101,7 +97,7 @@ async function runInWorktree(options: {
   for (const path of SKILL_PATHS) {
     const present = await stat(join(worktreePath, path)).then(
       () => true,
-      () => false,
+      () => false
     );
     if (present) existingPaths.push(path);
   }
@@ -171,13 +167,13 @@ export async function runSkillsMutation(options: {
     if (!options.terminal.interactive) {
       throw new Error(
         `dot skills ${options.action} must not run directly against the canonical checkout on main; ` +
-          "rerun with --yes to create a worktree and open a PR automatically, or run it inside a worktree",
+          "rerun with --yes to create a worktree and open a PR automatically, or run it inside a worktree"
       );
     }
     const answer = (
       await options.terminal.prompt(
         `dot skills ${options.action} would modify the canonical checkout on main directly.\n` +
-          "Create a worktree, run it there, and open a PR instead? [Y/n]: ",
+          "Create a worktree, run it there, and open a PR instead? [Y/n]: "
       )
     )
       .trim()
@@ -185,7 +181,7 @@ export async function runSkillsMutation(options: {
     if (answer === "n" || answer === "no") {
       throw new Error(
         `aborted: create a worktree (e.g. 'wt chore/skills-${options.action}') and rerun ` +
-          `dot skills ${options.action} inside it`,
+          `dot skills ${options.action} inside it`
       );
     }
   }
@@ -196,7 +192,7 @@ export async function runSkillsMutation(options: {
     args: options.args,
     canonicalRoot,
     env: options.env,
-    processes: options.processes,
     now: options.now ?? new Date(),
+    processes: options.processes,
   });
 }

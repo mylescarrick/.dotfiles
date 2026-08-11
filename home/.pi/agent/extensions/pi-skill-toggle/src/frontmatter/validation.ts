@@ -3,7 +3,10 @@ import type { FrontmatterDocument, SkillDiagnostic } from "../types.ts";
 
 const FRONTMATTER_KEY_RE = /^([A-Za-z0-9_-]+)\s*:/;
 
-export function deriveSkillMetadata(filePath: string, doc: FrontmatterDocument): {
+export function deriveSkillMetadata(
+  filePath: string,
+  doc: FrontmatterDocument
+): {
   name: string;
   description: string;
   diagnostics: SkillDiagnostic[];
@@ -14,25 +17,31 @@ export function deriveSkillMetadata(filePath: string, doc: FrontmatterDocument):
   const description = stringField(doc.fields.description);
 
   if (!doc.hasFrontmatter) {
-    diagnostics.push({ severity: "warning", message: "Missing YAML front matter" });
+    diagnostics.push({ message: "Missing YAML front matter", severity: "warning" });
   }
 
   const duplicateKeys = getDuplicateFrontmatterKeys(doc);
   if (duplicateKeys.length > 0) {
     diagnostics.push({
-      severity: "warning",
       message: `Duplicate frontmatter key${duplicateKeys.length === 1 ? "" : "s"}: ${duplicateKeys.join(", ")}`,
+      severity: "warning",
     });
   }
 
   if (!description) {
-    diagnostics.push({ severity: "error", message: "Missing required description; Pi will not load this skill" });
+    diagnostics.push({
+      message: "Missing required description; Pi will not load this skill",
+      severity: "error",
+    });
   }
   if (name !== parentDirName && basename(filePath) === "SKILL.md") {
-    diagnostics.push({ severity: "warning", message: `Name does not match parent directory (${parentDirName})` });
+    diagnostics.push({
+      message: `Name does not match parent directory (${parentDirName})`,
+      severity: "warning",
+    });
   }
 
-  return { name, description: description || "", diagnostics };
+  return { description: description || "", diagnostics, name };
 }
 
 export function getDisableModelInvocation(doc: FrontmatterDocument): boolean {

@@ -9,15 +9,15 @@ export class AtomicSkillChangeWriter implements SkillChangeWriter {
   constructor(private readonly fs: FileSystem) {}
 
   async apply(changes: SkillChange[]): Promise<ApplyResult> {
-    const result: ApplyResult = { applied: [], skipped: [], errors: [] };
+    const result: ApplyResult = { applied: [], errors: [], skipped: [] };
 
     for (const change of changes) {
       try {
         const current = await this.fs.readFile(change.filePath);
         if (current !== change.patch.oldText) {
           result.errors.push({
-            skill: change.skill,
             message: `${change.skill.name}: file changed while dialog was open; skipped`,
+            skill: change.skill,
           });
           continue;
         }
@@ -25,8 +25,8 @@ export class AtomicSkillChangeWriter implements SkillChangeWriter {
         result.applied.push(change);
       } catch (error) {
         result.errors.push({
-          skill: change.skill,
           message: `${change.skill.name}: ${error instanceof Error ? error.message : String(error)}`,
+          skill: change.skill,
         });
       }
     }

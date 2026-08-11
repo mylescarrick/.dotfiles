@@ -1,11 +1,7 @@
 import { guardCanonicalCheckout } from "./checkout";
 import { reconcilePackages } from "./packages";
+import { applyPiSettings, planPiClaudeBridgeSettings, planPiSettings } from "./pi";
 import { reconcilePiDependencies } from "./pi-dependencies";
-import {
-  applyPiSettings,
-  planPiClaudeBridgeSettings,
-  planPiSettings,
-} from "./pi";
 import type { ProcessRunner } from "./process";
 import { validateSkillLinks } from "./skills";
 import { applyStowPlan, planStow } from "./stow";
@@ -14,7 +10,7 @@ import type { Terminal } from "./terminal";
 export class ApplyFailure extends Error {
   constructor(
     message: string,
-    readonly stdout: string,
+    readonly stdout: string
   ) {
     super(message);
   }

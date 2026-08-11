@@ -4,9 +4,9 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   realpath,
-  readdir,
   rm,
   symlink,
   writeFile,
@@ -20,7 +20,7 @@ import type { Terminal } from "../src/terminal";
 const temporaryDirectories: string[] = [];
 
 async function run(argv: string[], cwd: string): Promise<string> {
-  const child = Bun.spawn(argv, { cwd, stdout: "pipe", stderr: "pipe" });
+  const child = Bun.spawn(argv, { cwd, stderr: "pipe", stdout: "pipe" });
   const [exitCode, stdout, stderr] = await Promise.all([
     child.exited,
     new Response(child.stdout).text(),
@@ -43,13 +43,10 @@ async function makeFixture(tracked: Record<string, string>): Promise<{
   await mkdir(join(checkout, "home"), { recursive: true });
   await writeFile(join(checkout, "packages/bundle"), 'brew "stow"\n');
   await writeFile(join(checkout, ".gitignore"), "backups/\n");
-  await writeFile(
-    join(checkout, "config/pi/settings.defaults.json"),
-    '{"theme":"dark","packages":[]}\n',
-  );
+  await writeFile(join(checkout, "config/pi/settings.defaults.json"), '{"theme":"dark","packages":[]}\n');
   await writeFile(
     join(checkout, "config/pi/claude-bridge.defaults.json"),
-    '{"provider":{"pathToClaudeCodeExecutable":"/opt/homebrew/bin/claude"}}\n',
+    '{"provider":{"pathToClaudeCodeExecutable":"/opt/homebrew/bin/claude"}}\n'
   );
   for (const [relative, content] of Object.entries(tracked)) {
     const path = join(checkout, "home", relative);
@@ -69,15 +66,13 @@ async function makeFixture(tracked: Record<string, string>): Promise<{
   await chmod(join(toolBin, "brew"), 0o755);
   return {
     checkout,
-    home,
     env: { ...process.env, HOME: home, PATH: `${toolBin}:${process.env.PATH}` },
+    home,
   };
 }
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
 });
 
 class RecordingDelegate implements ProcessRunner {
@@ -90,7 +85,7 @@ class RecordingDelegate implements ProcessRunner {
 
 function scriptedTerminal(
   answers: string[],
-  beforeAnswer?: () => Promise<void>,
+  beforeAnswer?: () => Promise<void>
 ): Terminal & { output: string } {
   return {
     interactive: true,
@@ -125,14 +120,9 @@ describe("dot apply stow", () => {
     expect(roots).toHaveLength(1);
     expect(
       await readFile(
-        join(
-          fixture.checkout,
-          "backups/stow-conflicts",
-          roots[0]!,
-          ".config/example/config.txt",
-        ),
-        "utf8",
-      ),
+        join(fixture.checkout, "backups/stow-conflicts", roots[0]!, ".config/example/config.txt"),
+        "utf8"
+      )
     ).toBe("live\n");
   });
 
@@ -207,11 +197,7 @@ describe("dot apply stow", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.stderr).toContain("conflicts with tracked state; rerun with --yes");
-    expect(
-      processes.requests.some(
-        ({ argv }) => argv[0] === "brew" && argv[1] === "bundle",
-      ),
-    ).toBe(false);
+    expect(processes.requests.some(({ argv }) => argv[0] === "brew" && argv[1] === "bundle")).toBe(false);
     expect(await readFile(conflict, "utf8")).toBe("live a\n");
     expect(await Bun.file(join(fixture.home, ".config/b")).exists()).toBe(false);
     expect(await Bun.file(join(fixture.checkout, "backups/stow-conflicts")).exists()).toBe(false);
@@ -237,10 +223,7 @@ describe("dot apply stow", () => {
   test("does not remove tracked data through an already-stowed parent", async () => {
     const fixture = await makeFixture({ ".config/example/config.txt": "tracked\n" });
     await mkdir(join(fixture.home, ".config"), { recursive: true });
-    await symlink(
-      "../.dotfiles/home/.config/example",
-      join(fixture.home, ".config/example"),
-    );
+    await symlink("../.dotfiles/home/.config/example", join(fixture.home, ".config/example"));
     const trackedPath = join(fixture.checkout, "home/.config/example/config.txt");
 
     const outcome = await createApplication({ checkoutRoot: fixture.checkout }).execute({
@@ -261,10 +244,7 @@ describe("dot apply stow", () => {
     await writeFile(conflict, "live\n");
     const fakeBin = join(fixture.home, "fake-bin");
     await mkdir(fakeBin);
-    await writeFile(
-      join(fakeBin, "stow"),
-      '#!/bin/sh\n[ "${1:-}" = "--version" ] && exit 0\nexit 1\n',
-    );
+    await writeFile(join(fakeBin, "stow"), '#!/bin/sh\n[ "${1:-}" = "--version" ] && exit 0\nexit 1\n');
     await chmod(join(fakeBin, "stow"), 0o755);
 
     const outcome = await createApplication({ checkoutRoot: fixture.checkout }).execute({
@@ -280,10 +260,7 @@ describe("dot apply stow", () => {
     expect(outcome.stderr).toContain("live-file backups remain at");
     const roots = await readdir(join(fixture.checkout, "backups/stow-conflicts"));
     expect(
-      await readFile(
-        join(fixture.checkout, "backups/stow-conflicts", roots[0]!, ".config/a"),
-        "utf8",
-      ),
+      await readFile(join(fixture.checkout, "backups/stow-conflicts", roots[0]!, ".config/a"), "utf8")
     ).toBe("live\n");
 
     const rerun = await createApplication({ checkoutRoot: fixture.checkout }).execute({
@@ -297,9 +274,9 @@ describe("dot apply stow", () => {
 
   test("leaves generated live artifacts untouched", async () => {
     const fixture = await makeFixture({
-      ".pi/normal.txt": "tracked\n",
-      ".pi/node_modules/pkg/index.js": "tracked generated\n",
       ".pi/cache.tsbuildinfo": "tracked generated\n",
+      ".pi/node_modules/pkg/index.js": "tracked generated\n",
+      ".pi/normal.txt": "tracked\n",
     });
     const generated = join(fixture.home, ".pi/node_modules/pkg/index.js");
     await mkdir(join(generated, ".."), { recursive: true });

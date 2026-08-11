@@ -3,17 +3,19 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
-import { bunProcessRunner, type ProcessRequest, type ProcessResult, type ProcessRunner } from "../src/process";
+import {
+  bunProcessRunner,
+  type ProcessRequest,
+  type ProcessResult,
+  type ProcessRunner,
+} from "../src/process";
 import type { Terminal } from "../src/terminal";
 
 const temporaryDirectories: string[] = [];
 
 async function run(argv: string[], cwd: string): Promise<void> {
-  const child = Bun.spawn(argv, { cwd, stdout: "pipe", stderr: "pipe" });
-  const [exitCode, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stderr).text(),
-  ]);
+  const child = Bun.spawn(argv, { cwd, stderr: "pipe", stdout: "pipe" });
+  const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
   if (exitCode !== 0) throw new Error(`${argv.join(" ")} failed: ${stderr}`);
 }
 
@@ -47,8 +49,8 @@ class ScriptedProcesses implements ProcessRunner {
   readonly requests: ProcessRequest[] = [];
   constructor(
     private readonly overrides: (
-      request: ProcessRequest,
-    ) => Promise<ProcessResult | undefined> | ProcessResult | undefined = () => undefined,
+      request: ProcessRequest
+    ) => Promise<ProcessResult | undefined> | ProcessResult | undefined = () => undefined
   ) {}
   async run(request: ProcessRequest): Promise<ProcessResult> {
     this.requests.push(request);
@@ -59,7 +61,7 @@ class ScriptedProcesses implements ProcessRunner {
 }
 
 afterEach(async () => {
-  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })));
 });
 
 describe("skills workflow", () => {
@@ -123,14 +125,14 @@ describe("skills workflow", () => {
           });
           await writeFile(
             join(request.cwd, "home/.agents/skills/example/agents/openai.yaml"),
-            "display_name: Example\n",
+            "display_name: Example\n"
           );
-          return { exitCode: 0, stdout: "", stderr: "" };
+          return { exitCode: 0, stderr: "", stdout: "" };
         })();
       }
       if (request.argv[0] === "gh") {
         openedPr = request;
-        return { exitCode: 0, stdout: "https://github.com/example/example/pull/1\n", stderr: "" };
+        return { exitCode: 0, stderr: "", stdout: "https://github.com/example/example/pull/1\n" };
       }
       return undefined;
     });
@@ -172,21 +174,19 @@ describe("skills workflow", () => {
       "main",
     ]);
 
-    const worktrees = Bun.spawnSync(["git", "-C", fixture.checkout, "worktree", "list"])
-      .stdout.toString();
+    const worktrees = Bun.spawnSync(["git", "-C", fixture.checkout, "worktree", "list"]).stdout.toString();
     expect(worktrees).toContain("skills-update-");
 
-    const log = Bun.spawnSync(
-      ["git", "log", "--oneline", "-1", openedPr!.argv[8] as string],
-      { cwd: fixture.checkout },
-    ).stdout.toString();
+    const log = Bun.spawnSync(["git", "log", "--oneline", "-1", openedPr!.argv[8] as string], {
+      cwd: fixture.checkout,
+    }).stdout.toString();
     expect(log).toContain("chore(skills): update vendored skills");
   });
 
   test("removes the worktree and skips the PR when there is nothing to commit", async () => {
     const fixture = await makeFixture();
     const processes = new ScriptedProcesses((request) => {
-      if (request.argv[0] === "bunx") return { exitCode: 0, stdout: "", stderr: "" };
+      if (request.argv[0] === "bunx") return { exitCode: 0, stderr: "", stdout: "" };
       if (request.argv[0] === "gh") throw new Error("unexpected gh call");
       return undefined;
     });
@@ -207,16 +207,15 @@ describe("skills workflow", () => {
     expect(outcome.exitCode).toBe(0);
     expect(outcome.stdout).toContain("Nothing to commit; removed worktree");
 
-    const worktrees = Bun.spawnSync(["git", "-C", fixture.checkout, "worktree", "list"])
-      .stdout.toString();
+    const worktrees = Bun.spawnSync(["git", "-C", fixture.checkout, "worktree", "list"]).stdout.toString();
     expect(worktrees).not.toContain("skills-update-");
   });
 
   test("--yes skips the prompt entirely", async () => {
     const fixture = await makeFixture();
     const processes = new ScriptedProcesses((request) => {
-      if (request.argv[0] === "bunx") return { exitCode: 0, stdout: "", stderr: "" };
-      if (request.argv[0] === "gh") return { exitCode: 0, stdout: "url\n", stderr: "" };
+      if (request.argv[0] === "bunx") return { exitCode: 0, stderr: "", stdout: "" };
+      if (request.argv[0] === "gh") return { exitCode: 0, stderr: "", stdout: "url\n" };
       return undefined;
     });
     const terminal: Terminal = {
@@ -240,7 +239,7 @@ describe("skills workflow", () => {
     const fixture = await makeFixture();
     await run(["git", "checkout", "-b", "feature"], fixture.checkout);
     const processes = new ScriptedProcesses((request) => {
-      if (request.argv[0] === "bunx") return { exitCode: 0, stdout: "", stderr: "" };
+      if (request.argv[0] === "bunx") return { exitCode: 0, stderr: "", stdout: "" };
       return undefined;
     });
     const terminal: Terminal = {

@@ -4,9 +4,8 @@ import {
   lstat,
   mkdir,
   mkdtemp,
-  readFile,
   readdir,
-  readlink,
+  readFile,
   realpath,
   rm,
   symlink,
@@ -21,11 +20,8 @@ import type { Terminal } from "../src/terminal";
 const temporaryDirectories: string[] = [];
 
 async function run(argv: string[], cwd: string): Promise<void> {
-  const child = Bun.spawn(argv, { cwd, stdout: "pipe", stderr: "pipe" });
-  const [exitCode, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stderr).text(),
-  ]);
+  const child = Bun.spawn(argv, { cwd, stderr: "pipe", stdout: "pipe" });
+  const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
   if (exitCode !== 0) throw new Error(`${argv.join(" ")} failed: ${stderr}`);
 }
 
@@ -46,12 +42,12 @@ async function makeFixture(): Promise<{
     join(checkout, "config/pi/settings.defaults.json"),
     `${JSON.stringify(
       {
-        theme: "dark",
         packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
+        theme: "dark",
       },
       null,
-      2,
-    )}\n`,
+      2
+    )}\n`
   );
   await writeFile(
     join(checkout, "config/pi/claude-bridge.defaults.json"),
@@ -62,21 +58,16 @@ async function makeFixture(): Promise<{
         },
       },
       null,
-      2,
-    )}\n`,
+      2
+    )}\n`
   );
   await run(["git", "init", "--initial-branch=main"], checkout);
   await run(["git", "config", "user.name", "Dot Tests"], checkout);
   await run(["git", "config", "user.email", "dot@example.test"], checkout);
   await run(["git", "add", "."], checkout);
   await run(["git", "commit", "-m", "fixture"], checkout);
-  const head = Bun.spawnSync(["git", "rev-parse", "HEAD"], { cwd: checkout })
-    .stdout.toString()
-    .trim();
-  await run(
-    ["git", "update-ref", "refs/remotes/origin/main", head],
-    checkout,
-  );
+  const head = Bun.spawnSync(["git", "rev-parse", "HEAD"], { cwd: checkout }).stdout.toString().trim();
+  await run(["git", "update-ref", "refs/remotes/origin/main", head], checkout);
   const fakeBin = join(home, "fake-bin");
   await mkdir(fakeBin);
   await writeFile(join(fakeBin, "brew"), "#!/bin/sh\nexit 0\n");
@@ -86,15 +77,13 @@ async function makeFixture(): Promise<{
 
   return {
     checkout,
-    home,
     env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}` },
+    home,
   };
 }
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
 });
 
 class RecordingDelegate implements ProcessRunner {
@@ -111,7 +100,7 @@ class FailingCommandDelegate implements ProcessRunner {
   async run(request: ProcessRequest) {
     this.requests.push(request);
     if (request.argv.join("\0") === this.failure.join("\0")) {
-      return { exitCode: 1, stdout: "", stderr: "failed" };
+      return { exitCode: 1, stderr: "failed", stdout: "" };
     }
     return bunProcessRunner.run(request);
   }
@@ -135,14 +124,7 @@ describe("dot apply Pi settings", () => {
       .map((request) => request.argv)
       .filter((argv) => argv[0] === "brew" || argv[0] === "pi");
     expect(upgrades).toEqual([
-      [
-        "brew",
-        "bundle",
-        "check",
-        "--no-upgrade",
-        "--file",
-        join(fixture.checkout, "packages/bundle"),
-      ],
+      ["brew", "bundle", "check", "--no-upgrade", "--file", join(fixture.checkout, "packages/bundle")],
       ["brew", "update"],
       ["brew", "upgrade"],
       ["pi", "update", "--all"],
@@ -164,9 +146,7 @@ describe("dot apply Pi settings", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.stdout).toContain("Dotfiles stowed\n");
-    expect(outcome.stdout).toEndWith(
-      "FAILED Homebrew package upgrade: Homebrew package upgrade failed\n",
-    );
+    expect(outcome.stdout).toEndWith("FAILED Homebrew package upgrade: Homebrew package upgrade failed\n");
     expect(outcome.stderr).toBe("dot: Homebrew package upgrade failed\n");
   });
 
@@ -185,12 +165,8 @@ describe("dot apply Pi settings", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.stdout).toContain("Homebrew packages upgraded\n");
-    expect(outcome.stdout).toEndWith(
-      "FAILED Pi update: Pi and configured package update failed\n",
-    );
-    expect(outcome.stderr).toBe(
-      "dot: Pi and configured package update failed\n",
-    );
+    expect(outcome.stdout).toEndWith("FAILED Pi update: Pi and configured package update failed\n");
+    expect(outcome.stderr).toBe("dot: Pi and configured package update failed\n");
   });
 
   test("allows interactive Homebrew opt-out but still updates Pi", async () => {
@@ -220,21 +196,12 @@ describe("dot apply Pi settings", () => {
     expect(
       processes.requests
         .map((request) => request.argv)
-        .filter((argv) => argv[0] === "brew" || argv[0] === "pi"),
+        .filter((argv) => argv[0] === "brew" || argv[0] === "pi")
     ).toEqual([
-      [
-        "brew",
-        "bundle",
-        "check",
-        "--no-upgrade",
-        "--file",
-        join(fixture.checkout, "packages/bundle"),
-      ],
+      ["brew", "bundle", "check", "--no-upgrade", "--file", join(fixture.checkout, "packages/bundle")],
       ["pi", "update", "--all"],
     ]);
-    expect(outcome.stdout).toEndWith(
-      "Homebrew upgrade skipped\nPi and configured packages updated\n",
-    );
+    expect(outcome.stdout).toEndWith("Homebrew upgrade skipped\nPi and configured packages updated\n");
   });
 
   test("refuses noninteractive upgrade before subprocesses without --yes", async () => {
@@ -257,11 +224,11 @@ describe("dot apply Pi settings", () => {
         argv: ["upgrade"],
         cwd: fixture.checkout,
         env: fixture.env,
-      }),
+      })
     ).toEqual({
       exitCode: 1,
-      stdout: "",
       stderr: "dot: dot upgrade requires an interactive terminal or --yes\n",
+      stdout: "",
     });
     expect(processes.requests).toHaveLength(0);
   });
@@ -283,11 +250,15 @@ describe("dot apply Pi settings", () => {
     const fixture = await makeFixture();
     const oldHead = Bun.spawnSync(["git", "rev-parse", "HEAD"], {
       cwd: fixture.checkout,
-    }).stdout.toString().trim();
+    })
+      .stdout.toString()
+      .trim();
     await run(["git", "commit", "--allow-empty", "-m", "remote revision"], fixture.checkout);
     const remoteHead = Bun.spawnSync(["git", "rev-parse", "HEAD"], {
       cwd: fixture.checkout,
-    }).stdout.toString().trim();
+    })
+      .stdout.toString()
+      .trim();
     await run(["git", "update-ref", "refs/remotes/origin/main", remoteHead], fixture.checkout);
     await run(["git", "reset", "--hard", oldHead], fixture.checkout);
 
@@ -299,9 +270,8 @@ describe("dot apply Pi settings", () => {
 
     expect(outcome).toEqual({
       exitCode: 1,
-      stdout:
-        "FAILED checkout validation: canonical checkout is behind origin/main; run 'dot update'\n",
       stderr: "dot: canonical checkout is behind origin/main; run 'dot update'\n",
+      stdout: "FAILED checkout validation: canonical checkout is behind origin/main; run 'dot update'\n",
     });
     expect(await Bun.file(join(fixture.home, ".pi/agent/settings.json")).exists()).toBe(false);
   });
@@ -313,12 +283,12 @@ describe("dot apply Pi settings", () => {
     await writeFile(
       settingsPath,
       JSON.stringify({
-        theme: "custom",
-        defaultProvider: "claude-bridge",
         defaultModel: "claude-opus-4-8",
-        unknownRuntimeKey: true,
+        defaultProvider: "claude-bridge",
         packages: ["runtime-owned-package"],
-      }),
+        theme: "custom",
+        unknownRuntimeKey: true,
+      })
     );
 
     const outcome = await createApplication({ checkoutRoot: fixture.checkout }).execute({
@@ -329,15 +299,15 @@ describe("dot apply Pi settings", () => {
 
     expect(outcome).toEqual({
       exitCode: 0,
+      stderr: "",
       stdout:
         "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings synced\nPi dependency workspace not tracked (skipped)\n",
-      stderr: "",
     });
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
-      theme: "custom",
-      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
-      defaultProvider: "claude-bridge",
       defaultModel: "claude-opus-4-8",
+      defaultProvider: "claude-bridge",
+      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
+      theme: "custom",
       unknownRuntimeKey: true,
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
@@ -354,7 +324,7 @@ describe("dot apply Pi settings", () => {
         argv: ["apply"],
         cwd: fixture.checkout,
         env: fixture.env,
-      }),
+      })
     ).toMatchObject({
       exitCode: 0,
       stdout:
@@ -374,7 +344,7 @@ describe("dot apply Pi settings", () => {
         argv: ["apply"],
         cwd: fixture.checkout,
         env: fixture.env,
-      }),
+      })
     ).toMatchObject({
       exitCode: 0,
       stdout:
@@ -393,7 +363,7 @@ describe("dot apply Pi settings", () => {
         argv: ["apply"],
         cwd: fixture.checkout,
         env: fixture.env,
-      }),
+      })
     ).toMatchObject({
       exitCode: 0,
       stdout:
@@ -413,10 +383,7 @@ describe("dot apply Pi settings", () => {
       interactive: true,
       async prompt() {
         prompted = true;
-        await writeFile(
-          settingsPath,
-          '{"defaultProvider":"changed-during-prompt","packages":[]}\n',
-        );
+        await writeFile(settingsPath, '{"defaultProvider":"changed-during-prompt","packages":[]}\n');
         return "u";
       },
       write() {},
@@ -448,8 +415,8 @@ describe("dot apply Pi settings", () => {
 
     expect(outcome).toEqual({
       exitCode: 1,
-      stdout: "FAILED Pi settings preflight: Pi runtime settings contains invalid JSON\n",
       stderr: "dot: Pi runtime settings contains invalid JSON\n",
+      stdout: "FAILED Pi settings preflight: Pi runtime settings contains invalid JSON\n",
     });
     expect(await readFile(settingsPath, "utf8")).toBe("{ invalid json\n");
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o640);
@@ -494,8 +461,8 @@ describe("dot apply Pi settings", () => {
     expect((await lstat(settingsPath)).isSymbolicLink()).toBe(false);
     expect(await Bun.file(join(fixture.home, ".pi/agent/missing-settings.json")).exists()).toBe(false);
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
-      theme: "dark",
       packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
+      theme: "dark",
     });
   });
 
@@ -509,11 +476,10 @@ describe("dot apply Pi settings", () => {
     await run(["git", "commit", "-m", "old settings"], fixture.checkout);
     const head = Bun.spawnSync(["git", "rev-parse", "HEAD"], {
       cwd: fixture.checkout,
-    }).stdout.toString().trim();
-    await run(
-      ["git", "update-ref", "refs/remotes/origin/main", head],
-      fixture.checkout,
-    );
+    })
+      .stdout.toString()
+      .trim();
+    await run(["git", "update-ref", "refs/remotes/origin/main", head], fixture.checkout);
     await mkdir(join(fixture.home, ".pi/agent"), { recursive: true });
     await symlink("../../.dotfiles/old-settings.json", settingsPath);
 

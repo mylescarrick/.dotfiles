@@ -1,5 +1,5 @@
-import type { FrontmatterDocument, SkillInvocationMode, SkillSource } from "../types.ts";
 import { getDisableModelInvocation } from "../frontmatter/validation.ts";
+import type { FrontmatterDocument, SkillInvocationMode, SkillSource } from "../types.ts";
 
 export function classifyInvocationMode(doc: FrontmatterDocument): SkillInvocationMode {
   return getDisableModelInvocation(doc) ? "manual-only" : "agent-invocable";

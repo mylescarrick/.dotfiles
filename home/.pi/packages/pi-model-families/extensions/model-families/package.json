@@ -1,17 +1,12 @@
 {
   "name": "pi-model-families-extension",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "check": "bun run typecheck && bun run test",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test test"
-  },
-  "pi": {
-    "extensions": [
-      "./index.ts"
-    ]
+    "test": "bun test test",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
@@ -19,5 +14,10 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

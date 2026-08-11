@@ -7,8 +7,8 @@ export interface ProcessRequest {
 
 export interface ProcessResult {
   readonly exitCode: number;
-  readonly stdout: string;
   readonly stderr: string;
+  readonly stdout: string;
 }
 
 export interface ProcessRunner {
@@ -20,12 +20,12 @@ export const bunProcessRunner: ProcessRunner = {
     const child = Bun.spawn([...request.argv], {
       cwd: request.cwd,
       env: request.env,
-      stdout: request.output === "inherit" ? "inherit" : "pipe",
       stderr: request.output === "inherit" ? "inherit" : "pipe",
+      stdout: request.output === "inherit" ? "inherit" : "pipe",
     });
 
     if (request.output === "inherit") {
-      return { exitCode: await child.exited, stdout: "", stderr: "" };
+      return { exitCode: await child.exited, stderr: "", stdout: "" };
     }
 
     const [exitCode, stdout, stderr] = await Promise.all([
@@ -33,6 +33,6 @@ export const bunProcessRunner: ProcessRunner = {
       new Response(child.stdout).text(),
       new Response(child.stderr).text(),
     ]);
-    return { exitCode, stdout, stderr };
+    return { exitCode, stderr, stdout };
   },
 };

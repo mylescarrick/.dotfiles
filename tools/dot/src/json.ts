@@ -1,7 +1,4 @@
-export function parseJsonObject(
-  text: string,
-  label: string,
-): Record<string, unknown> {
+export function parseJsonObject(text: string, label: string): Record<string, unknown> {
   let value: unknown;
   try {
     value = text.trim() ? JSON.parse(text) : {};

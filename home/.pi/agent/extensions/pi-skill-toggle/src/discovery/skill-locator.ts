@@ -18,7 +18,7 @@ export class DefaultSkillLocator implements SkillLocator {
 
     for (const root of roots) {
       if (!(await this.fs.access(root.path))) continue;
-      const found = await this.scanSkillDir(root.path, root.path, root.source, root.includeRootMarkdownFiles);
+      const found = await this.scanSkillDir(root.path, root.source, root.includeRootMarkdownFiles);
       for (const file of found) {
         if (seen.has(file.filePath)) continue;
         seen.add(file.filePath);
@@ -31,9 +31,8 @@ export class DefaultSkillLocator implements SkillLocator {
 
   private async scanSkillDir(
     dir: string,
-    root: string,
     source: SkillSource,
-    includeRootMarkdownFiles: boolean,
+    includeRootMarkdownFiles: boolean
   ): Promise<LocatedSkillFile[]> {
     const out: LocatedSkillFile[] = [];
     let entries: Awaited<ReturnType<FileSystem["readdir"]>>;
@@ -47,7 +46,7 @@ export class DefaultSkillLocator implements SkillLocator {
     if (skillEntry) {
       const filePath = join(dir, "SKILL.md");
       if (await this.isFile(filePath, skillEntry)) {
-        out.push({ filePath, source, editable: await this.isWritable(filePath) });
+        out.push({ editable: await this.isWritable(filePath), filePath, source });
       }
       return out;
     }
@@ -58,19 +57,22 @@ export class DefaultSkillLocator implements SkillLocator {
 
       const fullPath = join(dir, entry.name);
       if (await this.isDirectory(fullPath, entry)) {
-        out.push(...(await this.scanSkillDir(fullPath, root, source, false)));
+        out.push(...(await this.scanSkillDir(fullPath, source, false)));
         continue;
       }
 
       if (includeRootMarkdownFiles && entry.name.endsWith(".md") && (await this.isFile(fullPath, entry))) {
-        out.push({ filePath: fullPath, source, editable: await this.isWritable(fullPath) });
+        out.push({ editable: await this.isWritable(fullPath), filePath: fullPath, source });
       }
     }
 
     return out;
   }
 
-  private async isDirectory(path: string, entry: { isDirectory: boolean; isSymbolicLink: boolean }): Promise<boolean> {
+  private async isDirectory(
+    path: string,
+    entry: { isDirectory: boolean; isSymbolicLink: boolean }
+  ): Promise<boolean> {
     if (entry.isDirectory) return true;
     if (!entry.isSymbolicLink) return false;
     try {

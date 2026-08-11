@@ -39,6 +39,7 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 | Git alias | `home/.config/git/config` [alias] section |
 | Starship prompt | `home/.config/starship.toml` |
 | Pi extension | `home/.pi/agent/extensions/<name>/` |
+| Lint/format rules | `biome.jsonc` at repo root |
 | Pi skill (canonical) | `home/.agents/skills/<name>/SKILL.md` |
 | Work git identity | Auto via `home/.config/git/work_config` for `~/Code/work/` |
 
@@ -49,6 +50,7 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 - Agent skills: canonical copy lives in `home/.agents/skills/`; per-agent global dirs that differ from `~/.agents/skills/` (pi, Claude Code) get relative symlinks back to canonical, matching the `skills` CLI's own install behavior. Manage via `dot skills` (add/update/remove/sync/list) — never raw `skills add -g`/`skills update`, which target the wrong checkout, pollute the stow tree via `~/.config`, and fan out to every known agent. Vendored skills are tracked in `home/.agents/.skill-lock.json`; local shared skills are hand-authored and wired in with `dot skills sync` — run `dot skills list` for the current local/vendored split rather than relying on an enumeration here. Pi-only skills live under `home/.pi/packages/*/skills/`, not shared `~/.agents/skills/`
 - Repo-local agent resources: maintenance guidance/tools that only make sense while editing this checkout live at repo root (`.agents/skills/<name>/SKILL.md`, `.pi/skills/<name>/SKILL.md`, `.pi/extensions/<name>/index.ts`). Do not put repo-maintenance-only resources under `home/`; canonical `dot apply` publishes `home/*` resources to real `~` paths.
 - Pi extensions/packages: TypeScript, npm workspaces under `home/.pi/`; generic reusable local Pi packages live in `home/.pi/packages/` before publishing; published Pi packages live in `config/pi/settings.defaults.json`
+- Lint/format: Ultracite (Biome preset) is configured once at the repo root and covers both `tools/dot` and `home/.pi` TypeScript. The root `package.json` is tooling-only — it is not stowed and is not a workspace root for the nested Bun workspaces. Rules marked `"warn"` in `biome.jsonc` are a pre-existing backlog, not permanent exemptions; `"off"` marks deliberate disagreements with the preset.
 
 ## ANTI-PATTERNS
 
@@ -60,6 +62,8 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 ## COMMANDS
 
 ```bash
+bun run lint          # Ultracite/Biome check across the checkout
+bun run format        # Apply safe lint + format fixes
 dot init              # Interactive bootstrap → apply → doctor
 dot apply [--yes]     # Reconcile canonical checked-out desired state
 dot update [--yes]    # Strict origin/main fast-forward → re-exec → apply

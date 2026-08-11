@@ -16,7 +16,7 @@ async function git(
   processes: ProcessRunner,
   checkoutRoot: string,
   env: Readonly<Record<string, string | undefined>>,
-  args: readonly string[],
+  args: readonly string[]
 ): Promise<string> {
   const result = await processes.run({
     argv: ["git", "-C", checkoutRoot, ...args],
@@ -42,15 +42,10 @@ export async function guardCanonicalCheckout(options: {
     realpath(join(home, ".dotfiles")).catch(() => undefined),
   ]);
   if (!canonicalRoot || checkoutRoot !== canonicalRoot) {
-    throw new Error(
-      `machine mutation must run from the canonical checkout at ${join(home, ".dotfiles")}`,
-    );
+    throw new Error(`machine mutation must run from the canonical checkout at ${join(home, ".dotfiles")}`);
   }
 
-  const gitDir = await git(options.processes, checkoutRoot, options.env, [
-    "rev-parse",
-    "--absolute-git-dir",
-  ]);
+  const gitDir = await git(options.processes, checkoutRoot, options.env, ["rev-parse", "--absolute-git-dir"]);
   for (const marker of [
     "MERGE_HEAD",
     "CHERRY_PICK_HEAD",
@@ -65,26 +60,15 @@ export async function guardCanonicalCheckout(options: {
     }
   }
 
-  const branch = await git(options.processes, checkoutRoot, options.env, [
-    "branch",
-    "--show-current",
-  ]);
+  const branch = await git(options.processes, checkoutRoot, options.env, ["branch", "--show-current"]);
   if (branch !== "main") {
-    throw new Error(
-      `canonical checkout must be on main (found '${branch || "detached HEAD"}')`,
-    );
+    throw new Error(`canonical checkout must be on main (found '${branch || "detached HEAD"}')`);
   }
 
-  const status = await git(options.processes, checkoutRoot, options.env, [
-    "status",
-    "--porcelain",
-  ]);
+  const status = await git(options.processes, checkoutRoot, options.env, ["status", "--porcelain"]);
   if (status) throw new Error("canonical checkout has uncommitted changes");
 
-  const head = await git(options.processes, checkoutRoot, options.env, [
-    "rev-parse",
-    "HEAD",
-  ]);
+  const head = await git(options.processes, checkoutRoot, options.env, ["rev-parse", "HEAD"]);
   const remote = await git(options.processes, checkoutRoot, options.env, [
     "rev-parse",
     "--verify",

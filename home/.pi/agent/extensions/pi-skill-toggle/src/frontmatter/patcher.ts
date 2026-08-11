@@ -14,15 +14,17 @@ export class MinimalFrontmatterPatcher implements FrontmatterPatcher {
       const newText = newFrontmatter
         ? `---${doc.lineEnding}${newFrontmatter}---${doc.lineEnding}${doc.raw}`
         : doc.raw;
-      return { oldText: doc.raw, newText };
+      return { newText, oldText: doc.raw };
     }
 
-    const newFrontmatter = desiredMode === "manual-only"
-      ? ensureManualOnly(doc.frontmatterText, doc.lineEnding)
-      : ensureAgentInvocable(doc.frontmatterText);
+    const newFrontmatter =
+      desiredMode === "manual-only"
+        ? ensureManualOnly(doc.frontmatterText, doc.lineEnding)
+        : ensureAgentInvocable(doc.frontmatterText);
 
-    const newText = doc.raw.slice(0, doc.frontmatterStart) + newFrontmatter + doc.raw.slice(doc.frontmatterEnd);
-    return { oldText: doc.raw, newText };
+    const newText =
+      doc.raw.slice(0, doc.frontmatterStart) + newFrontmatter + doc.raw.slice(doc.frontmatterEnd);
+    return { newText, oldText: doc.raw };
   }
 }
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
@@ -7,9 +7,7 @@ import { createApplication } from "../src/application";
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
 });
 
 async function home(): Promise<string> {
@@ -26,14 +24,14 @@ describe("Pi Cloudflare auth", () => {
     await writeFile(
       authPath,
       `${JSON.stringify({
-        github: { type: "oauth", token: "preserve" },
         "cloudflare-ai-gateway": {
-          type: "api_key",
-          key: "$OLD_KEY",
           env: { PRESERVE_ME: "yes" },
+          key: "$OLD_KEY",
+          type: "api_key",
         },
+        github: { token: "preserve", type: "oauth" },
       })}\n`,
-      { mode: 0o644 },
+      { mode: 0o644 }
     );
     const reference = "op://Private/Cloudflare Pi API Token/credential";
 
@@ -55,25 +53,25 @@ describe("Pi Cloudflare auth", () => {
 
     expect(outcome).toEqual({
       exitCode: 0,
-      stdout: "Pi Cloudflare auth configured\n",
       stderr: "",
+      stdout: "Pi Cloudflare auth configured\n",
     });
     expect(outcome.stdout).not.toContain(reference);
     const auth = JSON.parse(await readFile(authPath, "utf8"));
-    expect(auth.github).toEqual({ type: "oauth", token: "preserve" });
+    expect(auth.github).toEqual({ token: "preserve", type: "oauth" });
     expect(auth["cloudflare-ai-gateway"]).toEqual({
-      type: "api_key",
-      key: `!op read '${reference}'`,
       env: {
-        PRESERVE_ME: "yes",
         CLOUDFLARE_ACCOUNT_ID: "account",
         CLOUDFLARE_GATEWAY_ID: "gateway",
+        PRESERVE_ME: "yes",
       },
+      key: `!op read '${reference}'`,
+      type: "api_key",
     });
     expect(auth["cloudflare-workers-ai"]).toEqual({
-      type: "api_key",
-      key: `!op read '${reference}'`,
       env: { CLOUDFLARE_ACCOUNT_ID: "account" },
+      key: `!op read '${reference}'`,
+      type: "api_key",
     });
     expect((await lstat(authPath)).mode & 0o777).toBe(0o600);
   });
@@ -108,15 +106,7 @@ describe("Pi Cloudflare auth", () => {
     await writeFile(authPath, "{ invalid\n", { mode: 0o640 });
 
     const outcome = await createApplication({ checkoutRoot: "/unused" }).execute({
-      argv: [
-        "pi",
-        "auth",
-        "cloudflare",
-        "--account-id",
-        "account",
-        "--gateway-id",
-        "gateway",
-      ],
+      argv: ["pi", "auth", "cloudflare", "--account-id", "account", "--gateway-id", "gateway"],
       cwd: "/unused",
       env: { HOME: root },
     });
@@ -129,13 +119,7 @@ describe("Pi Cloudflare auth", () => {
   test("rejects a flag in a value position before touching auth", async () => {
     const root = await home();
     const outcome = await createApplication({ checkoutRoot: "/unused" }).execute({
-      argv: [
-        "pi",
-        "auth",
-        "cloudflare",
-        "--account-id",
-        "--gateway-id",
-      ],
+      argv: ["pi", "auth", "cloudflare", "--account-id", "--gateway-id"],
       cwd: "/unused",
       env: { HOME: root },
     });
@@ -168,13 +152,13 @@ describe("Pi Exa auth", () => {
 
     expect(outcome).toEqual({
       exitCode: 0,
-      stdout: "Exa search auth configured\n",
       stderr: "",
+      stdout: "Exa search auth configured\n",
     });
     expect(outcome.stdout).not.toContain(reference);
     const authPath = join(root, ".pi/agent/web-tools-auth.json");
     const auth = JSON.parse(await readFile(authPath, "utf8"));
-    expect(auth.exa).toEqual({ type: "api_key", key: `!op read '${reference}'` });
+    expect(auth.exa).toEqual({ key: `!op read '${reference}'`, type: "api_key" });
     expect((await lstat(authPath)).mode & 0o777).toBe(0o600);
   });
 
@@ -183,12 +167,12 @@ describe("Pi Exa auth", () => {
     const outcome = await createApplication({ checkoutRoot: "/unused" }).execute({
       argv: ["pi", "auth", "exa"],
       cwd: "/unused",
-      env: { HOME: root, EXA_API_KEY: "must-not-be-read-or-logged" },
+      env: { EXA_API_KEY: "must-not-be-read-or-logged", HOME: root },
     });
 
     expect(outcome.stdout + outcome.stderr).not.toContain("must-not-be-read-or-logged");
     const auth = JSON.parse(await readFile(join(root, ".pi/agent/web-tools-auth.json"), "utf8"));
-    expect(auth.exa).toEqual({ type: "api_key", key: "$EXA_API_KEY" });
+    expect(auth.exa).toEqual({ key: "$EXA_API_KEY", type: "api_key" });
   });
 
   test("preserves unrelated web-tools auth entries", async () => {
@@ -205,7 +189,7 @@ describe("Pi Exa auth", () => {
 
     const auth = JSON.parse(await readFile(authPath, "utf8"));
     expect(auth.other).toEqual({ keep: true });
-    expect(auth.exa).toEqual({ type: "api_key", key: "$EXA_API_KEY" });
+    expect(auth.exa).toEqual({ key: "$EXA_API_KEY", type: "api_key" });
   });
 
   test("rejects choosing two key sources", async () => {
@@ -225,8 +209,8 @@ describe("Pi Exa auth", () => {
     });
     expect(outcome).toEqual({
       exitCode: 2,
-      stdout: "",
       stderr: "dot: choose one Exa API key source\n",
+      stdout: "",
     });
     expect(await Bun.file(join(root, ".pi/agent/web-tools-auth.json")).exists()).toBe(false);
   });

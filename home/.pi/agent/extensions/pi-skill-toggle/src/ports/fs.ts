@@ -3,11 +3,13 @@ import fs from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 export interface FileSystem {
-  readFile(path: string): Promise<string>;
-  writeFileAtomic(path: string, content: string): Promise<void>;
   access(path: string, mode?: number): Promise<boolean>;
-  readdir(path: string): Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>>;
+  readdir(
+    path: string
+  ): Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>>;
+  readFile(path: string): Promise<string>;
   stat(path: string): Promise<{ isDirectory: boolean; isFile: boolean; mode: number }>;
+  writeFileAtomic(path: string, content: string): Promise<void>;
 }
 
 export class NodeFileSystem implements FileSystem {
@@ -17,7 +19,10 @@ export class NodeFileSystem implements FileSystem {
 
   async writeFileAtomic(path: string, content: string): Promise<void> {
     const dir = dirname(path);
-    const tmp = join(dir, `.pi-skill-toggle-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.tmp`);
+    const tmp = join(
+      dir,
+      `.pi-skill-toggle-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.tmp`
+    );
     let mode: number | undefined;
     try {
       mode = (await fs.stat(path)).mode;
@@ -41,13 +46,15 @@ export class NodeFileSystem implements FileSystem {
     }
   }
 
-  async readdir(path: string): Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>> {
+  async readdir(
+    path: string
+  ): Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>> {
     const entries = await fs.readdir(path, { withFileTypes: true });
     return entries.map((entry) => ({
-      name: entry.name,
       isDirectory: entry.isDirectory(),
       isFile: entry.isFile(),
       isSymbolicLink: entry.isSymbolicLink(),
+      name: entry.name,
     }));
   }
 

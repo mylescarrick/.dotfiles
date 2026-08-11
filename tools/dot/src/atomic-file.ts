@@ -9,11 +9,11 @@ export interface AtomicFileOptions {
 export async function replaceFileAtomic(
   path: string,
   content: string,
-  options: AtomicFileOptions = {},
+  options: AtomicFileOptions = {}
 ): Promise<void> {
   const temporary = join(
     dirname(path),
-    `.${path.split("/").at(-1)}.${process.pid}.${crypto.randomUUID()}.tmp`,
+    `.${path.split("/").at(-1)}.${process.pid}.${crypto.randomUUID()}.tmp`
   );
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {

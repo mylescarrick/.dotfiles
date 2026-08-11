@@ -1,9 +1,9 @@
 import { dirname } from "node:path";
-import type { FileSystem } from "../ports/fs.ts";
-import type { FrontmatterCodec } from "../frontmatter/parser.ts";
 import type { SkillLocator } from "../discovery/skill-locator.ts";
-import type { SkillRecord } from "../types.ts";
+import type { FrontmatterCodec } from "../frontmatter/parser.ts";
 import { deriveSkillMetadata } from "../frontmatter/validation.ts";
+import type { FileSystem } from "../ports/fs.ts";
+import type { SkillRecord } from "../types.ts";
 import { classifyInvocationMode } from "./classifier.ts";
 
 export interface SkillInventory {
@@ -14,7 +14,7 @@ export class DefaultSkillInventory implements SkillInventory {
   constructor(
     private readonly locator: SkillLocator,
     private readonly fs: FileSystem,
-    private readonly codec: FrontmatterCodec,
+    private readonly codec: FrontmatterCodec
   ) {}
 
   async load(cwd: string): Promise<SkillRecord[]> {
@@ -27,27 +27,30 @@ export class DefaultSkillInventory implements SkillInventory {
         const doc = this.codec.parse(raw);
         const metadata = deriveSkillMetadata(file.filePath, doc);
         records.push({
-          id: file.filePath,
-          name: metadata.name,
-          description: metadata.description,
-          filePath: file.filePath,
           baseDir: dirname(file.filePath),
-          source: file.source,
-          editable: file.editable && doc.hasFrontmatter && !metadata.diagnostics.some((d) => d.severity === "error"),
-          mode: classifyInvocationMode(doc),
+          description: metadata.description,
           diagnostics: metadata.diagnostics,
+          editable:
+            file.editable && doc.hasFrontmatter && !metadata.diagnostics.some((d) => d.severity === "error"),
+          filePath: file.filePath,
+          id: file.filePath,
+          mode: classifyInvocationMode(doc),
+          name: metadata.name,
+          source: file.source,
         });
       } catch (error) {
         records.push({
-          id: file.filePath,
-          name: file.filePath.split("/").at(-2) ?? file.filePath,
-          description: "",
-          filePath: file.filePath,
           baseDir: dirname(file.filePath),
-          source: file.source,
+          description: "",
+          diagnostics: [
+            { message: error instanceof Error ? error.message : String(error), severity: "error" },
+          ],
           editable: false,
+          filePath: file.filePath,
+          id: file.filePath,
           mode: "agent-invocable",
-          diagnostics: [{ severity: "error", message: error instanceof Error ? error.message : String(error) }],
+          name: file.filePath.split("/").at(-2) ?? file.filePath,
+          source: file.source,
         });
       }
     }

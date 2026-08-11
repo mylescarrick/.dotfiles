@@ -11,6 +11,7 @@ describe("DotApplication", () => {
 
     expect(outcome).toEqual({
       exitCode: 0,
+      stderr: "",
       stdout: `dot - manage this macOS development environment
 
 USAGE
@@ -30,7 +31,6 @@ COMMANDS
   pi auth exa           Configure private web-tools Exa search auth
   help                  Show this help
 `,
-      stderr: "",
     });
   });
 
@@ -42,9 +42,7 @@ COMMANDS
     });
 
     for (const argv of [["help"], ["--help"]]) {
-      expect(
-        await application.execute({ argv, cwd: "/tmp/checkout", env: {} }),
-      ).toEqual(defaultHelp);
+      expect(await application.execute({ argv, cwd: "/tmp/checkout", env: {} })).toEqual(defaultHelp);
     }
   });
 
@@ -54,11 +52,11 @@ COMMANDS
         argv: ["--version"],
         cwd: "/tmp/checkout",
         env: {},
-      }),
+      })
     ).toEqual({
       exitCode: 0,
-      stdout: "dot version 1.0.0\n",
       stderr: "",
+      stdout: "dot version 1.0.0\n",
     });
   });
 
@@ -70,13 +68,13 @@ COMMANDS
           argv: [command, "--force"],
           cwd: "/tmp/checkout",
           env: {},
-        }),
+        })
       ).toEqual({
         exitCode: 2,
-        stdout: "",
         stderr: `dot: usage: dot ${command} [--yes]\n`,
+        stdout: "",
       });
-    },
+    }
   );
 
   test("rejects an unknown command with usage guidance", async () => {
@@ -85,11 +83,11 @@ COMMANDS
         argv: ["wat"],
         cwd: "/tmp/checkout",
         env: {},
-      }),
+      })
     ).toEqual({
       exitCode: 2,
-      stdout: "",
       stderr: "dot: unknown command 'wat'\nRun 'dot help' for usage.\n",
+      stdout: "",
     });
   });
 });

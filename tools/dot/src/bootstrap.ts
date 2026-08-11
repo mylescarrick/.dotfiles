@@ -1,7 +1,7 @@
-import { access, lstat, mkdtemp, rm } from "node:fs/promises";
 import { constants } from "node:fs";
-import { dirname, join } from "node:path";
+import { access, lstat, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import type { ProcessRunner } from "./process";
 import type { Terminal } from "./terminal";
 
@@ -33,7 +33,7 @@ function confirmed(answer: string): boolean {
 }
 
 function installerEnvironment(
-  env: Readonly<Record<string, string | undefined>>,
+  env: Readonly<Record<string, string | undefined>>
 ): Readonly<Record<string, string | undefined>> {
   const names = [
     "HOME",
@@ -57,9 +57,7 @@ function installerEnvironment(
     "KEEP_ZSHRC",
     "ZDOTDIR",
   ] as const;
-  return Object.fromEntries(
-    names.flatMap((name) => (env[name] === undefined ? [] : [[name, env[name]]])),
-  );
+  return Object.fromEntries(names.flatMap((name) => (env[name] === undefined ? [] : [[name, env[name]]])));
 }
 
 async function installer(options: {
@@ -90,7 +88,7 @@ async function installer(options: {
   } catch {
     return false;
   } finally {
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   }
 }
 
@@ -105,7 +103,7 @@ async function executable(path: string): Promise<boolean> {
 
 async function withKnownHomebrew(
   env: Readonly<Record<string, string | undefined>>,
-  paths: readonly string[],
+  paths: readonly string[]
 ): Promise<Readonly<Record<string, string | undefined>> | undefined> {
   for (const path of paths) {
     if (await executable(path)) {
@@ -153,7 +151,7 @@ export async function bootstrapMachine(options: {
     lines.push("Homebrew already installed");
   } else {
     const answer = await options.terminal.prompt(
-      "Homebrew is missing. Install it from the official installer? [y/N]: ",
+      "Homebrew is missing. Install it from the official installer? [y/N]: "
     );
     if (!confirmed(answer)) throw new Error("Homebrew installation declined");
     const installed = await installer({
@@ -250,7 +248,7 @@ export async function bootstrapMachine(options: {
   }
 
   const answer = await options.terminal.prompt(
-    "oh-my-zsh is missing. Install it from the official installer? [y/N]: ",
+    "oh-my-zsh is missing. Install it from the official installer? [y/N]: "
   );
   if (!confirmed(answer)) {
     lines.push("oh-my-zsh skipped");
@@ -258,7 +256,7 @@ export async function bootstrapMachine(options: {
   }
   const installed = await installer({
     cwd: options.checkoutRoot,
-    env: { ...env, RUNZSH: "no", CHSH: "no", KEEP_ZSHRC: "yes" },
+    env: { ...env, CHSH: "no", KEEP_ZSHRC: "yes", RUNZSH: "no" },
     interpreter: "/bin/sh",
     interpreterArgs: ["--unattended"],
     processes: options.processes,

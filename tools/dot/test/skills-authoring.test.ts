@@ -1,14 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import {
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readlink,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
@@ -33,7 +24,7 @@ async function fixture(): Promise<string> {
   await writeFile(join(checkout, ".gitignore"), "home/.agents/skills/ignored/\n");
   await writeFile(
     join(checkout, "home/.agents/.skill-lock.json"),
-    '{"skills":{"vendored": {"source":"example"}}}\n',
+    '{"skills":{"vendored": {"source":"example"}}}\n'
   );
   await symlink("../../../.agents/skills/gone", join(checkout, "home/.pi/agent/skills/gone"));
   await run(["git", "init", "--initial-branch=main"], checkout);
@@ -44,14 +35,12 @@ class RecordingProcesses implements ProcessRunner {
   readonly requests: ProcessRequest[] = [];
   async run(request: ProcessRequest) {
     this.requests.push(request);
-    return { exitCode: 1, stdout: "", stderr: "failed" };
+    return { exitCode: 1, stderr: "failed", stdout: "" };
   }
 }
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
 });
 
 describe("skills authoring", () => {
@@ -64,10 +53,10 @@ describe("skills authoring", () => {
 
     expect(outcome).toMatchObject({ exitCode: 0 });
     expect(await readlink(join(checkout, "home/.pi/agent/skills/local"))).toBe(
-      "../../../.agents/skills/local",
+      "../../../.agents/skills/local"
     );
     expect(await readlink(join(checkout, "home/.claude/skills/vendored"))).toBe(
-      "../../.agents/skills/vendored",
+      "../../.agents/skills/vendored"
     );
     expect(await Bun.file(join(checkout, "home/.pi/agent/skills/ignored")).exists()).toBe(false);
     await expect(lstat(join(checkout, "home/.pi/agent/skills/gone"))).rejects.toThrow();
@@ -139,8 +128,8 @@ describe("skills authoring", () => {
 
     expect(outcome).toEqual({
       exitCode: 1,
-      stdout: "",
       stderr: "dot: invalid skill name: ../../..\n",
+      stdout: "",
     });
     expect(processes.requests).toHaveLength(0);
     expect(await Bun.file(join(checkout, "home/.agents/skills/local/SKILL.md")).exists()).toBe(true);

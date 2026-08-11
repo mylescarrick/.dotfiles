@@ -14,9 +14,7 @@ Follow Zinsser's four principles: simplicity (strip every word that doesn't serv
 This governs tone and phrasing only. It never shortcuts investigation, verification, or safety — do the full work, then report it plainly.`;
 
 export default function outputStyle(pi: ExtensionAPI) {
-  pi.on("before_agent_start", async (event) => {
-    return {
-      systemPrompt: `${event.systemPrompt}\n\n${OUTPUT_STYLE}`,
-    };
-  });
+  pi.on("before_agent_start", async (event) => ({
+    systemPrompt: `${event.systemPrompt}\n\n${OUTPUT_STYLE}`,
+  }));
 }

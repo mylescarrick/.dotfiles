@@ -1,37 +1,19 @@
 import { createHash } from "node:crypto";
-import {
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rename,
-  rm,
-  stat,
-} from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { ProcessRunner } from "./process";
 import type { Terminal } from "./terminal";
 
-const STOW_IGNORE_REGEX =
-  "node_modules|dist|out|coverage|logs|\\.cache|build|\\.DS_Store|\\.tsbuildinfo";
-const IGNORED_DIRECTORIES = new Set([
-  "node_modules",
-  "dist",
-  "out",
-  "coverage",
-  "logs",
-  ".cache",
-  "build",
-]);
+const STOW_IGNORE_REGEX = "node_modules|dist|out|coverage|logs|\\.cache|build|\\.DS_Store|\\.tsbuildinfo";
+const IGNORED_DIRECTORIES = new Set(["node_modules", "dist", "out", "coverage", "logs", ".cache", "build"]);
 
 interface FileSnapshot {
   readonly dev: number;
+  readonly hash: string;
   readonly ino: number;
   readonly mode: number;
-  readonly size: number;
   readonly mtimeMs: number;
-  readonly hash: string;
+  readonly size: number;
 }
 
 type PlannedAction =
@@ -73,11 +55,11 @@ async function snapshot(path: string): Promise<FileSnapshot> {
   const [metadata, bytes] = await Promise.all([lstat(path), readFile(path)]);
   return {
     dev: metadata.dev,
+    hash: createHash("sha256").update(bytes).digest("hex"),
     ino: metadata.ino,
     mode: metadata.mode,
-    size: metadata.size,
     mtimeMs: metadata.mtimeMs,
-    hash: createHash("sha256").update(bytes).digest("hex"),
+    size: metadata.size,
   };
 }
 
@@ -115,7 +97,7 @@ async function resolveConflict(options: {
     if (difference.stderr) options.terminal.write(difference.stderr);
     const answer = (
       await options.terminal.prompt(
-        `Existing live file conflicts with ~/${options.relative}. Use tracked, keep live, show diff again, or abort? [u/k/d/a]: `,
+        `Existing live file conflicts with ~/${options.relative}. Use tracked, keep live, show diff again, or abort? [u/k/d/a]: `
       )
     ).toLowerCase();
     if (answer === "u") return "backup";
@@ -210,26 +192,26 @@ export async function planStow(options: StowOptions): Promise<StowPlan> {
 
     if (options.acceptTracked) {
       actions.push({ kind: "backup", relative, snapshot: targetSnapshot });
-    } else if (!options.terminal.interactive) {
-      throw new Error(`~/${relative} conflicts with tracked state; rerun with --yes`);
-    } else {
+    } else if (options.terminal.interactive) {
       const choice = await resolveConflict({
+        cwd: options.checkoutRoot,
+        env: options.env,
+        processes: options.processes,
         relative,
         source,
         target,
-        processes: options.processes,
         terminal: options.terminal,
-        cwd: options.checkoutRoot,
-        env: options.env,
       });
       actions.push({ kind: choice, relative, snapshot: targetSnapshot } as PlannedAction);
+    } else {
+      throw new Error(`~/${relative} conflicts with tracked state; rerun with --yes`);
     }
   }
 
   for (const action of actions) {
     if (action.kind === "keep") continue;
     const current = await snapshot(join(options.home, action.relative)).catch(() => undefined);
-    if (!current || !snapshotMatches(current, action.snapshot)) {
+    if (!(current && snapshotMatches(current, action.snapshot))) {
       throw new Error(`~/${action.relative} changed while stow was being planned`);
     }
   }
@@ -251,7 +233,7 @@ export async function applyStowPlan(plan: StowPlan): Promise<string> {
     const target = join(options.home, action.relative);
     if (action.kind === "keep") continue;
     const current = await snapshot(target).catch(() => undefined);
-    if (!current || !snapshotMatches(current, action.snapshot)) {
+    if (!(current && snapshotMatches(current, action.snapshot))) {
       throw new Error(`~/${action.relative} changed while stow was being applied`);
     }
     if (action.kind === "remove-identical") await rm(target);

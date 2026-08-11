@@ -12,7 +12,7 @@ function validateName(name: string): void {
 function parsePackageLine(line: string): { name: string; type: "brew" | "cask" } | undefined {
   const match = line.match(/^(brew|cask) "([^"]+)"(?:,.*)?$/);
   if (!match) return undefined;
-  return { type: match[1] as "brew" | "cask", name: match[2]! };
+  return { name: match[2]!, type: match[1] as "brew" | "cask" };
 }
 
 export async function addPackage(options: {
@@ -62,9 +62,7 @@ export async function addPackage(options: {
     output: "inherit",
   });
   if (result.exitCode !== 0) {
-    throw new Error(
-      `package installation failed; '${options.name}' remains declared for the next dot apply`,
-    );
+    throw new Error(`package installation failed; '${options.name}' remains declared for the next dot apply`);
   }
   return `Added and installed ${type} package '${options.name}'\n`;
 }

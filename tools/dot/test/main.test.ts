@@ -12,8 +12,8 @@ describe("Bun entry point", () => {
     });
     const child = Bun.spawn([process.execPath, "src/main.ts"], {
       cwd: dotRoot,
-      stdout: "pipe",
       stderr: "pipe",
+      stdout: "pipe",
     });
 
     const [exitCode, stdout, stderr] = await Promise.all([
@@ -22,6 +22,6 @@ describe("Bun entry point", () => {
       new Response(child.stderr).text(),
     ]);
 
-    expect({ exitCode, stdout, stderr }).toEqual(expected);
+    expect({ exitCode, stderr, stdout }).toEqual(expected);
   });
 });

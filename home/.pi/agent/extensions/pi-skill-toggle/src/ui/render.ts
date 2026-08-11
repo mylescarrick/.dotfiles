@@ -23,7 +23,13 @@ export function bottomBorder(theme: Theme, innerWidth: number): string {
   return theme.fg("borderAccent", `└${"─".repeat(innerWidth)}┘`);
 }
 
-export function combineColumns(left: string[], right: string[], leftWidth: number, rightWidth: number, sep: string): string[] {
+export function combineColumns(
+  left: string[],
+  right: string[],
+  leftWidth: number,
+  rightWidth: number,
+  sep: string
+): string[] {
   const rows = Math.max(left.length, right.length);
   const lines: string[] = [];
   for (let i = 0; i < rows; i += 1) {

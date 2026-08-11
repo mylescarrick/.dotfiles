@@ -1,12 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import {
-  chmod,
-  mkdir,
-  mkdtemp,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
@@ -39,10 +32,7 @@ async function fixture(): Promise<{
   await mkdir(join(checkout, "home"), { recursive: true });
   await mkdir(join(checkout, "packages"), { recursive: true });
   await mkdir(join(checkout, "config/pi"), { recursive: true });
-  await writeFile(
-    join(checkout, "config/pi/settings.defaults.json"),
-    '{"theme":"dark","packages":[]}\n',
-  );
+  await writeFile(join(checkout, "config/pi/settings.defaults.json"), '{"theme":"dark","packages":[]}\n');
   await writeFile(join(checkout, "home/.managed"), "tracked\n");
   await writeFile(join(checkout, "packages/bundle"), 'brew "stow"\n');
   await run(["git", "init", "--initial-branch=main"], checkout);
@@ -54,13 +44,9 @@ async function fixture(): Promise<{
   await run(["git", "update-ref", "refs/remotes/origin/main", head], checkout);
   await symlink(join(checkout, "home/.managed"), join(home, ".managed"));
   await mkdir(join(home, ".pi/agent"), { recursive: true });
-  await writeFile(
-    join(home, ".pi/agent/settings.json"),
-    '{\n  "theme": "dark",\n  "packages": []\n}\n',
-    {
-      mode: 0o600,
-    },
-  );
+  await writeFile(join(home, ".pi/agent/settings.json"), '{\n  "theme": "dark",\n  "packages": []\n}\n', {
+    mode: 0o600,
+  });
   const fakeBin = join(home, "fake-bin");
   await mkdir(fakeBin);
   for (const tool of ["brew", "pi", "frog"]) {
@@ -69,15 +55,13 @@ async function fixture(): Promise<{
   }
   return {
     checkout,
-    home,
     env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}` },
+    home,
   };
 }
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
 });
 
 describe("dot doctor", () => {
@@ -93,16 +77,14 @@ describe("dot doctor", () => {
     expect(outcome.exitCode).toBe(0);
     expect(outcome.stderr).toBe("");
     expect(outcome.stdout).toContain(
-      "OK    checkout: canonical main is clean and equal to last-fetched origin/main",
+      "OK    checkout: canonical main is clean and equal to last-fetched origin/main"
     );
     expect(outcome.stdout).toContain("OK    packages: Brewfile is satisfied");
     expect(outcome.stdout).toContain("0 actionable issues");
     for (const { argv } of processes.requests) {
       if (argv[0] === "git" && argv[1] === "--version") continue;
       if (argv[0] === "git") {
-        expect(["rev-parse", "branch", "status", "merge-base", "ls-files"]).toContain(
-          argv[3],
-        );
+        expect(["rev-parse", "branch", "status", "merge-base", "ls-files"]).toContain(argv[3]);
         continue;
       }
       if (argv[0] === "brew" && argv[1] === "--version") continue;
@@ -167,11 +149,9 @@ describe("dot doctor", () => {
 
   test("reports valid Pi settings that are stale against tracked defaults", async () => {
     const state = await fixture();
-    await writeFile(
-      join(state.home, ".pi/agent/settings.json"),
-      '{\n  "theme": "dark"\n}\n',
-      { mode: 0o600 },
-    );
+    await writeFile(join(state.home, ".pi/agent/settings.json"), '{\n  "theme": "dark"\n}\n', {
+      mode: 0o600,
+    });
 
     const outcome = await createApplication({ checkoutRoot: state.checkout }).execute({
       argv: ["doctor"],
@@ -180,9 +160,7 @@ describe("dot doctor", () => {
     });
 
     expect(outcome.exitCode).toBe(1);
-    expect(outcome.stdout).toContain(
-      "FAIL  pi-settings: runtime settings are stale; run 'dot apply'",
-    );
+    expect(outcome.stdout).toContain("FAIL  pi-settings: runtime settings are stale; run 'dot apply'");
   });
 
   test("rejects arguments before performing diagnostics", async () => {
@@ -193,8 +171,8 @@ describe("dot doctor", () => {
     });
     expect(outcome).toEqual({
       exitCode: 2,
-      stdout: "",
       stderr: "dot: usage: dot doctor\n",
+      stdout: "",
     });
   });
 });

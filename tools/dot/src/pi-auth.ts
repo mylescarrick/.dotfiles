@@ -26,7 +26,7 @@ export function parseCloudflareAuthArgs(args: readonly string[]): CloudflareArgs
     const flag = args[index];
     const value = args[index + 1];
     if (!value || value.startsWith("-")) {
-      return { ok: false, message: "dot: usage: dot pi auth cloudflare [OPTIONS]\n" };
+      return { message: "dot: usage: dot pi auth cloudflare [OPTIONS]\n", ok: false };
     }
     if (flag === "--account-id" && accountId === undefined) accountId = value;
     else if (flag === "--gateway-id" && gatewayId === undefined) gatewayId = value;
@@ -34,16 +34,13 @@ export function parseCloudflareAuthArgs(args: readonly string[]): CloudflareArgs
       keySource = { kind: "env", name: value };
     } else if (flag === "--api-key-op-ref" && keySource === undefined) {
       keySource = { kind: "op", reference: value };
-    } else if (
-      (flag === "--api-key-env" || flag === "--api-key-op-ref") &&
-      keySource !== undefined
-    ) {
-      return { ok: false, message: "dot: choose one Cloudflare API key source\n" };
+    } else if ((flag === "--api-key-env" || flag === "--api-key-op-ref") && keySource !== undefined) {
+      return { message: "dot: choose one Cloudflare API key source\n", ok: false };
     } else {
-      return { ok: false, message: "dot: usage: dot pi auth cloudflare [OPTIONS]\n" };
+      return { message: "dot: usage: dot pi auth cloudflare [OPTIONS]\n", ok: false };
     }
   }
-  return { ok: true, input: { accountId, gatewayId, keySource } };
+  return { input: { accountId, gatewayId, keySource }, ok: true };
 }
 
 export type ExaKeySource =
@@ -64,22 +61,19 @@ export function parseExaAuthArgs(args: readonly string[]): ExaArgsResult {
     const flag = args[index];
     const value = args[index + 1];
     if (!value || value.startsWith("-")) {
-      return { ok: false, message: "dot: usage: dot pi auth exa [OPTIONS]\n" };
+      return { message: "dot: usage: dot pi auth exa [OPTIONS]\n", ok: false };
     }
     if (flag === "--api-key-env" && keySource === undefined) {
       keySource = { kind: "env", name: value };
     } else if (flag === "--api-key-op-ref" && keySource === undefined) {
       keySource = { kind: "op", reference: value };
-    } else if (
-      (flag === "--api-key-env" || flag === "--api-key-op-ref") &&
-      keySource !== undefined
-    ) {
-      return { ok: false, message: "dot: choose one Exa API key source\n" };
+    } else if ((flag === "--api-key-env" || flag === "--api-key-op-ref") && keySource !== undefined) {
+      return { message: "dot: choose one Exa API key source\n", ok: false };
     } else {
-      return { ok: false, message: "dot: usage: dot pi auth exa [OPTIONS]\n" };
+      return { message: "dot: usage: dot pi auth exa [OPTIONS]\n", ok: false };
     }
   }
-  return { ok: true, input: { keySource } };
+  return { input: { keySource }, ok: true };
 }
 
 export async function inspectPiAuth(home: string): Promise<string[]> {
@@ -107,11 +101,13 @@ function quoteResolver(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-export async function configureCloudflareAuth(options: CloudflareAuthInput & {
-  readonly env: Readonly<Record<string, string | undefined>>;
-  readonly home: string;
-  readonly terminal: Terminal;
-}): Promise<string> {
+export async function configureCloudflareAuth(
+  options: CloudflareAuthInput & {
+    readonly env: Readonly<Record<string, string | undefined>>;
+    readonly home: string;
+    readonly terminal: Terminal;
+  }
+): Promise<string> {
   let accountId = options.accountId ?? options.env.DOT_CLOUDFLARE_ACCOUNT_ID;
   let gatewayId = options.gatewayId ?? options.env.DOT_CLOUDFLARE_GATEWAY_ID;
   if (!accountId && options.terminal.interactive) {
@@ -120,7 +116,7 @@ export async function configureCloudflareAuth(options: CloudflareAuthInput & {
   if (!gatewayId && options.terminal.interactive) {
     gatewayId = await options.terminal.prompt("Cloudflare AI Gateway ID/slug: ");
   }
-  if (!accountId || !gatewayId) {
+  if (!(accountId && gatewayId)) {
     throw new Error("Cloudflare account and gateway IDs are required");
   }
 
@@ -129,9 +125,7 @@ export async function configureCloudflareAuth(options: CloudflareAuthInput & {
     name: "CLOUDFLARE_API_KEY",
   };
   const key =
-    keySource.kind === "op"
-      ? `!op read ${quoteResolver(keySource.reference)}`
-      : `$${keySource.name}`;
+    keySource.kind === "op" ? `!op read ${quoteResolver(keySource.reference)}` : `$${keySource.name}`;
   const authPath = join(options.home, ".pi/agent/auth.json");
   let auth: Record<string, unknown> = {};
   try {
@@ -151,7 +145,7 @@ export async function configureCloudflareAuth(options: CloudflareAuthInput & {
       typeof (existing as { env: unknown }).env === "object"
         ? ((existing as { env: Record<string, unknown> }).env ?? {})
         : {};
-    auth[provider] = { type: "api_key", key, env: { ...existingEnv, ...patch } };
+    auth[provider] = { env: { ...existingEnv, ...patch }, key, type: "api_key" };
   };
 
   upsert("cloudflare-ai-gateway", {
@@ -163,14 +157,14 @@ export async function configureCloudflareAuth(options: CloudflareAuthInput & {
   return "Pi Cloudflare auth configured\n";
 }
 
-export async function configureExaAuth(options: ExaAuthInput & {
-  readonly home: string;
-}): Promise<string> {
+export async function configureExaAuth(
+  options: ExaAuthInput & {
+    readonly home: string;
+  }
+): Promise<string> {
   const keySource = options.keySource ?? { kind: "env" as const, name: "EXA_API_KEY" };
   const key =
-    keySource.kind === "op"
-      ? `!op read ${quoteResolver(keySource.reference)}`
-      : `$${keySource.name}`;
+    keySource.kind === "op" ? `!op read ${quoteResolver(keySource.reference)}` : `$${keySource.name}`;
 
   const authPath = join(options.home, ".pi/agent/web-tools-auth.json");
   let auth: Record<string, unknown> = {};
@@ -180,7 +174,7 @@ export async function configureExaAuth(options: ExaAuthInput & {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
 
-  auth.exa = { type: "api_key", key };
+  auth.exa = { key, type: "api_key" };
   await replacePrivateFile(authPath, `${JSON.stringify(auth, null, 2)}\n`);
   return "Exa search auth configured\n";
 }

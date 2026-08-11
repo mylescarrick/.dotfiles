@@ -1,19 +1,13 @@
 import { createHash } from "node:crypto";
-import {
-  lstat,
-  mkdir,
-  readFile,
-  readdir,
-  stat,
-} from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { replaceFileAtomic } from "./atomic-file";
 import type { ProcessRunner } from "./process";
 
 interface InstallState {
-  readonly schema: 1;
-  readonly manifests: string;
   readonly lock: string;
+  readonly manifests: string;
+  readonly schema: 1;
 }
 
 async function existsDirectory(path: string): Promise<boolean> {
@@ -56,7 +50,9 @@ async function manifestDigest(root: string): Promise<string> {
 }
 
 async function fileDigest(path: string): Promise<string> {
-  return createHash("sha256").update(await readFile(path)).digest("hex");
+  return createHash("sha256")
+    .update(await readFile(path))
+    .digest("hex");
 }
 
 async function readState(path: string): Promise<InstallState | undefined> {
@@ -123,13 +119,13 @@ export async function reconcilePiDependencies(options: {
     output: "inherit",
   });
   if (result.exitCode !== 0) throw new Error("failed to install Pi workspace dependencies");
-  if (!(await existsDirectory(nodeModules)) || !(await regularFile(lockPath))) {
+  if (!((await existsDirectory(nodeModules)) && (await regularFile(lockPath)))) {
     throw new Error("Pi dependency install did not produce node_modules and bun.lock");
   }
   await writeState(statePath, {
-    schema: 1,
-    manifests,
     lock: await fileDigest(lockPath),
+    manifests,
+    schema: 1,
   });
   return "Pi dependencies installed\n";
 }

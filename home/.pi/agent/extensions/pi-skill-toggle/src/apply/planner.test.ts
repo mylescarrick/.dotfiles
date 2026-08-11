@@ -1,10 +1,10 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { DefaultSkillTogglePlanner } from "./planner.ts";
+import { describe, it } from "node:test";
 import { SimpleFrontmatterCodec } from "../frontmatter/parser.ts";
 import { MinimalFrontmatterPatcher } from "../frontmatter/patcher.ts";
 import type { FileSystem } from "../ports/fs.ts";
 import type { SkillRecord } from "../types.ts";
+import { DefaultSkillTogglePlanner } from "./planner.ts";
 
 const codec = new SimpleFrontmatterCodec();
 const patcher = new MinimalFrontmatterPatcher();
@@ -28,7 +28,7 @@ describe("DefaultSkillTogglePlanner", () => {
     const planner = new DefaultSkillTogglePlanner(fs, codec, patcher);
     const record = skillRecord(filePath, "manual-only");
 
-    const changes = await planner.plan([record], [{ skill: record, desiredMode: "manual-only" }]);
+    const changes = await planner.plan([record], [{ desiredMode: "manual-only", skill: record }]);
 
     assert.equal(changes.length, 1);
     assert.equal(changes[0]?.from, "manual-only");
@@ -39,15 +39,15 @@ describe("DefaultSkillTogglePlanner", () => {
 
 function skillRecord(filePath: string, mode: SkillRecord["mode"]): SkillRecord {
   return {
-    id: filePath,
-    name: "handoff",
-    description: "Compact the conversation.",
-    filePath,
     baseDir: "/skills/handoff",
-    source: { kind: "user", root: "/skills" },
-    editable: true,
-    mode,
+    description: "Compact the conversation.",
     diagnostics: [],
+    editable: true,
+    filePath,
+    id: filePath,
+    mode,
+    name: "handoff",
+    source: { kind: "user", root: "/skills" },
   };
 }
 
@@ -68,7 +68,9 @@ class MemoryFileSystem implements FileSystem {
     return this.files.has(path);
   }
 
-  async readdir(): Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>> {
+  async readdir(): Promise<
+    Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>
+  > {
     return [];
   }
 

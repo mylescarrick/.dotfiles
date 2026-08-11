@@ -3,9 +3,9 @@ import { join, resolve } from "node:path";
 import type { SkillSource } from "../types.ts";
 
 export interface SkillRoot {
+  includeRootMarkdownFiles: boolean;
   path: string;
   source: SkillSource;
-  includeRootMarkdownFiles: boolean;
 }
 
 export function getAgentDir(): string {
@@ -26,26 +26,26 @@ export function getSkillRoots(cwd: string): SkillRoot[] {
   const projectLegacySkillRoot = resolve(resolvedCwd, ".agents", "skills");
   const roots: SkillRoot[] = [
     {
+      includeRootMarkdownFiles: true,
       path: userSkillRoot,
       source: { kind: "user", root: userSkillRoot },
-      includeRootMarkdownFiles: true,
     },
     {
+      includeRootMarkdownFiles: false,
       path: globalSkillRoot,
       source: { kind: "global", root: globalSkillRoot },
-      includeRootMarkdownFiles: false,
     },
     {
+      includeRootMarkdownFiles: true,
       path: projectSkillRoot,
       source: { kind: "project", root: projectSkillRoot },
-      includeRootMarkdownFiles: true,
     },
     // Pi also loads .agents/skills as a project skill directory. Root markdown
     // files are ignored there; directories containing SKILL.md are discovered.
     {
+      includeRootMarkdownFiles: false,
       path: projectLegacySkillRoot,
       source: { kind: "project-legacy", root: projectLegacySkillRoot },
-      includeRootMarkdownFiles: false,
     },
   ];
 

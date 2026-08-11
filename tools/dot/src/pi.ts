@@ -1,8 +1,4 @@
-import {
-  lstat,
-  mkdir,
-  readFile,
-} from "node:fs/promises";
+import { lstat, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { replaceFileAtomic } from "./atomic-file";
 import { parseJsonObject } from "./json";
@@ -18,14 +14,11 @@ async function readRuntime(path: string): Promise<Record<string, unknown>> {
 
 function asJsonObject(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : {};
 }
 
-async function currentRegularFileMatches(
-  path: string,
-  desired: string,
-): Promise<boolean> {
+async function currentRegularFileMatches(path: string, desired: string): Promise<boolean> {
   try {
     const metadata = await lstat(path);
     if (!metadata.isFile() || (metadata.mode & 0o777) !== 0o600) return false;
@@ -37,7 +30,7 @@ async function currentRegularFileMatches(
 }
 
 export async function replacePrivateFile(path: string, content: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  await mkdir(dirname(path), { mode: 0o700, recursive: true });
   await replaceFileAtomic(path, content, { mode: 0o600, sync: true });
 }
 
@@ -79,10 +72,7 @@ export async function planPiSettings(options: {
 
   let defaults: Record<string, unknown>;
   try {
-    defaults = parseJsonObject(
-      await readFile(defaultsPath, "utf8"),
-      "Tracked Pi settings defaults",
-    );
+    defaults = parseJsonObject(await readFile(defaultsPath, "utf8"), "Tracked Pi settings defaults");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       throw new Error(`tracked Pi settings defaults are missing at ${defaultsPath}`);
@@ -111,10 +101,7 @@ export async function planPiClaudeBridgeSettings(options: {
 
   let defaults: Record<string, unknown>;
   try {
-    defaults = parseJsonObject(
-      await readFile(defaultsPath, "utf8"),
-      "Tracked Pi Claude Bridge defaults",
-    );
+    defaults = parseJsonObject(await readFile(defaultsPath, "utf8"), "Tracked Pi Claude Bridge defaults");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       throw new Error(`tracked Pi Claude Bridge defaults are missing at ${defaultsPath}`);

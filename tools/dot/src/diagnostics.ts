@@ -2,8 +2,8 @@ import { lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { guardCanonicalCheckout } from "./checkout";
 import { inspectPackages } from "./packages";
-import { inspectPiAuth } from "./pi-auth";
 import { inspectPiSettings, planPiSettings } from "./pi";
+import { inspectPiAuth } from "./pi-auth";
 import type { ProcessRunner } from "./process";
 import { validateSkillLinks } from "./skills";
 import { inspectStow } from "./stow";
@@ -25,9 +25,7 @@ async function signingKeyIssues(checkoutRoot: string, home: string): Promise<str
     }
     for (const match of text.matchAll(/^\s*signingkey\s*=\s*(.+)\s*$/gim)) {
       const configured = match[1]!.trim().replace(/^['"]|['"]$/g, "");
-      const path = configured.startsWith("~/")
-        ? join(home, configured.slice(2))
-        : configured;
+      const path = configured.startsWith("~/") ? join(home, configured.slice(2)) : configured;
       try {
         if (!(await lstat(path)).isFile()) issues.push(`signing key is not a file: ${path}`);
       } catch {
@@ -57,15 +55,15 @@ export async function runDoctor(options: {
   const checkout = await realpath(options.checkoutRoot).catch(() => undefined);
   if (!canonical) {
     fail("checkout", `canonical checkout is missing at ${join(home, ".dotfiles")}`);
-  } else if (checkout !== canonical) {
-    lines.push(`INFO  checkout: running from noncanonical checkout ${checkout}`);
-  } else {
+  } else if (checkout === canonical) {
     try {
       await guardCanonicalCheckout(options);
       ok("checkout", "canonical main is clean and equal to last-fetched origin/main");
     } catch (error) {
       fail("checkout", (error as Error).message);
     }
+  } else {
+    lines.push(`INFO  checkout: running from noncanonical checkout ${checkout}`);
   }
 
   const available = new Set<string>();

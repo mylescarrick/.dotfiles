@@ -1,5 +1,5 @@
-import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import type { FileSystem } from "../ports/fs.ts";
 import { DefaultSkillLocator } from "./skill-locator.ts";
 
@@ -34,7 +34,10 @@ describe("DefaultSkillLocator", () => {
     assert.equal(byPath.get("/home/tester/.pi/agent/skills/user-root.md")?.source.kind, "user");
     assert.equal(byPath.get("/home/tester/.agents/skills/global-skill/SKILL.md")?.source.kind, "global");
     assert.equal(byPath.get("/repo/.pi/skills/project-root.md")?.source.kind, "project");
-    assert.equal(byPath.get("/repo/.agents/skills/project-legacy-skill/SKILL.md")?.source.kind, "project-legacy");
+    assert.equal(
+      byPath.get("/repo/.agents/skills/project-legacy-skill/SKILL.md")?.source.kind,
+      "project-legacy"
+    );
     assert.equal(byPath.has("/home/tester/.agents/skills/ignored-global-root.md"), false);
     assert.equal(byPath.has("/repo/.agents/skills/ignored-project-legacy-root.md"), false);
   });
@@ -67,7 +70,9 @@ class MemoryTreeFileSystem implements FileSystem {
     return this.files.has(path) || this.dirs.has(path);
   }
 
-  async readdir(path: string): Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>> {
+  async readdir(
+    path: string
+  ): Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>> {
     if (!this.dirs.has(path)) throw new Error(`missing dir: ${path}`);
     const prefix = path === "/" ? "/" : `${path}/`;
     const names = new Set<string>();
@@ -86,10 +91,10 @@ class MemoryTreeFileSystem implements FileSystem {
     return [...names].sort().map((name) => {
       const fullPath = path === "/" ? `/${name}` : `${path}/${name}`;
       return {
-        name,
         isDirectory: this.dirs.has(fullPath),
         isFile: this.files.has(fullPath),
         isSymbolicLink: false,
+        name,
       };
     });
   }

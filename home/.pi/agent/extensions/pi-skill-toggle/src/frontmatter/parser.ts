@@ -10,15 +10,15 @@ export class SimpleFrontmatterCodec implements FrontmatterCodec {
     const opening = raw.match(/^---[ \t]*(\r?\n)/);
     if (!opening) {
       return {
-        raw,
-        hasFrontmatter: false,
-        frontmatterStart: 0,
-        frontmatterEnd: 0,
-        contentStart: 0,
-        frontmatterText: "",
         bodyText: raw,
+        contentStart: 0,
         fields: {},
+        frontmatterEnd: 0,
+        frontmatterStart: 0,
+        frontmatterText: "",
+        hasFrontmatter: false,
         lineEnding,
+        raw,
       };
     }
 
@@ -27,15 +27,15 @@ export class SimpleFrontmatterCodec implements FrontmatterCodec {
     const closing = /^---[ \t]*(?:\r?\n|$)/m.exec(rest);
     if (!closing || closing.index === undefined) {
       return {
-        raw,
-        hasFrontmatter: false,
-        frontmatterStart: 0,
-        frontmatterEnd: 0,
-        contentStart: 0,
-        frontmatterText: "",
         bodyText: raw,
+        contentStart: 0,
         fields: {},
+        frontmatterEnd: 0,
+        frontmatterStart: 0,
+        frontmatterText: "",
+        hasFrontmatter: false,
         lineEnding,
+        raw,
       };
     }
 
@@ -44,15 +44,15 @@ export class SimpleFrontmatterCodec implements FrontmatterCodec {
     const frontmatterText = raw.slice(frontmatterStart, frontmatterEnd);
 
     return {
-      raw,
-      hasFrontmatter: true,
-      frontmatterStart,
-      frontmatterEnd,
-      contentStart,
-      frontmatterText,
       bodyText: raw.slice(contentStart),
+      contentStart,
       fields: parseYamlLikeFields(frontmatterText),
+      frontmatterEnd,
+      frontmatterStart,
+      frontmatterText,
+      hasFrontmatter: true,
       lineEnding,
+      raw,
     };
   }
 }

@@ -12,7 +12,7 @@ class RecordingProcesses implements ProcessRunner {
   constructor(private readonly results: ProcessResult[]) {}
   async run(request: ProcessRequest): Promise<ProcessResult> {
     this.requests.push(request);
-    return this.results.shift() ?? { exitCode: 0, stdout: "", stderr: "" };
+    return this.results.shift() ?? { exitCode: 0, stderr: "", stdout: "" };
   }
 }
 
@@ -25,37 +25,26 @@ async function checkoutFixture(): Promise<string> {
 }
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
 });
 
 describe("package reconciliation", () => {
   test("checks local declared state without upgrades", async () => {
     const checkout = await checkoutFixture();
-    const processes = new RecordingProcesses([
-      { exitCode: 0, stdout: "satisfied", stderr: "" },
-    ]);
+    const processes = new RecordingProcesses([{ exitCode: 0, stderr: "", stdout: "satisfied" }]);
 
-    expect(
-      await reconcilePackages({ checkoutRoot: checkout, env: { HOME: "/home/test" }, processes }),
-    ).toBe("Packages already current\n");
+    expect(await reconcilePackages({ checkoutRoot: checkout, env: { HOME: "/home/test" }, processes })).toBe(
+      "Packages already current\n"
+    );
     expect(processes.requests).toEqual([
       {
-        argv: [
-          "brew",
-          "bundle",
-          "check",
-          "--no-upgrade",
-          "--file",
-          join(checkout, "packages/bundle"),
-        ],
+        argv: ["brew", "bundle", "check", "--no-upgrade", "--file", join(checkout, "packages/bundle")],
         cwd: checkout,
         env: {
           HOME: "/home/test",
-          HOMEBREW_NO_AUTO_UPDATE: "1",
           HOMEBREW_BUNDLE_BREW_SKIP: undefined,
           HOMEBREW_BUNDLE_CASK_SKIP: undefined,
+          HOMEBREW_NO_AUTO_UPDATE: "1",
         },
       },
     ]);
@@ -64,13 +53,13 @@ describe("package reconciliation", () => {
   test("installs once when declared state is missing", async () => {
     const checkout = await checkoutFixture();
     const processes = new RecordingProcesses([
-      { exitCode: 1, stdout: "missing", stderr: "" },
-      { exitCode: 0, stdout: "installed", stderr: "" },
+      { exitCode: 1, stderr: "", stdout: "missing" },
+      { exitCode: 0, stderr: "", stdout: "installed" },
     ]);
 
-    expect(
-      await reconcilePackages({ checkoutRoot: checkout, env: {}, processes }),
-    ).toBe("Declared packages installed\n");
+    expect(await reconcilePackages({ checkoutRoot: checkout, env: {}, processes })).toBe(
+      "Declared packages installed\n"
+    );
     expect(processes.requests.map((request) => request.argv)).toEqual([
       ["brew", "bundle", "check", "--no-upgrade", "--file", join(checkout, "packages/bundle")],
       ["brew", "bundle", "install", "--no-upgrade", "--file", join(checkout, "packages/bundle")],
@@ -83,9 +72,9 @@ describe("package reconciliation", () => {
     temporaryDirectories.push(checkout);
     const processes = new RecordingProcesses([]);
 
-    await expect(
-      reconcilePackages({ checkoutRoot: checkout, env: {}, processes }),
-    ).rejects.toThrow("Brewfile is missing");
+    await expect(reconcilePackages({ checkoutRoot: checkout, env: {}, processes })).rejects.toThrow(
+      "Brewfile is missing"
+    );
     expect(processes.requests).toHaveLength(0);
   });
 });

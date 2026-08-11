@@ -1,5 +1,5 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { SimpleFrontmatterCodec } from "./parser.ts";
 import { MinimalFrontmatterPatcher } from "./patcher.ts";
 import { getDuplicateFrontmatterKeys } from "./validation.ts";

@@ -20,16 +20,10 @@ async function fixture(options: { pi?: boolean; claude?: boolean } = {}): Promis
   await mkdir(join(checkout, "home/.pi/agent/skills"), { recursive: true });
   await mkdir(join(checkout, "home/.claude/skills"), { recursive: true });
   if (options.pi !== false) {
-    await symlink(
-      "../../../.agents/skills/example",
-      join(checkout, "home/.pi/agent/skills/example"),
-    );
+    await symlink("../../../.agents/skills/example", join(checkout, "home/.pi/agent/skills/example"));
   }
   if (options.claude !== false) {
-    await symlink(
-      "../../.agents/skills/example",
-      join(checkout, "home/.claude/skills/example"),
-    );
+    await symlink("../../.agents/skills/example", join(checkout, "home/.claude/skills/example"));
   }
   await run(["git", "init", "--initial-branch=main"], checkout);
   await run(["git", "add", "."], checkout);
@@ -37,23 +31,21 @@ async function fixture(options: { pi?: boolean; claude?: boolean } = {}): Promis
 }
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })),
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
 });
 
 describe("tracked skill links", () => {
   test("the repository's tracked links are internally consistent", async () => {
     const checkout = resolve(import.meta.dir, "../../..");
     expect(
-      await validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner }),
+      await validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner })
     ).toMatch(/^Skill links valid \([1-9][0-9]*\)\n$/);
   });
 
   test("accepts exact relative Pi and Claude links", async () => {
     const checkout = await fixture();
     expect(
-      await validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner }),
+      await validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner })
     ).toBe("Skill links valid (1)\n");
   });
 
@@ -62,7 +54,7 @@ describe("tracked skill links", () => {
     const missing = join(checkout, "home/.claude/skills/example");
 
     await expect(
-      validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner }),
+      validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner })
     ).rejects.toThrow(`tracked skill link is missing: ${missing}`);
     expect(await Bun.file(missing).exists()).toBe(false);
   });
@@ -73,7 +65,7 @@ describe("tracked skill links", () => {
     await symlink("../../../.agents/skills/gone", dangling);
 
     await expect(
-      validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner }),
+      validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner })
     ).rejects.toThrow(`tracked skill link is dangling: ${dangling}`);
   });
 
@@ -83,7 +75,7 @@ describe("tracked skill links", () => {
     await writeFile(collision, "local data\n");
 
     await expect(
-      validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner }),
+      validateSkillLinks({ checkoutRoot: checkout, env: process.env, processes: bunProcessRunner })
     ).rejects.toThrow("tracked skill path is not a symlink");
     expect(await readFile(collision, "utf8")).toBe("local data\n");
   });

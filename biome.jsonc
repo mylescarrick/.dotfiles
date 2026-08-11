@@ -1,0 +1,81 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["ultracite/biome/core"],
+  "files": {
+    // Only our own source is linted. Everything else here is vendored, generated,
+    // or stowed config that upstream owns.
+    "includes": [
+      "!**/node_modules",
+      "!home/.agents/skills",
+      "!.agents/skills",
+      "!home/.pi/agent/extensions/opencode-cloudflare",
+      "!**/*.lock",
+      // Written by the skills CLI; formatting it only creates churn on the next update.
+      "!home/.agents/.skill-lock.json"
+    ]
+  },
+  "formatter": {
+    // Match the existing checkout: 2-space indent, no tabs.
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 110
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    },
+    "globals": ["Bun"]
+  },
+  "linter": {
+    // Rules set to "warn" are a pre-existing backlog in code that predates Biome, kept
+    // visible so `bun run lint` stays green while they get burned down. Rules set to
+    // "off" are deliberate disagreements with the preset.
+    "rules": {
+      // Rules that fight this repo's established idiom rather than catching bugs.
+      "style": {
+        "useBlockStatements": "off",
+        "noNonNullAssertion": "off",
+        "noParameterProperties": "off",
+        "useNumericSeparators": "off",
+        "noIncrementDecrement": "off",
+        "useDestructuring": "off",
+        "noExportedImports": "warn",
+        "noNestedTernary": "warn",
+        "noParameterAssign": "warn",
+        "useAtIndex": "warn",
+        "useConsistentArrayType": "warn",
+        "useConsistentMethodSignatures": "warn",
+        "useConsistentTypeDefinitions": "warn",
+        "useDefaultSwitchClause": "warn",
+        "useErrorCause": "warn"
+      },
+      "complexity": {
+        "noUselessUndefined": "off",
+        "noExcessiveCognitiveComplexity": "warn",
+        "useLiteralKeys": "warn",
+        "useOptionalChain": "warn"
+      },
+      "performance": {
+        // Sequential awaits are deliberate in the CLI's ordered reconcile steps.
+        "noAwaitInLoops": "off",
+        "useTopLevelRegex": "off",
+        "noBarrelFile": "warn"
+      },
+      "suspicious": {
+        // Extension event handlers must be async to satisfy pi's handler types.
+        "useAwait": "off",
+        "noBitwiseOperators": "warn",
+        "noControlCharactersInRegex": "warn",
+        "noEmptyBlockStatements": "warn",
+        "noEvolvingTypes": "warn",
+        "noExplicitAny": "warn",
+        "noImplicitAnyLet": "warn",
+        "noShadow": "warn",
+        "noTemplateCurlyInString": "warn",
+        "noUnnecessaryConditions": "warn",
+        "useArraySortCompare": "warn",
+        "useErrorMessage": "warn"
+      }
+    }
+  }
+}

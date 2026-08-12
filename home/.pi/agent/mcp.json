@@ -35,7 +35,7 @@
       "freshservice": {
         "type": "local",
         "command": ["mcp-remote", "https://${FRESHSERVICE_DOMAIN}/mcp"],
-        "enabled": false
+        "enabled": true
       },
       "linear": {
         "type": "remote",

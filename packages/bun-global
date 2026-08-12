@@ -4,4 +4,5 @@
 @earendil-works/pi-coding-agent@0.84.1
 cloudflared@0.7.1
 frog@1.1.0
+mcp-remote@0.1.38
 wrangler@4.114.0

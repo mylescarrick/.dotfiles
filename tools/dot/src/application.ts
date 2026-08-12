@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import packageMetadata from "../package.json";
 import { ApplyFailure, apply } from "./apply";
+import { addGlobalBunPackage, removeGlobalBunPackage } from "./bun-global";
 import { runDoctor } from "./diagnostics";
 import { initialize } from "./init";
 import { addPackage, removePackage } from "./package-authoring";
@@ -51,6 +52,7 @@ const commands: readonly CommandDescription[] = [
   { summary: "Inspect managed state without changing it", usage: "doctor" },
   { summary: "Bootstrap a new machine, then apply", usage: "init" },
   { summary: "Edit the Brewfile", usage: "package add/remove" },
+  { summary: "Edit the global Bun package manifest", usage: "bun add/remove" },
   { summary: "Manage the checkout-scoped skills store", usage: "skills" },
   { summary: "Configure private Pi Cloudflare auth", usage: "pi auth cloudflare" },
   { summary: "Configure private web-tools Exa search auth", usage: "pi auth exa" },
@@ -237,6 +239,33 @@ export function createApplication(dependencies: ApplicationDependencies): DotApp
                 processes,
               })
             : await removePackage({ checkoutRoot: dependencies.checkoutRoot, name: name! });
+          return { exitCode: 0, stderr: "", stdout };
+        } catch (error) {
+          return failureOutcome(error);
+        }
+      }
+
+      if (command === "bun") {
+        const action = invocation.argv[1];
+        const name = invocation.argv[2];
+        const validAdd = action === "add" && Boolean(name) && invocation.argv.length === 3;
+        const validRemove = action === "remove" && Boolean(name) && invocation.argv.length === 3;
+        if (!(validAdd || validRemove)) {
+          return {
+            exitCode: 2,
+            stderr: "dot: usage: dot bun add NAME[@VERSION] | dot bun remove NAME\n",
+            stdout: "",
+          };
+        }
+        try {
+          const stdout = validAdd
+            ? await addGlobalBunPackage({
+                checkoutRoot: dependencies.checkoutRoot,
+                env: invocation.env,
+                name: name!,
+                processes,
+              })
+            : await removeGlobalBunPackage({ checkoutRoot: dependencies.checkoutRoot, name: name! });
           return { exitCode: 0, stderr: "", stdout };
         } catch (error) {
           return failureOutcome(error);

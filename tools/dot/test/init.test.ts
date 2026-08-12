@@ -32,6 +32,10 @@ async function fixture(): Promise<{
     '{"provider":{"pathToClaudeCodeExecutable":"/opt/homebrew/bin/claude"}}\n'
   );
   await writeFile(join(checkout, "packages/bundle"), 'brew "stow"\n');
+  await writeFile(
+    join(checkout, "packages/bun-global"),
+    "@earendil-works/pi-coding-agent@0.84.1\nfrog@1.1.0\n"
+  );
   await writeFile(join(checkout, "home/.managed"), "tracked\n");
   await run(["git", "init", "--initial-branch=main"], checkout);
   await run(["git", "config", "user.name", "Dot Tests"], checkout);
@@ -59,23 +63,31 @@ const interactive: Terminal = {
   async prompt() {
     throw new Error("unexpected prompt");
   },
-  write() {},
+  write() {
+    // test helper does not capture output
+  },
 };
 
 class FreshBootstrapProcesses implements ProcessRunner {
   readonly requests: ProcessRequest[] = [];
   private brewInstalled = false;
-  private piInstalled = false;
-  private frogInstalled = false;
+  private readonly installed = new Map<string, boolean>([
+    ["pi", false],
+    ["frog", false],
+  ]);
 
-  constructor(private readonly failPiInstall = false) {}
+  constructor(private readonly failBrewInstall = false) {}
+
+  private isBrewInstalled(): boolean {
+    return this.brewInstalled;
+  }
 
   async run(request: ProcessRequest) {
     this.requests.push(request);
     const [command, ...args] = request.argv;
     if (command === "brew" && args[0] === "--version") {
       return {
-        exitCode: this.brewInstalled ? 0 : 127,
+        exitCode: this.isBrewInstalled() ? 0 : 127,
         stderr: "",
         stdout: "",
       };
@@ -84,30 +96,35 @@ class FreshBootstrapProcesses implements ProcessRunner {
       return { exitCode: 0, stderr: "", stdout: "" };
     }
     if (command === "/bin/bash") {
+      if (this.failBrewInstall) return { exitCode: 1, stderr: "failed", stdout: "" };
       this.brewInstalled = true;
       return { exitCode: 0, stderr: "", stdout: "" };
     }
-    if (command === "pi" && args[0] === "--version") {
+    if ((command === "pi" || command === "frog") && args[0] === "--version") {
       return {
-        exitCode: this.piInstalled ? 0 : 127,
+        exitCode: this.installed.get(command) ? 0 : 127,
         stderr: "",
         stdout: "",
       };
     }
-    if (command === "bun" && args.join(" ") === "install -g @mariozechner/pi-coding-agent") {
-      if (this.failPiInstall) return { exitCode: 1, stderr: "failed", stdout: "" };
-      this.piInstalled = true;
-      return { exitCode: 0, stderr: "", stdout: "" };
+    if (command === "bun" && args[0] === "pm" && args[1] === "ls" && args[2] === "-g") {
+      const lines: string[] = ["/Users/test/.bun/install/global node_modules"];
+      if (this.installed.get("pi")) lines.push("├── @earendil-works/pi-coding-agent@0.84.1");
+      if (this.installed.get("frog")) lines.push(`${this.installed.get("pi") ? "├──" : "└──"} frog@1.1.0`);
+      if (lines.length === 1) lines[0] += " (0)";
+      return { exitCode: 0, stderr: "", stdout: `${lines.join("\n")}\n` };
     }
-    if (command === "frog" && args[0] === "--version") {
-      return {
-        exitCode: this.frogInstalled ? 0 : 127,
-        stderr: "",
-        stdout: "",
-      };
-    }
-    if (command === "bun" && args.join(" ") === "add -g frog") {
-      this.frogInstalled = true;
+    if (command === "bun" && args[0] === "add" && args[1] === "-g") {
+      for (const spec of args.slice(2)) {
+        if (
+          spec.startsWith("@earendil-works/pi-coding-agent") ||
+          spec.startsWith("@mariozechner/pi-coding-agent")
+        ) {
+          this.installed.set("pi", true);
+        } else if (spec === "frog" || spec.startsWith("frog@")) {
+          this.installed.set("frog", true);
+        }
+      }
       return { exitCode: 0, stderr: "", stdout: "" };
     }
     if (command === "/bin/sh") {
@@ -126,7 +143,9 @@ function answeringTerminal(answers: string[]): Terminal {
     async prompt() {
       return answers.shift() ?? "";
     },
-    write() {},
+    write() {
+      // test helper does not capture output
+    },
   };
 }
 
@@ -144,9 +163,12 @@ describe("dot init", () => {
 
     expect(outcome.exitCode).toBe(0);
     expect(outcome.stderr).toBe("");
-    expect(outcome.stdout).toContain("Homebrew already installed\nPi already installed\n");
-    expect(outcome.stdout).toContain("Packages already current\nDotfiles stowed\n");
+    expect(outcome.stdout).toContain("Homebrew already installed\noh-my-zsh already installed\n");
+    expect(outcome.stdout).toContain(
+      "Packages already current\nGlobal Bun packages already current\nDotfiles stowed\n"
+    );
     expect(outcome.stdout).toContain("OK    checkout:");
+    expect(outcome.stdout).toContain("OK    bun-global:");
     expect(outcome.stdout).toContain("0 actionable issues\n");
   });
 
@@ -162,8 +184,8 @@ describe("dot init", () => {
     }).execute({ argv: ["init"], cwd: state.checkout, env: state.env });
 
     expect(outcome).toMatchObject({ exitCode: 0, stderr: "" });
-    expect(outcome.stdout).toContain("Homebrew installed\nPi installed\n");
-    expect(outcome.stdout).toContain("oh-my-zsh installed\n");
+    expect(outcome.stdout).toContain("Homebrew installed\noh-my-zsh installed\n");
+    expect(outcome.stdout).toContain("Installed 2 global Bun package(s)\n");
     expect(outcome.stdout).toContain("Dotfiles stowed\n");
     expect(outcome.stdout).toContain("0 actionable issues\n");
   });
@@ -195,13 +217,14 @@ describe("dot init", () => {
     const processes = new FreshBootstrapProcesses(true);
     const outcome = await createApplication({
       checkoutRoot: state.checkout,
+      knownBrewPaths: [],
       processes,
       terminal: answeringTerminal(["y"]),
     }).execute({ argv: ["init"], cwd: state.checkout, env: state.env });
 
     expect(outcome).toEqual({
       exitCode: 1,
-      stderr: "dot: Pi installation failed\n",
+      stderr: "dot: Homebrew installer failed\n",
       stdout: "",
     });
     expect(await Bun.file(join(state.home, ".managed")).exists()).toBe(false);

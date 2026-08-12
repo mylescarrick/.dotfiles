@@ -178,66 +178,6 @@ export async function bootstrapMachine(options: {
     lines.push("Homebrew installed");
   }
 
-  if (
-    await available({
-      command: "pi",
-      cwd: options.checkoutRoot,
-      env,
-      processes: options.processes,
-    })
-  ) {
-    lines.push("Pi already installed");
-  } else {
-    const install = await options.processes.run({
-      argv: ["bun", "install", "-g", "@mariozechner/pi-coding-agent"],
-      cwd: options.checkoutRoot,
-      env,
-      output: "inherit",
-    });
-    if (install.exitCode !== 0) throw new Error("Pi installation failed");
-    if (
-      !(await available({
-        command: "pi",
-        cwd: options.checkoutRoot,
-        env,
-        processes: options.processes,
-      }))
-    ) {
-      throw new Error("Pi installation completed but pi was not found");
-    }
-    lines.push("Pi installed");
-  }
-
-  if (
-    await available({
-      command: "frog",
-      cwd: options.checkoutRoot,
-      env,
-      processes: options.processes,
-    })
-  ) {
-    lines.push("Frog already installed");
-  } else {
-    const install = await options.processes.run({
-      argv: ["bun", "add", "-g", "frog"],
-      cwd: options.checkoutRoot,
-      env,
-      output: "inherit",
-    });
-    if (install.exitCode !== 0) throw new Error("Frog installation failed");
-    if (
-      !(await available({
-        command: "frog",
-        cwd: options.checkoutRoot,
-        env,
-        processes: options.processes,
-      }))
-    ) {
-      throw new Error("Frog installation completed but frog was not found");
-    }
-    lines.push("Frog installed");
-  }
-
   try {
     if ((await lstat(join(home, ".oh-my-zsh"))).isDirectory()) {
       lines.push("oh-my-zsh already installed");

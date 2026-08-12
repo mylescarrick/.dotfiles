@@ -43,5 +43,6 @@ cask "handy"
 cask "raycast"
 # cask "spotify"
 cask "yaak@beta"
+cask "zed"
 cask "zoomit"
 

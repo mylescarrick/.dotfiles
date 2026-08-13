@@ -1,3 +1,4 @@
+import { reconcileGlobalBunPackages } from "./bun-global";
 import { guardCanonicalCheckout } from "./checkout";
 import { reconcilePackages } from "./packages";
 import { applyPiSettings, planPiClaudeBridgeSettings, planPiSettings } from "./pi";
@@ -45,6 +46,9 @@ export async function apply(options: {
 
     stage = "package reconciliation";
     progress += await reconcilePackages(options);
+
+    stage = "global Bun package reconciliation";
+    progress += await reconcileGlobalBunPackages(options);
 
     stage = "dotfile publication";
     progress += await applyStowPlan(stowPlan);

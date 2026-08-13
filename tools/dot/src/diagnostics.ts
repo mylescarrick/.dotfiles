@@ -1,5 +1,6 @@
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
+import { inspectGlobalBunPackages } from "./bun-global";
 import { guardCanonicalCheckout } from "./checkout";
 import { inspectPackages } from "./packages";
 import { inspectPiSettings, planPiSettings } from "./pi";
@@ -90,6 +91,13 @@ export async function runDoctor(options: {
     } catch (error) {
       fail("packages", (error as Error).message);
     }
+  }
+
+  try {
+    if (await inspectGlobalBunPackages(options)) ok("bun-global", "declared global Bun packages are current");
+    else fail("bun-global", "declared global Bun packages are missing or outdated; run 'dot apply'");
+  } catch (error) {
+    fail("bun-global", (error as Error).message);
   }
 
   try {

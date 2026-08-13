@@ -31,6 +31,7 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 | Task | Location |
 |------|----------|
 | Add package | `dot package add <name>` or edit `packages/bundle` |
+| Add global Bun package | `dot bun add <name>[@version]` or edit `packages/bun-global` |
 | Vendor/update agent skill | `dot skills add <owner/repo> <skill...>` / `dot skills update` |
 | Add global/deployed skill | Author `home/.agents/skills/<name>/SKILL.md`, then `dot skills sync` |
 | Add repo-only maintenance skill | Author `.agents/skills/<name>/SKILL.md` |

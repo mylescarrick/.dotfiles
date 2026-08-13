@@ -61,6 +61,8 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 | `dot doctor` | Inspect repository-owned state without network access or repair |
 | `dot package add NAME [--cask]` | Record sorted Brewfile state, then install it |
 | `dot package remove NAME` | Remove desired Brewfile state without uninstalling |
+| `dot bun add NAME[@VERSION]` | Record sorted global Bun package state, then install it |
+| `dot bun remove NAME` | Remove desired global Bun package state without uninstalling |
 | `dot skills [list]` | List canonical skills as local or vendored |
 | `dot skills add REPO SKILL...` | Vendor skills into the current checkout |
 | `dot skills update` | Update vendored skills in the current checkout |
@@ -70,9 +72,10 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 | `dot help` / `dot --version` | Show command or version information |
 
 `apply` validates the canonical checkout, validates skill links, installs only
-missing Brewfile state, safely stows `home/`, synchronizes private Pi settings,
-and runs `bun install` in `~/.pi` only when workspace state has drifted. It does
-not run broad upgrades such as `brew upgrade` or `pi update --all`.
+missing Brewfile and global Bun package state, safely stows `home/`,
+synchronizes private Pi settings, and runs `bun install` in `~/.pi` only when
+workspace state has drifted. It does not run broad upgrades such as
+`brew upgrade` or `pi update --all`.
 
 `upgrade` first performs the same strict refresh and reconciliation as `update`.
 It then prompts before running `brew update` and `brew upgrade`, and always runs
@@ -100,6 +103,7 @@ files before tracked state wins; it never bypasses checkout safety.
 │   ├── .oh-my-zsh/custom/   # Custom Zsh aliases and functions
 │   └── .zshrc / .zprofile
 ├── packages/bundle          # Base Brewfile
+├── packages/bun-global      # Global Bun packages
 ├── docs/
 └── AGENTS.md
 ```
@@ -124,6 +128,20 @@ explicitly with Homebrew if desired.
 Manual Brewfile edits are also valid. `dot apply` checks them with Homebrew
 auto-update disabled and installs only missing declared state with
 `--no-upgrade`.
+
+## Global Bun packages
+
+```bash
+dot bun add wrangler@4.114.0
+dot bun add @earendil-works/pi-coding-agent@0.84.1
+dot bun remove wrangler
+```
+
+`packages/bun-global` tracks packages installed with `bun add -g`. Entries are
+kept sorted. Addition records the package (with an optional exact version)
+before installing, so a failed install remains visible to `dot doctor` and is
+retried by `dot apply`. Removal only edits desired state; uninstall explicitly
+with `bun remove -g NAME` if desired.
 
 Third-party taps are declared with `tap` lines in `packages/bundle`, but
 Homebrew refuses to load casks from an untrusted tap, and trust is machine-local

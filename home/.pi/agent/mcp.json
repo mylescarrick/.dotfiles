@@ -1,9 +1,5 @@
 {
   "mcpServers": {
-    "cf-portal": {
-      "url": "https://portal.mcp.cfdata.org/mcp?codemode=search_and_execute",
-      "auth": "oauth"
-    },
     "uidotsh": {
       "url": "https://ui.sh/mcp?agent=pi",
       "headers": {

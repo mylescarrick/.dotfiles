@@ -1,47 +1,34 @@
 {
-  "mcp": {
-    "toolMode": "proxy",
-    "startup": "lazy",
-    "servers": {
-      "cf-portal": {
-        "type": "remote",
-        "url": "https://portal.mcp.cfdata.org/mcp?codemode=search_and_execute",
-        "oauth": {}
-      },
-      "uidotsh": {
-        "type": "remote",
-        "url": "https://ui.sh/mcp?agent=pi",
-        "headers": {
-          "Authorization": "Bearer ${UIDOTSH_TOKEN}"
-        },
-        "oauth": false
-      },
-      "open-computer-use": {
-        "type": "local",
-        "command": ["open-computer-use", "mcp"],
-        "enabled": true,
-        "timeout": 60000
-      },
-      "atlassian": {
-        "type": "remote",
-        "url": "https://mcp.atlassian.com/v1/mcp/authv2",
-        "oauth": {}
-      },
-      "deepwiki": {
-        "type": "remote",
-        "url": "https://mcp.deepwiki.com/mcp",
-        "oauth": false
-      },
-      "freshservice": {
-        "type": "local",
-        "command": ["mcp-remote", "https://${FRESHSERVICE_DOMAIN}/mcp"],
-        "enabled": true
-      },
-      "linear": {
-        "type": "remote",
-        "url": "https://mcp.linear.app/mcp",
-        "oauth": {}
+  "mcpServers": {
+    "cf-portal": {
+      "url": "https://portal.mcp.cfdata.org/mcp?codemode=search_and_execute",
+      "auth": "oauth"
+    },
+    "uidotsh": {
+      "url": "https://ui.sh/mcp?agent=pi",
+      "headers": {
+        "Authorization": "Bearer ${UIDOTSH_TOKEN}"
       }
+    },
+    "open-computer-use": {
+      "command": "open-computer-use",
+      "args": ["mcp"],
+      "requestTimeoutMs": 60000
+    },
+    "atlassian": {
+      "url": "https://mcp.atlassian.com/v1/mcp/authv2",
+      "auth": "oauth"
+    },
+    "deepwiki": {
+      "url": "https://mcp.deepwiki.com/mcp"
+    },
+    "freshservice": {
+      "command": "mcp-remote",
+      "args": ["https://${FRESHSERVICE_DOMAIN}/mcp"]
+    },
+    "linear": {
+      "url": "https://mcp.linear.app/mcp",
+      "auth": "oauth"
     }
   }
 }

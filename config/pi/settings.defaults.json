@@ -5,6 +5,7 @@
   "defaultThinkingLevel": "medium",
   "packages": [
     "npm:pi-claude-bridge",
+    "npm:pi-mcp-adapter",
     "npm:pine-of-glass",
     "npm:@mobrienv/pi-tidy-tools",
     "npm:@mobrienv/pi-tidy-subagents",

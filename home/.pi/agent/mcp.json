@@ -24,7 +24,7 @@
     },
     "freshservice": {
       "command": "mcp-remote",
-      "args": ["https://${FRESHSERVICE_DOMAIN}/mcp"]
+      "args": ["https://knox.freshservice.com/mcp"]
     },
     "linear": {
       "url": "https://mcp.linear.app/mcp",

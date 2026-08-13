@@ -3,6 +3,7 @@ import { guardCanonicalCheckout } from "./checkout";
 import { reconcilePackages } from "./packages";
 import { applyPiSettings, planPiClaudeBridgeSettings, planPiSettings } from "./pi";
 import { reconcilePiDependencies } from "./pi-dependencies";
+import { reconcilePiPackages } from "./pi-packages";
 import type { ProcessRunner } from "./process";
 import { validateSkillLinks } from "./skills";
 import { applyStowPlan, planStow } from "./stow";
@@ -71,6 +72,14 @@ export async function apply(options: {
 
     stage = "Pi dependency reconciliation";
     progress += await reconcilePiDependencies({ ...options, home });
+
+    stage = "Pi package reconciliation";
+    progress += await reconcilePiPackages({
+      checkoutRoot: options.checkoutRoot,
+      env: options.env,
+      home,
+      processes: options.processes,
+    });
     return progress;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -61,6 +61,22 @@ async function makeFixture(): Promise<{
       2
     )}\n`
   );
+  await mkdir(join(home, ".pi/agent/npm"), { recursive: true });
+  await writeFile(
+    join(home, ".pi/agent/npm/package.json"),
+    `${JSON.stringify(
+      {
+        dependencies: {
+          "@mobrienv/pi-tidy-tools": "^0.4.1",
+          "pi-claude-bridge": "^0.7.0",
+        },
+        name: "pi-extensions",
+        private: true,
+      },
+      null,
+      2
+    )}\n`
+  );
   await run(["git", "init", "--initial-branch=main"], checkout);
   await run(["git", "config", "user.name", "Dot Tests"], checkout);
   await run(["git", "config", "user.email", "dot@example.test"], checkout);
@@ -301,7 +317,7 @@ describe("dot apply Pi settings", () => {
       exitCode: 0,
       stderr: "",
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings synced\nPi dependency workspace not tracked (skipped)\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
       defaultModel: "claude-opus-4-8",
@@ -328,7 +344,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings synced\nPi dependency workspace not tracked (skipped)\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     const first = await lstat(settingsPath);
     const firstBridgeSettings = await lstat(bridgeSettingsPath);
@@ -348,7 +364,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings already current\nPi Claude Bridge settings already current\nPi dependency workspace not tracked (skipped)\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings already current\nPi Claude Bridge settings already current\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     const second = await lstat(settingsPath);
     const secondBridgeSettings = await lstat(bridgeSettingsPath);
@@ -367,7 +383,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings already current\nPi dependency workspace not tracked (skipped)\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings already current\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
   });

@@ -1,5 +1,6 @@
 import { reconcileGlobalBunPackages } from "./bun-global";
 import { guardCanonicalCheckout } from "./checkout";
+import { applyClaudeSettings, planClaudeSettings } from "./claude";
 import { reconcilePackages } from "./packages";
 import { applyPiSettings, planPiClaudeBridgeSettings, planPiSettings } from "./pi";
 import { reconcilePiDependencies } from "./pi-dependencies";
@@ -37,6 +38,7 @@ export async function apply(options: {
     await Promise.all([
       planPiSettings({ checkoutRoot: options.checkoutRoot, home }),
       planPiClaudeBridgeSettings({ checkoutRoot: options.checkoutRoot, home }),
+      planClaudeSettings({ checkoutRoot: options.checkoutRoot, home }),
     ]);
 
     stage = "skill-link validation";
@@ -63,12 +65,21 @@ export async function apply(options: {
       checkoutRoot: options.checkoutRoot,
       home,
     });
-    const [changed, bridgeChanged] = await Promise.all([
+    const claudeSettings = await planClaudeSettings({
+      checkoutRoot: options.checkoutRoot,
+      home,
+    });
+
+    const [changed, bridgeChanged, claudeChanged] = await Promise.all([
       applyPiSettings(piSettings),
       applyPiSettings(piClaudeBridgeSettings),
+      applyClaudeSettings(claudeSettings),
     ]);
     progress += `${changed ? "Pi settings synced" : "Pi settings already current"}\n`;
     progress += `${bridgeChanged ? "Pi Claude Bridge settings synced" : "Pi Claude Bridge settings already current"}\n`;
+    if (claudeSettings.tracked) {
+      progress += `${claudeChanged ? "Claude settings synced" : "Claude settings already current"}\n`;
+    }
 
     stage = "Pi dependency reconciliation";
     progress += await reconcilePiDependencies({ ...options, home });

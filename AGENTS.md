@@ -40,6 +40,8 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 | Git alias | `home/.config/git/config` [alias] section |
 | Starship prompt | `home/.config/starship.toml` |
 | Pi extension | `home/.pi/agent/extensions/<name>/` |
+| Shared output style | `home/.claude/output-styles/Attention-kind.md` |
+| Claude Code default style | `home/.claude/settings.defaults.json` |
 | Lint/format rules | `biome.jsonc` at repo root |
 | Pi skill (canonical) | `home/.agents/skills/<name>/SKILL.md` |
 | Work git identity | Auto via `home/.config/git/work_config` for `~/Code/work/` |
@@ -86,6 +88,8 @@ bun run --cwd tools/dot check  # Typecheck + tests
 | Git | `config` | SSH signing, `pull.rebase`, conditional include |
 | Starship | `starship.toml` | 2s timeout (Vite+ shims) |
 | Pi | `config/pi/settings.defaults.json` / `home/.pi/agent/model-families.json` | Tracked package/theme defaults sync to private runtime settings; role-routed model families |
+| Shared output style | `home/.claude/output-styles/Attention-kind.md` | Loaded by Pi extension and Claude Code; canonical Attention-kind body |
+| Claude Code | `home/.claude/settings.defaults.json` | Default `outputStyle` synced to `~/.claude/settings.json` |
 
 ## UNIQUE STYLES
 

@@ -177,6 +177,33 @@ skills are hand-authored under `home/.agents/skills/`. Pi-only skills live under
 See `docs/skills-maintenance.md` and `docs/agent-workflow.md` for maintenance and
 workflow details.
 
+## Shared output style
+
+This repository owns one output style used by both Pi and Claude Code:
+**Attention-kind**, from [alexgreensh/attention-span](https://github.com/alexgreensh/attention-span).
+The style is answer-first, plain-English, short by default, and formatted for scanning.
+
+- **Claude Code**: the style is published as a native output style in
+  `~/.claude/output-styles/Attention-kind.md`. `dot apply` defaults it on by
+  merging `home/.claude/settings.defaults.json` into `~/.claude/settings.json`:
+
+  ```json
+  {
+    "outputStyle": "Attention-kind"
+  }
+  ```
+
+  Runtime changes to `outputStyle` win, so you can switch to "Rundown" or
+  "Spartan" for a specific session without `dot apply` fighting you.
+
+- **Pi**: the `output-style` extension in `~/.pi/agent/extensions/output-style/`
+  loads the same Attention-kind body from `~/.claude/output-styles/Attention-kind.md`,
+  strips the YAML frontmatter, and prepends it to every system prompt. It is
+  always on once the extension is loaded.
+
+The canonical style text lives in one place (`home/.claude/output-styles/Attention-kind.md`),
+so both harnesses stay in sync.
+
 ## Pi private runtime state
 
 `~/.pi/agent/settings.json` is a private regular file rather than a Stow link.

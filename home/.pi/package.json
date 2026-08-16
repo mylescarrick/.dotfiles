@@ -8,7 +8,7 @@
     "packages/*/extensions/*"
   ],
   "scripts": {
-    "check": "bun run --cwd agent/extensions/opencode-cloudflare check && bun run --cwd packages/pi-model-families/extensions/model-families check && bun run --cwd agent/extensions/save-md check && bun run --cwd agent/extensions/web-tools check",
+    "check": "bun run --cwd agent/extensions/opencode-cloudflare check && bun run --cwd packages/pi-model-families/extensions/model-families check && bun run --cwd agent/extensions/save-md check && bun run --cwd agent/extensions/web-tools check && bun run --cwd agent/extensions/output-style check",
     "pack:pi-packages": "mkdir -p out && bun run --cwd packages/pi-model-families/extensions/model-families check && (cd packages/pi-model-families && bun pm pack --destination ../../out)",
     "publish:pi-model-families": "bun run --cwd packages/pi-model-families/extensions/model-families check && (cd packages/pi-model-families && bun publish --access public)",
     "publish:pi-packages": "bun run publish:pi-model-families",

@@ -69,7 +69,16 @@ export default function saveMarkdownExtension(pi: ExtensionAPI) {
         throw error;
       }
 
-      ctx.ui.notify(`Saved Markdown to ${path}`, "info");
+      const message = `Saved Markdown to ${path}`;
+      pi.sendMessage(
+        {
+          content: message,
+          customType: "save-md",
+          display: true,
+        },
+        { deliverAs: "nextTurn" }
+      );
+      ctx.ui.notify(message, "info");
     },
   });
 }

@@ -135,6 +135,44 @@
         }
       }
     },
+    "cf-deep": {
+      "description": "Cache-stable Cloudflare Workers AI DeepSeek V4 defaults: Pro medium for every automatic role. Flash low is an explicit persistent budget target only.",
+      "roles": {
+        "research": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/deepseek-ai/deepseek-v4-pro-0813",
+          "thinkingLevel": "medium"
+        },
+        "architecture": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/deepseek-ai/deepseek-v4-pro-0813",
+          "thinkingLevel": "medium"
+        },
+        "planning": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/deepseek-ai/deepseek-v4-pro-0813",
+          "thinkingLevel": "medium"
+        },
+        "delivery": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/deepseek-ai/deepseek-v4-pro-0813",
+          "thinkingLevel": "medium"
+        },
+        "verification": {
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/deepseek-ai/deepseek-v4-pro-0813",
+          "thinkingLevel": "medium"
+        }
+      },
+      "manualTargets": {
+        "flash": {
+          "description": "Explicit low-cost bounded work via DeepSeek V4 Flash; stays locked until /mf auto.",
+          "provider": "cloudflare-workers-ai",
+          "model": "@cf/deepseek-ai/deepseek-v4-flash-0731",
+          "thinkingLevel": "low"
+        }
+      }
+    },
     "cf-gh-56": {
       "description": "Cloudflare Kimi K2.7 Code for normal work; GitHub Copilot GPT-5.6 Terra/Luna for deliberate escalation or budget targets.",
       "roles": {

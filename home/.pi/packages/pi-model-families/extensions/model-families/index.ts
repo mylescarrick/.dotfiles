@@ -225,12 +225,10 @@ function envPlaceholders(value: string | undefined): string[] {
   return [...names].filter(Boolean);
 }
 
-export function missingEnvPlaceholders(model: RegistryModel, ctx: ExtensionContext): string[] {
-  const authStorageWithProviderEnv = ctx.modelRegistry.authStorage as
-    | { getProviderEnv?: (provider: string) => Record<string, string> | undefined }
-    | undefined;
-  const providerEnv = authStorageWithProviderEnv?.getProviderEnv?.(model.provider) ?? {};
-  return envPlaceholders(model.baseUrl).filter((name) => !(process.env[name] || providerEnv[name]));
+export function missingEnvPlaceholders(model: RegistryModel, _ctx: ExtensionContext): string[] {
+  // Provider-scoped env overrides are resolved by the registry at request time;
+  // audit surfaces only placeholders missing from the ambient process environment.
+  return envPlaceholders(model.baseUrl).filter((name) => !process.env[name]);
 }
 
 function formatModelLine(model: RegistryModel, ctx: ExtensionContext): string {

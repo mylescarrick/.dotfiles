@@ -90,6 +90,8 @@ async function makeFixture(): Promise<{
   await chmod(join(fakeBin, "brew"), 0o755);
   await writeFile(join(fakeBin, "pi"), "#!/bin/sh\nexit 0\n");
   await chmod(join(fakeBin, "pi"), 0o755);
+  await writeFile(join(fakeBin, "bun"), "#!/bin/sh\nexit 0\n");
+  await chmod(join(fakeBin, "bun"), 0o755);
 
   return {
     checkout,
@@ -138,11 +140,12 @@ describe("dot apply Pi settings", () => {
     expect(outcome.exitCode).toBe(0);
     const upgrades = processes.requests
       .map((request) => request.argv)
-      .filter((argv) => argv[0] === "brew" || argv[0] === "pi");
+      .filter((argv) => argv[0] === "brew" || argv[0] === "bun" || argv[0] === "pi");
     expect(upgrades).toEqual([
       ["brew", "bundle", "check", "--no-upgrade", "--file", join(fixture.checkout, "packages/bundle")],
       ["brew", "update"],
       ["brew", "upgrade"],
+      ["bun", "upgrade"],
       ["pi", "update", "--all"],
     ]);
   });
@@ -212,12 +215,15 @@ describe("dot apply Pi settings", () => {
     expect(
       processes.requests
         .map((request) => request.argv)
-        .filter((argv) => argv[0] === "brew" || argv[0] === "pi")
+        .filter((argv) => argv[0] === "brew" || argv[0] === "bun" || argv[0] === "pi")
     ).toEqual([
       ["brew", "bundle", "check", "--no-upgrade", "--file", join(fixture.checkout, "packages/bundle")],
+      ["bun", "upgrade"],
       ["pi", "update", "--all"],
     ]);
-    expect(outcome.stdout).toEndWith("Homebrew upgrade skipped\nPi and configured packages updated\n");
+    expect(outcome.stdout).toEndWith(
+      "Homebrew upgrade skipped\nBun runtime upgraded\nPi and configured packages updated\n"
+    );
   });
 
   test("refuses noninteractive upgrade before subprocesses without --yes", async () => {

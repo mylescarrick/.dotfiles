@@ -69,6 +69,18 @@ export async function upgrade(options: {
     progress += "Homebrew upgrade skipped\n";
   }
 
+  const bun = await options.processes.run({
+    argv: ["bun", "upgrade"],
+    cwd: options.checkoutRoot,
+    env: options.env,
+    output: "inherit",
+  });
+  if (bun.exitCode !== 0) {
+    const message = "Bun runtime upgrade failed";
+    throw new UpgradeFailure(message, `${progress}FAILED Bun runtime upgrade: ${message}\n`);
+  }
+  progress += "Bun runtime upgraded\n";
+
   const pi = await options.processes.run({
     argv: ["pi", "update", "--all"],
     cwd: options.checkoutRoot,

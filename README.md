@@ -57,7 +57,7 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 | `dot init` | Bootstrap a new machine, apply desired state, then diagnose it |
 | `dot apply [--yes]` | Reconcile the canonical checked-out state into the machine |
 | `dot update [--yes]` | Strictly fast-forward canonical `main`, re-exec, then apply |
-| `dot upgrade [--yes]` | Update, optionally upgrade Homebrew, then update Pi and its packages |
+| `dot upgrade [--yes]` | Update, optionally upgrade Homebrew, upgrade Bun itself, then update Pi and its packages |
 | `dot doctor` | Inspect repository-owned state without network access or repair |
 | `dot package add NAME [--cask]` | Record sorted Brewfile state, then install it |
 | `dot package remove NAME` | Remove desired Brewfile state without uninstalling |

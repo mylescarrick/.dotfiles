@@ -37,8 +37,8 @@ export type PublicWebError =
   | { readonly _tag: "ResponseTooLarge"; readonly maxBytes: number };
 
 export interface PublicWebClient {
-  get(
+  get: (
     request: PublicWebRequest,
     options?: { readonly signal?: AbortSignal }
-  ): Promise<Result<PublicWebResponse, PublicWebError>>;
+  ) => Promise<Result<PublicWebResponse, PublicWebError>>;
 }

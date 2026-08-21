@@ -1,7 +1,7 @@
 import type { FrontmatterDocument } from "../types.ts";
 
 export interface FrontmatterCodec {
-  parse(raw: string): FrontmatterDocument;
+  parse: (raw: string) => FrontmatterDocument;
 }
 
 export class SimpleFrontmatterCodec implements FrontmatterCodec {

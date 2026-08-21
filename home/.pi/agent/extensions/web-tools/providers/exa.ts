@@ -40,10 +40,10 @@ export type HttpClientError =
   | { readonly _tag: "HttpCancelled"; readonly cause?: unknown };
 
 export interface HttpTextClient {
-  postJson(
+  postJson: (
     request: HttpJsonRequest,
     options?: { readonly signal?: AbortSignal }
-  ): Promise<Result<HttpTextResponse, HttpClientError>>;
+  ) => Promise<Result<HttpTextResponse, HttpClientError>>;
 }
 
 export class FetchHttpTextClient implements HttpTextClient {

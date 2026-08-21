@@ -42,7 +42,7 @@ export function parseWebSearchToolParams(
     }
   }
 
-  const queryValue = raw["query"];
+  const queryValue = raw.query;
   if (typeof queryValue !== "string") {
     return err({ _tag: "InvalidToolField", field: "query", message: "Expected a string" });
   }
@@ -52,7 +52,7 @@ export function parseWebSearchToolParams(
     return query;
   }
 
-  const maxResultsValue = raw["maxResults"];
+  const maxResultsValue = raw.maxResults;
   let maxResults = clampInteger(settings.defaultMaxResults, {
     fallback: SEARCH_MAX_RESULTS.default,
     max: SEARCH_MAX_RESULTS.max,
@@ -69,7 +69,7 @@ export function parseWebSearchToolParams(
     });
   }
 
-  const depthValue = raw["depth"];
+  const depthValue = raw.depth;
   let depth = settings.defaultDepth;
   if (depthValue !== undefined) {
     if (typeof depthValue !== "string" || !isSearchDepth(depthValue)) {

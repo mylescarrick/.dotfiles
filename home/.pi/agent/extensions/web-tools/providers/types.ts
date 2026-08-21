@@ -45,10 +45,10 @@ export type SearchProviderError =
 export interface SearchProvider {
   readonly name: SearchProviderName;
 
-  search(
+  search: (
     input: SearchProviderRequest,
     options?: { readonly signal?: AbortSignal }
-  ): Promise<Result<readonly NormalizedSearchResult[], SearchProviderError>>;
+  ) => Promise<Result<readonly NormalizedSearchResult[], SearchProviderError>>;
 }
 
 export type SearchRequest = SearchProviderRequest;

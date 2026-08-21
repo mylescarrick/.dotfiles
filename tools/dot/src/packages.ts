@@ -23,11 +23,10 @@ function homebrewEnvironment(
 
 async function bundlePath(checkoutRoot: string): Promise<string> {
   const bundle = join(checkoutRoot, "packages/bundle");
-  try {
-    if (!(await lstat(bundle)).isFile()) throw new Error();
-  } catch {
-    throw new Error(`Brewfile is missing at ${bundle}`);
-  }
+  const stats = await lstat(bundle).catch((error: unknown) => {
+    throw new Error(`Brewfile is missing at ${bundle}`, { cause: error });
+  });
+  if (!stats.isFile()) throw new Error(`Brewfile is missing at ${bundle}`);
   return bundle;
 }
 
@@ -36,16 +35,15 @@ async function checkPackages(
   bundle: string,
   env: Readonly<Record<string, string | undefined>>
 ): Promise<boolean> {
-  let check;
-  try {
-    check = await options.processes.run({
+  const check = await options.processes
+    .run({
       argv: ["brew", "bundle", "check", "--no-upgrade", "--file", bundle],
       cwd: options.checkoutRoot,
       env,
+    })
+    .catch((error: unknown) => {
+      throw new Error("Homebrew is required; run 'dot init'", { cause: error });
     });
-  } catch {
-    throw new Error("Homebrew is required; run 'dot init'");
-  }
   return check.exitCode === 0;
 }
 

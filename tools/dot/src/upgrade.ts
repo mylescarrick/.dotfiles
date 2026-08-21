@@ -1,5 +1,6 @@
+import { warnWithoutAdminPrivileges } from "./admin";
 import { apply } from "./apply";
-import { repairStaleCasks } from "./packages";
+import { declaresCasks, repairStaleCasks } from "./packages";
 import type { ProcessRunner } from "./process";
 import type { Terminal } from "./terminal";
 
@@ -21,6 +22,16 @@ export async function upgrade(options: {
 }): Promise<string> {
   if (!(options.acceptAll || options.terminal.interactive)) {
     throw new Error("dot upgrade requires an interactive terminal or --yes");
+  }
+
+  // Warn before any work so there is still time to elevate and re-run.
+  if (await declaresCasks({ checkoutRoot: options.checkoutRoot })) {
+    await warnWithoutAdminPrivileges({
+      checkoutRoot: options.checkoutRoot,
+      env: options.env,
+      processes: options.processes,
+      terminal: options.terminal,
+    });
   }
 
   let progress = await apply({

@@ -54,6 +54,12 @@ export async function inspectPackages(options: PackageOptions): Promise<boolean>
   return checkPackages(options, bundle, homebrewEnvironment(options.env));
 }
 
+/** Whether the declared Brewfile contains any cask, i.e. whether this checkout needs admin rights to converge. */
+export async function declaresCasks(options: Pick<PackageOptions, "checkoutRoot">): Promise<boolean> {
+  const bundle = await bundlePath(options.checkoutRoot);
+  return (await bundleCaskTokens(bundle)).length > 0;
+}
+
 async function bundleCaskTokens(bundle: string): Promise<readonly string[]> {
   const content = await readFile(bundle, "utf8");
   const tokens: string[] = [];

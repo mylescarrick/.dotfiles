@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findStaleCasks, reconcilePackages, repairStaleCasks } from "../src/packages";
+import { declaresCasks, findStaleCasks, reconcilePackages, repairStaleCasks } from "../src/packages";
 import type { ProcessRequest, ProcessResult, ProcessRunner } from "../src/process";
 
 const temporaryDirectories: string[] = [];
@@ -124,12 +124,22 @@ describe("stale cask detection", () => {
     ]);
   });
 
+  test("declaresCasks distinguishes a cask-bearing Brewfile from a formula-only one", async () => {
+    const { checkout } = await caskFixture(true);
+    expect(await declaresCasks({ checkoutRoot: checkout })).toBe(true);
+
+    const formulaOnly = await checkoutFixture();
+    expect(await declaresCasks({ checkoutRoot: formulaOnly })).toBe(false);
+  });
+
   test("repairStaleCasks reports nothing to do when every cask is current", async () => {
     const { checkout, target } = await caskFixture(true);
     const processes = new RecordingProcesses([
       { exitCode: 0, stderr: "", stdout: JSON.stringify({ casks: [{ artifacts: [{ target }] }] }) },
     ]);
 
-    expect(await repairStaleCasks({ checkoutRoot: checkout, env: {}, processes })).toBe("No stale casks found\n");
+    expect(await repairStaleCasks({ checkoutRoot: checkout, env: {}, processes })).toBe(
+      "No stale casks found\n"
+    );
   });
 });

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { reconcilePackages } from "../src/packages";
+import { findStaleCasks, reconcilePackages, repairStaleCasks } from "../src/packages";
 import type { ProcessRequest, ProcessResult, ProcessRunner } from "../src/process";
 
 const temporaryDirectories: string[] = [];
@@ -76,5 +76,60 @@ describe("package reconciliation", () => {
       "Brewfile is missing"
     );
     expect(processes.requests).toHaveLength(0);
+  });
+});
+
+describe("stale cask detection", () => {
+  async function caskFixture(targetExists: boolean): Promise<{ checkout: string; target: string }> {
+    const checkout = await mkdtemp(join(tmpdir(), "dot-packages-cask-"));
+    temporaryDirectories.push(checkout);
+    await mkdir(join(checkout, "packages"));
+    const target = join(checkout, "Example.app");
+    await writeFile(join(checkout, "packages/bundle"), 'cask "example"\n');
+    if (targetExists) await writeFile(target, "present\n");
+    return { checkout, target };
+  }
+
+  test("treats a cask as current when its linked artifact still exists", async () => {
+    const { checkout, target } = await caskFixture(true);
+    const processes = new RecordingProcesses([
+      { exitCode: 0, stderr: "", stdout: JSON.stringify({ casks: [{ artifacts: [{ target }] }] }) },
+    ]);
+
+    expect(await findStaleCasks({ checkoutRoot: checkout, env: {}, processes })).toEqual([]);
+  });
+
+  test("flags a cask whose linked artifact is gone from disk", async () => {
+    const { checkout, target } = await caskFixture(false);
+    const processes = new RecordingProcesses([
+      { exitCode: 0, stderr: "", stdout: JSON.stringify({ casks: [{ artifacts: [{ target }] }] }) },
+    ]);
+
+    expect(await findStaleCasks({ checkoutRoot: checkout, env: {}, processes })).toEqual(["example"]);
+  });
+
+  test("repairStaleCasks reinstalls only the stale casks it finds", async () => {
+    const { checkout, target } = await caskFixture(false);
+    const processes = new RecordingProcesses([
+      { exitCode: 0, stderr: "", stdout: JSON.stringify({ casks: [{ artifacts: [{ target }] }] }) },
+      { exitCode: 0, stderr: "", stdout: "" },
+    ]);
+
+    expect(await repairStaleCasks({ checkoutRoot: checkout, env: {}, processes })).toBe(
+      "Reinstalled stale casks: example\n"
+    );
+    expect(processes.requests.map((request) => request.argv)).toEqual([
+      ["brew", "info", "--cask", "example", "--json=v2"],
+      ["brew", "reinstall", "--cask", "example"],
+    ]);
+  });
+
+  test("repairStaleCasks reports nothing to do when every cask is current", async () => {
+    const { checkout, target } = await caskFixture(true);
+    const processes = new RecordingProcesses([
+      { exitCode: 0, stderr: "", stdout: JSON.stringify({ casks: [{ artifacts: [{ target }] }] }) },
+    ]);
+
+    expect(await repairStaleCasks({ checkoutRoot: checkout, env: {}, processes })).toBe("No stale casks found\n");
   });
 });

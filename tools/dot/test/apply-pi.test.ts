@@ -222,7 +222,7 @@ describe("dot apply Pi settings", () => {
       ["pi", "update", "--all"],
     ]);
     expect(outcome.stdout).toEndWith(
-      "Homebrew upgrade skipped\nBun runtime upgraded\nPi and configured packages updated\n"
+      "Homebrew upgrade skipped\nNo stale casks found\nBun runtime upgraded\nPi and configured packages updated\n"
     );
   });
 

@@ -1,4 +1,5 @@
 import { apply } from "./apply";
+import { repairStaleCasks } from "./packages";
 import type { ProcessRunner } from "./process";
 import type { Terminal } from "./terminal";
 
@@ -67,6 +68,17 @@ export async function upgrade(options: {
     progress += "Homebrew packages upgraded\n";
   } else {
     progress += "Homebrew upgrade skipped\n";
+  }
+
+  try {
+    progress += await repairStaleCasks({
+      checkoutRoot: options.checkoutRoot,
+      env: options.env,
+      processes: options.processes,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new UpgradeFailure(message, `${progress}FAILED cask repair: ${message}\n`);
   }
 
   const bun = await options.processes.run({

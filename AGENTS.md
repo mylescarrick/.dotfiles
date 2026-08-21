@@ -70,7 +70,7 @@ bun run format        # Apply safe lint + format fixes
 dot init              # Interactive bootstrap → apply → doctor
 dot apply [--yes]     # Reconcile canonical checked-out desired state
 dot update [--yes]    # Strict origin/main fast-forward → re-exec → apply
-dot upgrade [--yes]   # Update → optional Homebrew upgrade → Bun self-upgrade → Pi update --all
+dot upgrade [--yes]   # Update → optional Homebrew upgrade → stale cask repair → Bun self-upgrade → Pi update --all
 dot doctor            # Network-free repository-owned health report
 dot package add X     # Record + install formula (use --cask explicitly)
 dot package remove X  # Remove desired state only

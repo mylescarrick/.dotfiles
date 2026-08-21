@@ -39,7 +39,7 @@ USAGE
 COMMANDS
   apply                 Apply the checked-out desired state
   update                Refresh origin/main, then apply
-  upgrade               Update, then upgrade Bun, Homebrew, and Pi
+  upgrade               Update, then upgrade Bun, Homebrew, and Pi (repairs stale casks)
   doctor                Inspect managed state without changing it
   init                  Bootstrap a new machine, then apply
   package add/remove    Edit the Brewfile

@@ -48,7 +48,7 @@ interface ApplicationDependencies {
 const commands: readonly CommandDescription[] = [
   { summary: "Apply the checked-out desired state", usage: "apply" },
   { summary: "Refresh origin/main, then apply", usage: "update" },
-  { summary: "Update, then upgrade Bun, Homebrew, and Pi", usage: "upgrade" },
+  { summary: "Update, then upgrade Bun, Homebrew, and Pi (repairs stale casks)", usage: "upgrade" },
   { summary: "Inspect managed state without changing it", usage: "doctor" },
   { summary: "Bootstrap a new machine, then apply", usage: "init" },
   { summary: "Edit the Brewfile", usage: "package add/remove" },

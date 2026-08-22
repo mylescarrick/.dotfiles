@@ -42,6 +42,37 @@ interface RenderTheme {
   fg(name: string, value: string): string;
 }
 
+function renderFetchSummary(details: WebFetchDetails | undefined, theme: RenderTheme): string {
+  let text = theme.fg("success", "✓ Fetched");
+  if (details?.mime) text += theme.fg("muted", ` (${details.mime})`);
+  if (details?.bytes) text += theme.fg("dim", ` ${formatSize(details.bytes)}`);
+  if (details?.truncated) text += theme.fg("warning", " [truncated]");
+  if (details?.image) text += theme.fg("muted", " [image]");
+  return text;
+}
+
+/** Images get their URL rather than a text preview, since the body is not readable text. */
+function appendFetchExpansion(
+  text: string,
+  content: Array<{ type: string; text?: string }>,
+  details: WebFetchDetails | undefined,
+  theme: RenderTheme
+): string {
+  let expanded = text;
+  if (details?.image) {
+    expanded += `\n${theme.fg("dim", `Image URL: ${details.finalUrl}`)}`;
+  } else {
+    expanded = appendExpandedPreview(expanded, getTextContent(content), theme, {
+      maxColumns: 220,
+      maxLines: 12,
+    });
+  }
+  if (details?.fullOutputPath) {
+    expanded += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
+  }
+  return expanded;
+}
+
 type WebFetchBoundaryError =
   | ToolInputParseError
   | ParsePublicHttpUrlError
@@ -153,33 +184,9 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
       }
 
       const details = result.details;
-      let text = theme.fg("success", "✓ Fetched");
-      if (details?.mime) {
-        text += theme.fg("muted", ` (${details.mime})`);
-      }
-      if (details?.bytes) {
-        text += theme.fg("dim", ` ${formatSize(details.bytes)}`);
-      }
-      if (details?.truncated) {
-        text += theme.fg("warning", " [truncated]");
-      }
-      if (details?.image) {
-        text += theme.fg("muted", " [image]");
-      }
-      text = appendExpandHint(text, options.expanded);
-
+      let text = appendExpandHint(renderFetchSummary(details, theme), options.expanded);
       if (options.expanded) {
-        if (details?.image) {
-          text += `\n${theme.fg("dim", `Image URL: ${details.finalUrl}`)}`;
-        } else {
-          text = appendExpandedPreview(text, getTextContent(result.content), theme, {
-            maxColumns: 220,
-            maxLines: 12,
-          });
-        }
-        if (details?.fullOutputPath) {
-          text += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
-        }
+        text = appendFetchExpansion(text, result.content, details, theme);
       }
 
       return new Text(text, 0, 0);

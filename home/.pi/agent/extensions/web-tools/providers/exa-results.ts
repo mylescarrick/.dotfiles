@@ -65,76 +65,107 @@ function splitSearchSections(input: string): string[] {
   return sections.filter((section) => section.length > 0);
 }
 
-function parseSearchSection(section: string): NormalizedSearchResult | undefined {
-  const lines = section.split("\n");
-  let title = "";
-  let url = "";
-  let publishedAt: string | undefined;
-  let source: string | undefined;
-  let score: number | undefined;
+interface SectionFields {
+  publishedAt?: string;
+  score?: number;
+  source?: string;
+  title: string;
+  url: string;
+}
+
+/** Metadata lines Exa emits before the free-text body. Order matters: the first matching prefix wins. */
+const METADATA_HANDLERS: readonly {
+  readonly prefix: string;
+  readonly apply: (fields: SectionFields, value: string) => void;
+}[] = [
+  {
+    apply: (fields, value) => {
+      fields.title = value.trim();
+    },
+    prefix: "Title: ",
+  },
+  {
+    apply: (fields, value) => {
+      fields.url = value.trim();
+    },
+    prefix: "URL: ",
+  },
+  {
+    apply: (fields, value) => {
+      fields.publishedAt = normalizeMetadataValue(value);
+    },
+    prefix: "Published Date: ",
+  },
+  {
+    apply: (fields, value) => {
+      fields.publishedAt = normalizeMetadataValue(value);
+    },
+    prefix: "Published: ",
+  },
+  {
+    apply: (fields, value) => {
+      fields.source = normalizeMetadataValue(value);
+    },
+    prefix: "Source: ",
+  },
+  {
+    // Author is only a fallback for an absent explicit Source.
+    apply: (fields, value) => {
+      if (!fields.source) fields.source = normalizeMetadataValue(value);
+    },
+    prefix: "Author: ",
+  },
+  {
+    apply: (fields, value) => {
+      const parsed = Number.parseFloat(value.trim());
+      if (Number.isFinite(parsed)) fields.score = parsed;
+    },
+    prefix: "Score: ",
+  },
+];
+
+/** Once one of these appears, every remaining line is body text rather than metadata. */
+const BODY_PREFIXES = ["Text:", "Highlights:"] as const;
+
+function parseSectionLines(lines: readonly string[]): {
+  fields: SectionFields;
+  snippetLines: string[];
+} {
+  const fields: SectionFields = { title: "", url: "" };
   const snippetLines: string[] = [];
-  let inText = false;
+  let inBody = false;
 
   for (const line of lines) {
-    if (!inText && line.startsWith("Title: ")) {
-      title = line.slice("Title: ".length).trim();
-      continue;
-    }
-    if (!inText && line.startsWith("URL: ")) {
-      url = line.slice("URL: ".length).trim();
-      continue;
-    }
-    if (!inText && line.startsWith("Published Date: ")) {
-      publishedAt = normalizeMetadataValue(line.slice("Published Date: ".length));
-      continue;
-    }
-    if (!inText && line.startsWith("Published: ")) {
-      publishedAt = normalizeMetadataValue(line.slice("Published: ".length));
-      continue;
-    }
-    if (!inText && line.startsWith("Source: ")) {
-      source = normalizeMetadataValue(line.slice("Source: ".length));
-      continue;
-    }
-    if (!inText && line.startsWith("Author: ") && !source) {
-      source = normalizeMetadataValue(line.slice("Author: ".length));
-      continue;
-    }
-    if (!inText && line.startsWith("Score: ")) {
-      const parsedScore = Number.parseFloat(line.slice("Score: ".length).trim());
-      if (Number.isFinite(parsedScore)) score = parsedScore;
-      continue;
-    }
-    if (!inText && line.startsWith("Text:")) {
-      inText = true;
-      snippetLines.push(line.slice("Text:".length).trim());
-      continue;
-    }
-    if (!inText && line.startsWith("Highlights:")) {
-      inText = true;
-      snippetLines.push(line.slice("Highlights:".length).trim());
-      continue;
-    }
-    if (inText) {
+    if (inBody) {
       snippetLines.push(line);
+      continue;
     }
+    const bodyPrefix = BODY_PREFIXES.find((prefix) => line.startsWith(prefix));
+    if (bodyPrefix) {
+      inBody = true;
+      snippetLines.push(line.slice(bodyPrefix.length).trim());
+      continue;
+    }
+    const handler = METADATA_HANDLERS.find((entry) => line.startsWith(entry.prefix));
+    if (handler) handler.apply(fields, line.slice(handler.prefix.length));
   }
 
-  if (!url) {
-    return undefined;
-  }
+  return { fields, snippetLines };
+}
 
-  const parsedUrl = parsePublicHttpUrl(url);
-  if (parsedUrl._tag === "err") {
-    return undefined;
-  }
+function parseSearchSection(section: string): NormalizedSearchResult | undefined {
+  const { fields, snippetLines } = parseSectionLines(section.split("\n"));
+  if (!fields.url) return undefined;
+
+  const parsedUrl = parsePublicHttpUrl(fields.url);
+  if (parsedUrl._tag === "err") return undefined;
 
   return {
-    publishedAt,
-    score,
-    snippet: summarizeSnippet(snippetLines.join("\n"), title),
-    source,
-    title: title || parsedUrl.value,
+    publishedAt: fields.publishedAt,
+    score: fields.score,
+    snippet: summarizeSnippet(snippetLines.join("\n"), fields.title),
+    source: fields.source,
+    title: fields.title || parsedUrl.value,
     url: parsedUrl.value,
   };
 }

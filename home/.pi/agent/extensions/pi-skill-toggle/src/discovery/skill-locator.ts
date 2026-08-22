@@ -5,7 +5,7 @@ import type { LocatedSkillFile, SkillSource } from "../types.ts";
 import { getSkillRoots } from "./pi-paths.ts";
 
 export interface SkillLocator {
-  findSkillFiles(cwd: string): Promise<LocatedSkillFile[]>;
+  findSkillFiles: (cwd: string) => Promise<LocatedSkillFile[]>;
 }
 
 export class DefaultSkillLocator implements SkillLocator {

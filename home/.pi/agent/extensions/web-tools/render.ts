@@ -1,4 +1,4 @@
-import { keyHint } from "@earendil-works/pi-coding-agent";
+import { type AppKeybinding, keyHint } from "@earendil-works/pi-coding-agent";
 
 export function getTextContent(content: Array<{ type: string; text?: string }> | undefined): string {
   if (!content) return "";
@@ -21,16 +21,17 @@ export function appendExpandedPreview(
   const maxLines = options.maxLines ?? 12;
   const maxColumns = options.maxColumns ?? 200;
   const lines = text.split("\n");
+  let result = base;
   for (const line of lines.slice(0, maxLines)) {
-    base += `\n${theme.fg("dim", line.slice(0, maxColumns))}`;
+    result += `\n${theme.fg("dim", line.slice(0, maxColumns))}`;
   }
   if (lines.length > maxLines) {
-    base += `\n${theme.fg("muted", "...")}`;
+    result += `\n${theme.fg("muted", "...")}`;
   }
-  return base;
+  return result;
 }
 
 export function appendExpandHint(base: string, expanded: boolean): string {
   if (expanded) return base;
-  return `${base} ${keyHint("app.tools.expand" as any, "for details")}`;
+  return `${base} ${keyHint("app.tools.expand" satisfies AppKeybinding, "for details")}`;
 }

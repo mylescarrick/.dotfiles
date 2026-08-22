@@ -99,7 +99,7 @@ export async function fetchWithRedirects(
   let currentUrl = initialUrl;
   let redirects = 0;
 
-  while (true) {
+  for (;;) {
     assertUrlHasNoCredentials(currentUrl);
     if (options.blockPrivateHosts) {
       await assertPublicUrl(currentUrl);
@@ -124,8 +124,8 @@ export async function fetchWithRedirects(
       let nextUrl: URL;
       try {
         nextUrl = new URL(location, currentUrl);
-      } catch {
-        throw new Error("Redirect response had an invalid Location header");
+      } catch (error) {
+        throw new Error("Redirect response had an invalid Location header", { cause: error });
       }
       if (nextUrl.protocol !== "http:" && nextUrl.protocol !== "https:") {
         throw new Error("Redirected to unsupported protocol");
@@ -154,7 +154,7 @@ export async function readBodyWithLimit(
   let bytes = 0;
 
   try {
-    while (true) {
+    for (;;) {
       if (signal?.aborted) {
         await reader.cancel(signal.reason).catch(() => undefined);
         throw signal.reason instanceof Error ? signal.reason : new Error("Operation cancelled");
@@ -289,39 +289,36 @@ function renderSafeUrlParseError(error: ParsePublicHttpUrlError): string {
   }
 }
 
+/** RFC1918 private ranges, loopback, link-local, and CGNAT. */
+function isPrivateIpv4(ip: string): boolean {
+  const [a, b] = ip.split(".").map((part) => Number.parseInt(part, 10));
+  if (a === 10 || a === 127 || a === 0) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  return a === 100 && b >= 64 && b <= 127;
+}
+
+/** Loopback/unspecified, unique-local (fc00::/7), and link-local (fe80::/10). */
+function isPrivateIpv6(ip: string): boolean {
+  if (ip === "::1" || ip === "::") return true;
+  if (ip.startsWith("fc") || ip.startsWith("fd")) return true;
+  return /^fe[89ab]/.test(ip);
+}
+
 export function isPrivateOrLocalIp(input: string): boolean {
   const ip = normalizeIpLiteral(input);
   if (!ip) return false;
 
   const mappedIpv4 = parseIpv4MappedIpv6Address(ip);
-  if (mappedIpv4) {
-    return isPrivateOrLocalIp(mappedIpv4);
-  }
+  if (mappedIpv4) return isPrivateOrLocalIp(mappedIpv4);
 
   const compatibleIpv4 = parseIpv4CompatibleIpv6Address(ip);
-  if (compatibleIpv4) {
-    return isPrivateOrLocalIp(compatibleIpv4);
-  }
+  if (compatibleIpv4) return isPrivateOrLocalIp(compatibleIpv4);
 
   const version = isIP(ip);
-  if (version === 4) {
-    const octets = ip.split(".").map((part) => Number.parseInt(part, 10));
-    const [a, b] = octets;
-    if (a === 10) return true;
-    if (a === 127) return true;
-    if (a === 0) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 100 && b >= 64 && b <= 127) return true;
-    return false;
-  }
-  if (version === 6) {
-    if (ip === "::1" || ip === "::") return true;
-    if (ip.startsWith("fc") || ip.startsWith("fd")) return true;
-    if (/^fe[89ab]/.test(ip)) return true;
-    return false;
-  }
+  if (version === 4) return isPrivateIpv4(ip);
+  if (version === 6) return isPrivateIpv6(ip);
   return false;
 }
 
@@ -453,6 +450,55 @@ export class FetchPublicWebClient implements PublicWebClient {
   }
 }
 
+async function performRequest(
+  request: PublicWebRequest,
+  currentUrl: URL,
+  userAgent: string,
+  signal?: AbortSignal
+): Promise<Result<Response, PublicWebError>> {
+  try {
+    return ok(
+      await fetch(currentUrl, {
+        headers: createPublicWebHeaders(request.accept, userAgent),
+        method: "GET",
+        redirect: "manual",
+        signal,
+      })
+    );
+  } catch (cause: unknown) {
+    if (signal?.aborted || isAbortError(cause)) {
+      return err(signal ? classifySignalAbort(signal, cause) : { _tag: "PublicWebCancelled", cause });
+    }
+    return err({ _tag: "PublicWebRequestFailed", cause });
+  }
+}
+
+/** Validates a redirect response and resolves the next URL to fetch. */
+function resolveRedirectTarget(
+  request: PublicWebRequest,
+  response: Response,
+  currentUrl: URL,
+  currentPublicUrl: PublicHttpUrl,
+  redirects: number
+): Result<URL, PublicWebError> {
+  const location = response.headers.get("location");
+  if (!location) return err({ _tag: "RedirectLocationMissing", url: currentPublicUrl });
+  if (redirects >= request.maxRedirects) {
+    return err({ _tag: "RedirectLimitExceeded", maxRedirects: request.maxRedirects, url: request.url });
+  }
+
+  let nextUrl: URL;
+  try {
+    nextUrl = new URL(location, currentUrl);
+  } catch {
+    return err({ _tag: "RedirectLocationInvalid" });
+  }
+  if (nextUrl.protocol !== "http:" && nextUrl.protocol !== "https:") {
+    return err({ _tag: "RedirectProtocolUnsupported", protocol: nextUrl.protocol });
+  }
+  return ok(nextUrl);
+}
+
 async function fetchWithUserAgent(
   request: PublicWebRequest,
   userAgent: string,
@@ -461,62 +507,30 @@ async function fetchWithUserAgent(
   let currentUrl = new URL(request.url);
   let redirects = 0;
 
-  while (true) {
-    if (signal?.aborted) {
-      return err(classifySignalAbort(signal));
-    }
+  for (;;) {
+    if (signal?.aborted) return err(classifySignalAbort(signal));
 
     const currentPublicUrl = publicHttpUrlFromUrl(currentUrl);
-    if (currentPublicUrl._tag === "err") {
-      return currentPublicUrl;
-    }
+    if (currentPublicUrl._tag === "err") return currentPublicUrl;
 
     if (request.blockPrivateHosts) {
       const publicCheck = await checkPublicUrl(currentUrl, currentPublicUrl.value);
-      if (publicCheck._tag === "err") {
-        return publicCheck;
-      }
+      if (publicCheck._tag === "err") return publicCheck;
     }
 
-    let response: Response;
-    try {
-      response = await fetch(currentUrl, {
-        headers: createPublicWebHeaders(request.accept, userAgent),
-        method: "GET",
-        redirect: "manual",
-        signal,
-      });
-    } catch (cause: unknown) {
-      if (signal?.aborted || isAbortError(cause)) {
-        return err(signal ? classifySignalAbort(signal, cause) : { _tag: "PublicWebCancelled", cause });
-      }
-      return err({ _tag: "PublicWebRequestFailed", cause });
-    }
+    const attempt = await performRequest(request, currentUrl, userAgent, signal);
+    if (attempt._tag === "err") return attempt;
+    const response = attempt.value;
 
     if (!isRedirectStatus(response.status)) {
       return ok({ finalUrl: currentPublicUrl.value, response });
     }
 
     await response.body?.cancel().catch(() => undefined);
-    const location = response.headers.get("location");
-    if (!location) {
-      return err({ _tag: "RedirectLocationMissing", url: currentPublicUrl.value });
-    }
-    if (redirects >= request.maxRedirects) {
-      return err({ _tag: "RedirectLimitExceeded", maxRedirects: request.maxRedirects, url: request.url });
-    }
+    const next = resolveRedirectTarget(request, response, currentUrl, currentPublicUrl.value, redirects);
+    if (next._tag === "err") return next;
 
-    let nextUrl: URL;
-    try {
-      nextUrl = new URL(location, currentUrl);
-    } catch {
-      return err({ _tag: "RedirectLocationInvalid" });
-    }
-    if (nextUrl.protocol !== "http:" && nextUrl.protocol !== "https:") {
-      return err({ _tag: "RedirectProtocolUnsupported", protocol: nextUrl.protocol });
-    }
-
-    currentUrl = nextUrl;
+    currentUrl = next.value;
     redirects += 1;
   }
 }

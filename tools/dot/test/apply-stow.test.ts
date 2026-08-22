@@ -244,6 +244,7 @@ describe("dot apply stow", () => {
     await writeFile(conflict, "live\n");
     const fakeBin = join(fixture.home, "fake-bin");
     await mkdir(fakeBin);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: this is a shell script body; ${1:-} is a shell parameter expansion, not a forgotten JS template literal
     await writeFile(join(fakeBin, "stow"), '#!/bin/sh\n[ "${1:-}" = "--version" ] && exit 0\nexit 1\n');
     await chmod(join(fakeBin, "stow"), 0o755);
 

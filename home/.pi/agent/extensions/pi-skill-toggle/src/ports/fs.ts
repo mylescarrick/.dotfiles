@@ -3,13 +3,13 @@ import fs from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 export interface FileSystem {
-  access(path: string, mode?: number): Promise<boolean>;
-  readdir(
+  access: (path: string, mode?: number) => Promise<boolean>;
+  readdir: (
     path: string
-  ): Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>>;
-  readFile(path: string): Promise<string>;
-  stat(path: string): Promise<{ isDirectory: boolean; isFile: boolean; mode: number }>;
-  writeFileAtomic(path: string, content: string): Promise<void>;
+  ) => Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>>;
+  readFile: (path: string) => Promise<string>;
+  stat: (path: string) => Promise<{ isDirectory: boolean; isFile: boolean; mode: number }>;
+  writeFileAtomic: (path: string, content: string) => Promise<void>;
 }
 
 export class NodeFileSystem implements FileSystem {

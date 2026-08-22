@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { Stats } from "node:fs";
 import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { ProcessRunner } from "./process";
@@ -6,6 +7,12 @@ import type { Terminal } from "./terminal";
 
 const STOW_IGNORE_REGEX = "node_modules|dist|out|coverage|logs|\\.cache|build|\\.DS_Store|\\.tsbuildinfo";
 const IGNORED_DIRECTORIES = new Set(["node_modules", "dist", "out", "coverage", "logs", ".cache", "build"]);
+
+function compareStrings(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
 
 interface FileSnapshot {
   readonly dev: number;
@@ -39,7 +46,7 @@ async function trackedPaths(root: string): Promise<string[]> {
     }
   }
   await visit(root, "");
-  return paths.sort();
+  return paths.sort(compareStrings);
 }
 
 async function sameFile(source: string, target: string): Promise<boolean> {
@@ -87,7 +94,7 @@ async function resolveConflict(options: {
   readonly cwd: string;
   readonly env: Readonly<Record<string, string | undefined>>;
 }): Promise<"backup" | "keep"> {
-  while (true) {
+  for (;;) {
     const difference = await options.processes.run({
       argv: ["diff", "-u", options.target, options.source],
       cwd: options.cwd,
@@ -112,11 +119,10 @@ export async function inspectStow(options: {
   readonly home: string;
 }): Promise<number> {
   const sourceRoot = join(options.checkoutRoot, "home");
-  try {
-    if (!(await lstat(sourceRoot)).isDirectory()) throw new Error();
-  } catch {
-    throw new Error(`tracked home package is missing at ${sourceRoot}`);
-  }
+  const sourceStats = await lstat(sourceRoot).catch((error: unknown) => {
+    throw new Error(`tracked home package is missing at ${sourceRoot}`, { cause: error });
+  });
+  if (!sourceStats.isDirectory()) throw new Error(`tracked home package is missing at ${sourceRoot}`);
 
   let drift = 0;
   for (const relative of await trackedPaths(sourceRoot)) {
@@ -150,13 +156,73 @@ export interface StowPlan {
   readonly options: StowOptions;
 }
 
+/** Decides what (if anything) must happen to one tracked path before Stow can link it. */
+async function planActionFor(
+  options: StowOptions,
+  sourceRoot: string,
+  relative: string
+): Promise<PlannedAction | undefined> {
+  const source = join(sourceRoot, relative);
+  const target = join(options.home, relative);
+
+  let targetMetadata: Stats;
+  try {
+    targetMetadata = await lstat(target);
+  } catch (error) {
+    // Nothing live at the target, so Stow can link it without help.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+  if (await sameFile(source, target)) return undefined;
+  if (targetMetadata.isSymbolicLink() || targetMetadata.isDirectory()) return undefined;
+  if (!targetMetadata.isFile()) return undefined;
+
+  const [sourceBytes, targetBytes, targetSnapshot] = await Promise.all([
+    readFile(source),
+    readFile(target),
+    snapshot(target),
+  ]);
+  if (sourceBytes.equals(targetBytes)) {
+    return { kind: "remove-identical", relative, snapshot: targetSnapshot };
+  }
+
+  if (options.acceptTracked) return { kind: "backup", relative, snapshot: targetSnapshot };
+  if (!options.terminal.interactive) {
+    throw new Error(`~/${relative} conflicts with tracked state; rerun with --yes`);
+  }
+
+  const choice = await resolveConflict({
+    cwd: options.checkoutRoot,
+    env: options.env,
+    processes: options.processes,
+    relative,
+    source,
+    target,
+    terminal: options.terminal,
+  });
+  return { kind: choice, relative, snapshot: targetSnapshot } as PlannedAction;
+}
+
+/** Guards against a live file changing between planning and applying. */
+async function assertPlanStillCurrent(
+  options: StowOptions,
+  actions: readonly PlannedAction[]
+): Promise<void> {
+  for (const action of actions) {
+    if (action.kind === "keep") continue;
+    const current = await snapshot(join(options.home, action.relative)).catch(() => undefined);
+    if (!(current && snapshotMatches(current, action.snapshot))) {
+      throw new Error(`~/${action.relative} changed while stow was being planned`);
+    }
+  }
+}
+
 export async function planStow(options: StowOptions): Promise<StowPlan> {
   const sourceRoot = join(options.checkoutRoot, "home");
-  try {
-    if (!(await lstat(sourceRoot)).isDirectory()) throw new Error();
-  } catch {
-    throw new Error(`tracked home package is missing at ${sourceRoot}`);
-  }
+  const sourceStats = await lstat(sourceRoot).catch((error: unknown) => {
+    throw new Error(`tracked home package is missing at ${sourceRoot}`, { cause: error });
+  });
+  if (!sourceStats.isDirectory()) throw new Error(`tracked home package is missing at ${sourceRoot}`);
 
   const probe = await options.processes.run({
     argv: ["stow", "--version"],
@@ -167,55 +233,11 @@ export async function planStow(options: StowOptions): Promise<StowPlan> {
 
   const actions: PlannedAction[] = [];
   for (const relative of await trackedPaths(sourceRoot)) {
-    const source = join(sourceRoot, relative);
-    const target = join(options.home, relative);
-    let targetMetadata;
-    try {
-      targetMetadata = await lstat(target);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      throw error;
-    }
-    if (await sameFile(source, target)) continue;
-    if (targetMetadata.isSymbolicLink() || targetMetadata.isDirectory()) continue;
-    if (!targetMetadata.isFile()) continue;
-
-    const [sourceBytes, targetBytes, targetSnapshot] = await Promise.all([
-      readFile(source),
-      readFile(target),
-      snapshot(target),
-    ]);
-    if (sourceBytes.equals(targetBytes)) {
-      actions.push({ kind: "remove-identical", relative, snapshot: targetSnapshot });
-      continue;
-    }
-
-    if (options.acceptTracked) {
-      actions.push({ kind: "backup", relative, snapshot: targetSnapshot });
-    } else if (options.terminal.interactive) {
-      const choice = await resolveConflict({
-        cwd: options.checkoutRoot,
-        env: options.env,
-        processes: options.processes,
-        relative,
-        source,
-        target,
-        terminal: options.terminal,
-      });
-      actions.push({ kind: choice, relative, snapshot: targetSnapshot } as PlannedAction);
-    } else {
-      throw new Error(`~/${relative} conflicts with tracked state; rerun with --yes`);
-    }
+    const action = await planActionFor(options, sourceRoot, relative);
+    if (action) actions.push(action);
   }
 
-  for (const action of actions) {
-    if (action.kind === "keep") continue;
-    const current = await snapshot(join(options.home, action.relative)).catch(() => undefined);
-    if (!(current && snapshotMatches(current, action.snapshot))) {
-      throw new Error(`~/${action.relative} changed while stow was being planned`);
-    }
-  }
-
+  await assertPlanStillCurrent(options, actions);
   return { actions, options };
 }
 

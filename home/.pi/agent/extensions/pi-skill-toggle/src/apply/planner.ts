@@ -6,7 +6,7 @@ import type { FileSystem } from "../ports/fs.ts";
 import type { SkillChange, SkillDraft, SkillRecord } from "../types.ts";
 
 export interface SkillTogglePlanner {
-  plan(records: SkillRecord[], drafts: SkillDraft[]): Promise<SkillChange[]>;
+  plan: (records: SkillRecord[], drafts: SkillDraft[]) => Promise<SkillChange[]>;
 }
 
 export class DefaultSkillTogglePlanner implements SkillTogglePlanner {
@@ -22,7 +22,7 @@ export class DefaultSkillTogglePlanner implements SkillTogglePlanner {
 
     for (const draft of drafts) {
       const record = recordById.get(draft.skill.id);
-      if (!(record && record.editable)) continue;
+      if (!record?.editable) continue;
 
       const raw = await this.fs.readFile(record.filePath);
       const doc = this.codec.parse(raw);

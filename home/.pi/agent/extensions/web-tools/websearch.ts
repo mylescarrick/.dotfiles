@@ -8,7 +8,6 @@ import { appendExpandedPreview, appendExpandHint, getTextContent } from "./rende
 import { SearchWeb, type SearchWebError } from "./search-web.ts";
 import { getWebToolsSettings, SEARCH_DEPTHS, type ToolInputParseError } from "./settings.ts";
 import {
-  formatSearchResults,
   type PiToolResult,
   projectSearchWebResultToPiToolResult,
   TempFileToolOutputStore,
@@ -19,7 +18,8 @@ import {
 import type { ParseSearchQueryError, SearchDepth, WebToolsSettings } from "./types.ts";
 import { parseWebSearchToolParams } from "./websearch-input.ts";
 
-export { formatSearchResults };
+// biome-ignore lint/performance/noBarrelFile: single named re-export from a sibling implementation file, not an aggregating barrel
+export { formatSearchResults } from "./tool-output.ts";
 
 export interface WebSearchToolComposition {
   readonly outputStore: ToolOutputStore;
@@ -150,6 +150,7 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
       }
 
       const details = result.details;
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: details is genuinely optional (result.details?: WebSearchDetails); verified details?.resultCount types as number | undefined under tsc --strict
       let text = theme.fg("success", `✓ ${details?.resultCount ?? 0} results`);
       if (details?.provider) {
         text += theme.fg("muted", ` (${details.provider})`);

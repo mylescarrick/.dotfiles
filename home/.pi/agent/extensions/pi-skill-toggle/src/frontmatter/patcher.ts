@@ -4,7 +4,7 @@ const DISABLE_KEY = "disable-model-invocation";
 const DISABLE_KEY_RE = /^\s*disable-model-invocation\s*:/;
 
 export interface FrontmatterPatcher {
-  patchInvocationMode(doc: FrontmatterDocument, desiredMode: SkillInvocationMode): FrontmatterPatch;
+  patchInvocationMode: (doc: FrontmatterDocument, desiredMode: SkillInvocationMode) => FrontmatterPatch;
 }
 
 export class MinimalFrontmatterPatcher implements FrontmatterPatcher {
@@ -45,8 +45,8 @@ function ensureManualOnly(frontmatterText: string, lineEnding: "\n" | "\r\n"): s
   }
 
   if (!replaced) {
-    if (next.length > 0 && !endsWithEol(next[next.length - 1]!)) {
-      next[next.length - 1] = `${next[next.length - 1]}${lineEnding}`;
+    if (next.length > 0 && !endsWithEol(next.at(-1)!)) {
+      next[next.length - 1] = `${next.at(-1)}${lineEnding}`;
     }
     next.push(`${DISABLE_KEY}: true${lineEnding}`);
   }

@@ -33,7 +33,7 @@ describe("DefaultSkillTogglePlanner", () => {
     assert.equal(changes.length, 1);
     assert.equal(changes[0]?.from, "manual-only");
     assert.equal(changes[0]?.to, "manual-only");
-    assert.equal((changes[0]?.patch.newText.match(/^disable-model-invocation\s*:/gm) ?? []).length, 1);
+    assert.equal((changes[0].patch.newText.match(/^disable-model-invocation\s*:/gm) ?? []).length, 1);
   });
 });
 

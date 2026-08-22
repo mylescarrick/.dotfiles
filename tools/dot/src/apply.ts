@@ -13,9 +13,10 @@ import type { Terminal } from "./terminal";
 export class ApplyFailure extends Error {
   constructor(
     message: string,
-    readonly stdout: string
+    readonly stdout: string,
+    options?: ErrorOptions
   ) {
-    super(message);
+    super(message, options);
   }
 }
 
@@ -94,6 +95,7 @@ export async function apply(options: {
     return progress;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new ApplyFailure(message, `${progress}FAILED ${stage}: ${message}\n`);
+    // biome-ignore lint/style/useErrorCause: cause is forwarded via ApplyFailure's 3rd positional arg, which this rule only checks for in 2nd position
+    throw new ApplyFailure(message, `${progress}FAILED ${stage}: ${message}\n`, { cause: error });
   }
 }

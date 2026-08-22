@@ -2,7 +2,7 @@ import type { FileSystem } from "../ports/fs.ts";
 import type { ApplyResult, SkillChange } from "../types.ts";
 
 export interface SkillChangeWriter {
-  apply(changes: SkillChange[]): Promise<ApplyResult>;
+  apply: (changes: SkillChange[]) => Promise<ApplyResult>;
 }
 
 export class AtomicSkillChangeWriter implements SkillChangeWriter {

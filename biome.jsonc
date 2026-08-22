@@ -42,11 +42,21 @@
         "noExportedImports": "warn",
         "noNestedTernary": "warn",
         "noParameterAssign": "warn",
+        // Unsafe-fixable, and proven to break real code: converting a method-shorthand
+        // interface to property-style changes TypeScript's parameter variance checking
+        // from bivariant to strict-contravariant, which broke a duck-typed interface that
+        // has to structurally match an external SDK's real type (see git history on
+        // web-tools' RenderTheme). Left as method-style; TS strict mode still catches
+        // real signature bugs without this rule's autofix risk.
+        "useConsistentMethodSignatures": "off",
         "useAtIndex": "warn",
         "useConsistentArrayType": "warn",
-        "useConsistentMethodSignatures": "warn",
         "useConsistentTypeDefinitions": "warn",
-        "useDefaultSwitchClause": "warn",
+        // Fights exhaustive switches over discriminated unions (switch (x._tag)), which
+        // this codebase uses throughout for Result/error types. A default clause there
+        // would silently swallow a missing case instead of letting TS's exhaustiveness
+        // check catch it at compile time.
+        "useDefaultSwitchClause": "off",
         "useErrorCause": "warn"
       },
       "complexity": {
@@ -64,7 +74,10 @@
       "suspicious": {
         // Extension event handlers must be async to satisfy pi's handler types.
         "useAwait": "off",
-        "noBitwiseOperators": "warn",
+        // Every use in this repo is a POSIX file-mode mask (mode & 0o777) or an IP/flag
+        // bitmask, never a mistyped &&. Catch genuinely suspicious bitwise use by review
+        // instead of forcing a suppression comment onto every permission check.
+        "noBitwiseOperators": "off",
         "noControlCharactersInRegex": "warn",
         "noEmptyBlockStatements": "warn",
         "noEvolvingTypes": "warn",

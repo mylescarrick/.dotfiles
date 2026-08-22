@@ -37,36 +37,58 @@ async function signingKeyIssues(checkoutRoot: string, home: string): Promise<str
   return issues;
 }
 
-export async function runDoctor(options: {
+interface DoctorOptions {
   readonly checkoutRoot: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly processes: ProcessRunner;
-}): Promise<DiagnosticReport> {
-  const home = options.env.HOME;
-  if (!home) throw new Error("HOME is required");
-  const lines: string[] = [];
-  let issues = 0;
-  const fail = (area: string, message: string) => {
-    issues += 1;
-    lines.push(`FAIL  ${area}: ${message}`);
-  };
-  const ok = (area: string, message: string) => lines.push(`OK    ${area}: ${message}`);
+}
 
+/** Accumulates the report so each check can stay a small, independently readable function. */
+class DoctorLog {
+  readonly lines: string[] = [];
+  issues = 0;
+
+  ok(area: string, message: string): void {
+    this.lines.push(`OK    ${area}: ${message}`);
+  }
+
+  fail(area: string, message: string): void {
+    this.issues += 1;
+    this.lines.push(`FAIL  ${area}: ${message}`);
+  }
+
+  info(message: string): void {
+    this.lines.push(`INFO  ${message}`);
+  }
+
+  /** Runs one check, reporting a thrown error as that area's failure rather than aborting the report. */
+  async guard(area: string, run: () => Promise<void>): Promise<void> {
+    try {
+      await run();
+    } catch (error) {
+      this.fail(area, (error as Error).message);
+    }
+  }
+}
+
+async function checkCheckout(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
   const canonical = await realpath(join(home, ".dotfiles")).catch(() => undefined);
   const checkout = await realpath(options.checkoutRoot).catch(() => undefined);
   if (!canonical) {
-    fail("checkout", `canonical checkout is missing at ${join(home, ".dotfiles")}`);
-  } else if (checkout === canonical) {
-    try {
-      await guardCanonicalCheckout(options);
-      ok("checkout", "canonical main is clean and equal to last-fetched origin/main");
-    } catch (error) {
-      fail("checkout", (error as Error).message);
-    }
-  } else {
-    lines.push(`INFO  checkout: running from noncanonical checkout ${checkout}`);
+    log.fail("checkout", `canonical checkout is missing at ${join(home, ".dotfiles")}`);
+    return;
   }
+  if (checkout !== canonical) {
+    log.info(`checkout: running from noncanonical checkout ${checkout}`);
+    return;
+  }
+  await log.guard("checkout", async () => {
+    await guardCanonicalCheckout(options);
+    log.ok("checkout", "canonical main is clean and equal to last-fetched origin/main");
+  });
+}
 
+async function checkTools(options: DoctorOptions, log: DoctorLog): Promise<Set<string>> {
   const available = new Set<string>();
   for (const tool of ["bun", "git", "brew", "stow", "pi", "frog"] as const) {
     try {
@@ -77,66 +99,88 @@ export async function runDoctor(options: {
       });
       if (result.exitCode === 0) {
         available.add(tool);
-        ok("tools", `${tool} is available`);
-      } else fail("tools", `${tool} is unavailable`);
+        log.ok("tools", `${tool} is available`);
+      } else log.fail("tools", `${tool} is unavailable`);
     } catch {
-      fail("tools", `${tool} is unavailable`);
+      log.fail("tools", `${tool} is unavailable`);
     }
   }
+  return available;
+}
 
-  if (available.has("brew")) {
-    try {
-      if (await inspectPackages(options)) ok("packages", "Brewfile is satisfied");
-      else fail("packages", "Brewfile has missing declared packages; run 'dot apply'");
-    } catch (error) {
-      fail("packages", (error as Error).message);
-    }
-  }
+async function checkDeclaredPackages(options: DoctorOptions, log: DoctorLog): Promise<void> {
+  await log.guard("packages", async () => {
+    if (await inspectPackages(options)) log.ok("packages", "Brewfile is satisfied");
+    else log.fail("packages", "Brewfile has missing declared packages; run 'dot apply'");
+  });
+}
 
-  try {
-    if (await inspectGlobalBunPackages(options)) ok("bun-global", "declared global Bun packages are current");
-    else fail("bun-global", "declared global Bun packages are missing or outdated; run 'dot apply'");
-  } catch (error) {
-    fail("bun-global", (error as Error).message);
-  }
+async function checkGlobalBunPackages(options: DoctorOptions, log: DoctorLog): Promise<void> {
+  await log.guard("bun-global", async () => {
+    if (await inspectGlobalBunPackages(options)) {
+      log.ok("bun-global", "declared global Bun packages are current");
+    } else log.fail("bun-global", "declared global Bun packages are missing or outdated; run 'dot apply'");
+  });
+}
 
-  try {
+async function checkStowedDotfiles(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
+  await log.guard("dotfiles", async () => {
     const drift = await inspectStow({ checkoutRoot: options.checkoutRoot, home });
-    if (drift === 0) ok("dotfiles", "managed paths are linked to tracked state");
-    else fail("dotfiles", `${drift} managed path(s) drifted; run 'dot apply'`);
-  } catch (error) {
-    fail("dotfiles", (error as Error).message);
-  }
+    if (drift === 0) log.ok("dotfiles", "managed paths are linked to tracked state");
+    else log.fail("dotfiles", `${drift} managed path(s) drifted; run 'dot apply'`);
+  });
+}
 
-  const authIssues = await inspectPiAuth(home);
-  for (const issue of authIssues) fail("pi-auth", issue);
-  if (authIssues.length === 0) ok("pi-auth", "private auth is valid when configured");
+async function checkPiAuth(home: string, log: DoctorLog): Promise<void> {
+  const issues = await inspectPiAuth(home);
+  for (const issue of issues) log.fail("pi-auth", issue);
+  if (issues.length === 0) log.ok("pi-auth", "private auth is valid when configured");
+}
 
-  const piIssues = await inspectPiSettings(home);
-  for (const issue of piIssues) fail("pi-settings", issue);
-  if (piIssues.length === 0) {
-    try {
-      const plan = await planPiSettings({ checkoutRoot: options.checkoutRoot, home });
-      if (plan.changed) {
-        fail("pi-settings", "runtime settings are stale; run 'dot apply'");
-      } else ok("pi-settings", "runtime settings are current, valid, and private");
-    } catch (error) {
-      fail("pi-settings", (error as Error).message);
-    }
-  }
+async function checkPiSettings(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
+  const issues = await inspectPiSettings(home);
+  for (const issue of issues) log.fail("pi-settings", issue);
+  if (issues.length > 0) return;
 
-  try {
+  await log.guard("pi-settings", async () => {
+    const plan = await planPiSettings({ checkoutRoot: options.checkoutRoot, home });
+    if (plan.changed) log.fail("pi-settings", "runtime settings are stale; run 'dot apply'");
+    else log.ok("pi-settings", "runtime settings are current, valid, and private");
+  });
+}
+
+async function checkSkillLinks(options: DoctorOptions, log: DoctorLog): Promise<void> {
+  await log.guard("skills", async () => {
     const summary = await validateSkillLinks(options);
-    ok("skills", summary.trim().toLowerCase());
-  } catch (error) {
-    fail("skills", (error as Error).message);
+    log.ok("skills", summary.trim().toLowerCase());
+  });
+}
+
+async function checkSigningKeys(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
+  const issues = await signingKeyIssues(options.checkoutRoot, home);
+  if (issues.length === 0) {
+    log.ok("signing", "tracked signing keys are present");
+    return;
   }
+  for (const issue of issues) log.fail("signing", issue);
+}
 
-  const keyIssues = await signingKeyIssues(options.checkoutRoot, home);
-  if (keyIssues.length === 0) ok("signing", "tracked signing keys are present");
-  else for (const issue of keyIssues) fail("signing", issue);
+export async function runDoctor(options: DoctorOptions): Promise<DiagnosticReport> {
+  const home = options.env.HOME;
+  if (!home) throw new Error("HOME is required");
 
-  lines.push("INFO  freshness: based on local origin/main; no network request was made");
-  lines.push(issues === 0 ? "0 actionable issues" : `${issues} actionable issue(s)`);
-  return { healthy: issues === 0, stdout: `${lines.join("\n")}\n` };
+  const log = new DoctorLog();
+  await checkCheckout(options, home, log);
+  const available = await checkTools(options, log);
+  if (available.has("brew")) await checkDeclaredPackages(options, log);
+  await checkGlobalBunPackages(options, log);
+  await checkStowedDotfiles(options, home, log);
+  await checkPiAuth(home, log);
+  await checkPiSettings(options, home, log);
+  await checkSkillLinks(options, log);
+  await checkSigningKeys(options, home, log);
+
+  log.info("freshness: based on local origin/main; no network request was made");
+  log.lines.push(log.issues === 0 ? "0 actionable issues" : `${log.issues} actionable issue(s)`);
+  return { healthy: log.issues === 0, stdout: `${log.lines.join("\n")}\n` };
 }

@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 export interface SkillAgentDirectory {
   readonly path: string;
-  target(name: string): string;
+  target: (name: string) => string;
 }
 
 export function skillAgentDirectories(checkoutRoot: string): readonly SkillAgentDirectory[] {

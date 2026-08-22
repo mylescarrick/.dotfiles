@@ -24,14 +24,14 @@ const testFetchSettings: WebToolsSettings["fetch"] = {
 class FakePublicWebClient implements PublicWebClient {
   readonly requests: PublicWebRequest[] = [];
 
-  constructor(private readonly response: Result<PublicWebResponse, PublicWebError>) {}
+  constructor(private readonly stubbedResponse: Result<PublicWebResponse, PublicWebError>) {}
 
   async get(
     request: PublicWebRequest,
     _options?: { readonly signal?: AbortSignal }
   ): Promise<Result<PublicWebResponse, PublicWebError>> {
     this.requests.push(request);
-    return this.response;
+    return this.stubbedResponse;
   }
 }
 
@@ -44,7 +44,7 @@ test("FetchPage returns text responses unchanged", async () => {
   assert.equal(result._tag, "ok");
   assert.equal(result.value._tag, "Text");
   assert.equal(result.value._tag === "Text" ? result.value.text : "", "Plain text.");
-  assert.match(publicWeb.requests[0]?.accept ?? "", /text\/plain/);
+  assert.match(publicWeb.requests[0].accept, /text\/plain/);
 });
 
 test("FetchPage converts HTML to markdown when requested", async () => {

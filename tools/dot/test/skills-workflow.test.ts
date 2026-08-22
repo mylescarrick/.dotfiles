@@ -73,7 +73,9 @@ describe("skills workflow", () => {
       async prompt() {
         throw new Error("unexpected prompt");
       },
-      write() {},
+      write() {
+        /* test double: discard output */
+      },
     };
 
     const outcome = await createApplication({
@@ -98,7 +100,9 @@ describe("skills workflow", () => {
         prompts.push(message);
         return "n";
       },
-      write() {},
+      write() {
+        /* test double: discard output */
+      },
     };
 
     const outcome = await createApplication({
@@ -141,7 +145,9 @@ describe("skills workflow", () => {
       async prompt() {
         return "y";
       },
-      write() {},
+      write() {
+        /* test double: discard output */
+      },
     };
 
     const outcome = await createApplication({
@@ -195,7 +201,9 @@ describe("skills workflow", () => {
       async prompt() {
         return "y";
       },
-      write() {},
+      write() {
+        /* test double: discard output */
+      },
     };
 
     const outcome = await createApplication({
@@ -223,7 +231,9 @@ describe("skills workflow", () => {
       async prompt() {
         throw new Error("unexpected prompt");
       },
-      write() {},
+      write() {
+        /* test double: discard output */
+      },
     };
 
     const outcome = await createApplication({
@@ -247,7 +257,9 @@ describe("skills workflow", () => {
       async prompt() {
         throw new Error("unexpected prompt");
       },
-      write() {},
+      write() {
+        /* test double: discard output */
+      },
     };
 
     const outcome = await createApplication({

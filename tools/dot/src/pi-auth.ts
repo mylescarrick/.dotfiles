@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseJsonObject } from "./json";
@@ -18,27 +19,50 @@ export type CloudflareArgsResult =
   | { readonly ok: true; readonly input: CloudflareAuthInput }
   | { readonly ok: false; readonly message: string };
 
+/** Both auth parsers accept the same mutually-exclusive --api-key-env / --api-key-op-ref pair. */
+type KeySourceOutcome =
+  | { readonly kind: "parsed"; readonly keySource: CloudflareKeySource }
+  | { readonly kind: "duplicate" }
+  | { readonly kind: "unrecognized" };
+
+function parseKeySourceFlag(
+  flag: string | undefined,
+  value: string,
+  existing: CloudflareKeySource | undefined
+): KeySourceOutcome {
+  if (flag !== "--api-key-env" && flag !== "--api-key-op-ref") return { kind: "unrecognized" };
+  if (existing !== undefined) return { kind: "duplicate" };
+  return {
+    keySource: flag === "--api-key-env" ? { kind: "env", name: value } : { kind: "op", reference: value },
+    kind: "parsed",
+  };
+}
+
 export function parseCloudflareAuthArgs(args: readonly string[]): CloudflareArgsResult {
+  const usage = "dot: usage: dot pi auth cloudflare [OPTIONS]\n";
   let accountId: string | undefined;
   let gatewayId: string | undefined;
   let keySource: CloudflareKeySource | undefined;
   for (let index = 0; index < args.length; index += 2) {
     const flag = args[index];
     const value = args[index + 1];
-    if (!value || value.startsWith("-")) {
-      return { message: "dot: usage: dot pi auth cloudflare [OPTIONS]\n", ok: false };
+    if (!value || value.startsWith("-")) return { message: usage, ok: false };
+
+    if (flag === "--account-id" && accountId === undefined) {
+      accountId = value;
+      continue;
     }
-    if (flag === "--account-id" && accountId === undefined) accountId = value;
-    else if (flag === "--gateway-id" && gatewayId === undefined) gatewayId = value;
-    else if (flag === "--api-key-env" && keySource === undefined) {
-      keySource = { kind: "env", name: value };
-    } else if (flag === "--api-key-op-ref" && keySource === undefined) {
-      keySource = { kind: "op", reference: value };
-    } else if ((flag === "--api-key-env" || flag === "--api-key-op-ref") && keySource !== undefined) {
+    if (flag === "--gateway-id" && gatewayId === undefined) {
+      gatewayId = value;
+      continue;
+    }
+
+    const outcome = parseKeySourceFlag(flag, value, keySource);
+    if (outcome.kind === "duplicate") {
       return { message: "dot: choose one Cloudflare API key source\n", ok: false };
-    } else {
-      return { message: "dot: usage: dot pi auth cloudflare [OPTIONS]\n", ok: false };
     }
+    if (outcome.kind === "unrecognized") return { message: usage, ok: false };
+    keySource = outcome.keySource;
   }
   return { input: { accountId, gatewayId, keySource }, ok: true };
 }
@@ -56,29 +80,24 @@ export type ExaArgsResult =
   | { readonly ok: false; readonly message: string };
 
 export function parseExaAuthArgs(args: readonly string[]): ExaArgsResult {
+  const usage = "dot: usage: dot pi auth exa [OPTIONS]\n";
   let keySource: ExaKeySource | undefined;
   for (let index = 0; index < args.length; index += 2) {
     const flag = args[index];
     const value = args[index + 1];
-    if (!value || value.startsWith("-")) {
-      return { message: "dot: usage: dot pi auth exa [OPTIONS]\n", ok: false };
-    }
-    if (flag === "--api-key-env" && keySource === undefined) {
-      keySource = { kind: "env", name: value };
-    } else if (flag === "--api-key-op-ref" && keySource === undefined) {
-      keySource = { kind: "op", reference: value };
-    } else if ((flag === "--api-key-env" || flag === "--api-key-op-ref") && keySource !== undefined) {
-      return { message: "dot: choose one Exa API key source\n", ok: false };
-    } else {
-      return { message: "dot: usage: dot pi auth exa [OPTIONS]\n", ok: false };
-    }
+    if (!value || value.startsWith("-")) return { message: usage, ok: false };
+
+    const outcome = parseKeySourceFlag(flag, value, keySource);
+    if (outcome.kind === "duplicate") return { message: "dot: choose one Exa API key source\n", ok: false };
+    if (outcome.kind === "unrecognized") return { message: usage, ok: false };
+    keySource = outcome.keySource;
   }
   return { input: { keySource }, ok: true };
 }
 
 export async function inspectPiAuth(home: string): Promise<string[]> {
   const path = join(home, ".pi/agent/auth.json");
-  let metadata;
+  let metadata: Stats;
   try {
     metadata = await lstat(path);
   } catch (error) {
@@ -143,7 +162,7 @@ export async function configureCloudflareAuth(
       (existing as { type?: unknown }).type === "api_key" &&
       (existing as { env?: unknown }).env &&
       typeof (existing as { env: unknown }).env === "object"
-        ? ((existing as { env: Record<string, unknown> }).env ?? {})
+        ? (existing as { env: Record<string, unknown> }).env
         : {};
     auth[provider] = { env: { ...existingEnv, ...patch }, key, type: "api_key" };
   };

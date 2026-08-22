@@ -90,6 +90,7 @@ describe("configuration", () => {
     const normalized = normalizeConfig(config);
     const family = normalized.families["azure-gpt"]!;
     expect(family.manualTargets?.sol).toEqual(config.families["azure-gpt"]!.manualTargets?.sol);
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: targetForRole genuinely returns T | undefined (falls through to `return undefined` when no fallback role matches); verified under tsc --strict
     expect(targetForRole(family, "research")?.target.model).toBe("gpt-5.6-terra");
   });
 });

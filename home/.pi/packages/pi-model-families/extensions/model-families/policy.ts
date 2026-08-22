@@ -99,60 +99,76 @@ function normalizeTarget(value: unknown): TargetModel | undefined {
   };
 }
 
+function normalizeRoles(rawFamily: Record<string, unknown>): Partial<Record<Role, TargetModel>> {
+  const rawRoles = isRecord(rawFamily.roles) ? rawFamily.roles : {};
+  const roles: Partial<Record<Role, TargetModel>> = {};
+  for (const [roleName, rawTarget] of Object.entries(rawRoles)) {
+    if (!isRole(roleName)) continue;
+    const target = normalizeTarget(rawTarget);
+    if (target) roles[roleName] = target;
+  }
+  return roles;
+}
+
+function normalizeManualTargets(rawFamily: Record<string, unknown>): Record<string, ManualTarget> {
+  const rawManualTargets = isRecord(rawFamily.manualTargets) ? rawFamily.manualTargets : {};
+  const manualTargets: Record<string, ManualTarget> = {};
+  for (const [targetName, rawTarget] of Object.entries(rawManualTargets)) {
+    const target = normalizeTarget(rawTarget);
+    if (!target) continue;
+    manualTargets[targetName] = {
+      ...target,
+      description:
+        isRecord(rawTarget) && typeof rawTarget.description === "string" ? rawTarget.description : undefined,
+    };
+  }
+  return manualTargets;
+}
+
+/** A family with no valid automatic roles is dropped entirely. */
+function normalizeFamily(rawFamily: unknown): ModelFamily | undefined {
+  if (!isRecord(rawFamily)) return undefined;
+
+  const roles = normalizeRoles(rawFamily);
+  if (Object.keys(roles).length === 0) return undefined;
+
+  const manualTargets = normalizeManualTargets(rawFamily);
+  return {
+    description: typeof rawFamily.description === "string" ? rawFamily.description : undefined,
+    disabled: rawFamily.disabled === true,
+    roles,
+    ...(Object.keys(manualTargets).length > 0 ? { manualTargets } : {}),
+  };
+}
+
+/** Prefers the configured default when it exists and is enabled, otherwise the first enabled family. */
+function resolveDefaultFamily(
+  source: Record<string, unknown>,
+  families: Record<string, ModelFamily>
+): string {
+  const enabledNames = Object.entries(families)
+    .filter(([, family]) => !family.disabled)
+    .map(([name]) => name);
+  const fallback = enabledNames[0] ?? Object.keys(families)[0] ?? FALLBACK_CONFIG.defaultFamily;
+
+  if (typeof source.defaultFamily !== "string") return fallback;
+  const configured = families[source.defaultFamily];
+  return configured && !configured.disabled ? source.defaultFamily : fallback;
+}
+
 export function normalizeConfig(value: unknown): ModelFamiliesConfig {
   const source = isRecord(value) ? value : {};
   const rawFamilies = isRecord(source.families) ? source.families : {};
   const families: Record<string, ModelFamily> = {};
 
   for (const [familyName, rawFamily] of Object.entries(rawFamilies)) {
-    if (!isRecord(rawFamily)) continue;
-    const rawRoles = isRecord(rawFamily.roles) ? rawFamily.roles : {};
-    const roles: Partial<Record<Role, TargetModel>> = {};
-
-    for (const [roleName, rawTarget] of Object.entries(rawRoles)) {
-      if (!isRole(roleName)) continue;
-      const target = normalizeTarget(rawTarget);
-      if (target) roles[roleName] = target;
-    }
-
-    if (Object.keys(roles).length === 0) continue;
-
-    const rawManualTargets = isRecord(rawFamily.manualTargets) ? rawFamily.manualTargets : {};
-    const manualTargets: Record<string, ManualTarget> = {};
-    for (const [targetName, rawTarget] of Object.entries(rawManualTargets)) {
-      const target = normalizeTarget(rawTarget);
-      if (!target) continue;
-      manualTargets[targetName] = {
-        ...target,
-        description:
-          isRecord(rawTarget) && typeof rawTarget.description === "string"
-            ? rawTarget.description
-            : undefined,
-      };
-    }
-
-    families[familyName] = {
-      description: typeof rawFamily.description === "string" ? rawFamily.description : undefined,
-      disabled: rawFamily.disabled === true,
-      roles,
-      ...(Object.keys(manualTargets).length > 0 ? { manualTargets } : {}),
-    };
+    const family = normalizeFamily(rawFamily);
+    if (family) families[familyName] = family;
   }
-
-  const enabledNames = Object.entries(families)
-    .filter(([, family]) => !family.disabled)
-    .map(([name]) => name);
-  const fallbackDefault = enabledNames[0] ?? Object.keys(families)[0] ?? FALLBACK_CONFIG.defaultFamily;
-  const configuredDefault =
-    typeof source.defaultFamily === "string" ? families[source.defaultFamily] : undefined;
-  const defaultFamily =
-    typeof source.defaultFamily === "string" && configuredDefault && !configuredDefault.disabled
-      ? source.defaultFamily
-      : fallbackDefault;
 
   return {
     autoRoute: typeof source.autoRoute === "boolean" ? source.autoRoute : FALLBACK_CONFIG.autoRoute,
-    defaultFamily,
+    defaultFamily: resolveDefaultFamily(source, families),
     families,
     returnRole: isRole(source.returnRole) ? source.returnRole : FALLBACK_CONFIG.returnRole,
   };

@@ -295,6 +295,24 @@ function showModels(query: string, ctx: ExtensionContext): void {
   );
 }
 
+/** One audit line for a target, shared by automatic roles and manual targets. */
+function auditTargetLine(label: string, target: TargetModel, via: string, ctx: ExtensionContext): string {
+  const model = ctx.modelRegistry.find(target.provider, target.model) as RegistryModel | undefined;
+  if (!model) {
+    const suggestions = suggestEquivalentModels(target, ctx);
+    const similar = suggestions.length ? `; similar: ${suggestions.join(", ")}` : "";
+    return `  ${label}: ✗ ${modelKey(target)}${via} missing${similar}`;
+  }
+
+  const available = ctx.modelRegistry.hasConfiguredAuth(model);
+  const auth = ctx.modelRegistry.getProviderAuthStatus(model.provider) as ProviderAuthStatusShape;
+  const thinking = thinkingStatus(model, target.thinkingLevel);
+  const missingEnv = missingEnvPlaceholders(model, ctx);
+  const envText = missingEnv.length ? `; missing env ${missingEnv.join(",")}` : "";
+
+  return `  ${label}: ${available ? "✓" : "⚠"} ${modelKey(target)}${via}; available ${available ? "yes" : "no"}; auth ${authStatusLabel(auth)}; input ${model.input.join(",")}; ${thinking}${envText}`;
+}
+
 function auditFamily(name: string, family: ModelFamily, ctx: ExtensionContext): string[] {
   const lines = [
     `${name}${family.disabled ? " [disabled]" : ""}${family.description ? ` — ${family.description}` : ""}`,
@@ -306,49 +324,12 @@ function auditFamily(name: string, family: ModelFamily, ctx: ExtensionContext): 
       lines.push(`  ${role}: ✗ missing target`);
       continue;
     }
-
     const via = resolved.role === role ? "" : ` (via ${resolved.role})`;
-    const target = resolved.target;
-    const model = ctx.modelRegistry.find(target.provider, target.model) as RegistryModel | undefined;
-    if (!model) {
-      const suggestions = suggestEquivalentModels(target, ctx);
-      lines.push(
-        `  ${role}: ✗ ${modelKey(target)}${via} missing${suggestions.length ? `; similar: ${suggestions.join(", ")}` : ""}`
-      );
-      continue;
-    }
-
-    const available = ctx.modelRegistry.hasConfiguredAuth(model);
-    const auth = ctx.modelRegistry.getProviderAuthStatus(model.provider) as ProviderAuthStatusShape;
-    const thinking = thinkingStatus(model, target.thinkingLevel);
-    const missingEnv = missingEnvPlaceholders(model, ctx);
-    const envText = missingEnv.length ? `; missing env ${missingEnv.join(",")}` : "";
-
-    lines.push(
-      `  ${role}: ${available ? "✓" : "⚠"} ${modelKey(target)}${via}; available ${available ? "yes" : "no"}; auth ${authStatusLabel(auth)}; input ${model.input.join(",")}; ${thinking}${envText}`
-    );
+    lines.push(auditTargetLine(role, resolved.target, via, ctx));
   }
 
   for (const [targetName, target] of Object.entries(family.manualTargets ?? {})) {
-    const label = `target:${targetName}`;
-    const model = ctx.modelRegistry.find(target.provider, target.model) as RegistryModel | undefined;
-    if (!model) {
-      const suggestions = suggestEquivalentModels(target, ctx);
-      lines.push(
-        `  ${label}: ✗ ${modelKey(target)} missing${suggestions.length ? `; similar: ${suggestions.join(", ")}` : ""}`
-      );
-      continue;
-    }
-
-    const available = ctx.modelRegistry.hasConfiguredAuth(model);
-    const auth = ctx.modelRegistry.getProviderAuthStatus(model.provider) as ProviderAuthStatusShape;
-    const thinking = thinkingStatus(model, target.thinkingLevel);
-    const missingEnv = missingEnvPlaceholders(model, ctx);
-    const envText = missingEnv.length ? `; missing env ${missingEnv.join(",")}` : "";
-
-    lines.push(
-      `  ${label}: ${available ? "✓" : "⚠"} ${modelKey(target)}; available ${available ? "yes" : "no"}; auth ${authStatusLabel(auth)}; input ${model.input.join(",")}; ${thinking}${envText}`
-    );
+    lines.push(auditTargetLine(`target:${targetName}`, target, "", ctx));
   }
 
   return lines;
@@ -725,6 +706,41 @@ export default function modelFamilies(pi: ExtensionAPI) {
     handler: handleCommand,
   });
 
+  /** Restores the previous session's selection, ignoring it if that family is gone or disabled. */
+  function restoreSessionState(ctx: ExtensionContext): void {
+    const restored = isTidyChildProcess ? undefined : readPersistedState(ctx);
+    if (!restored) return;
+
+    const family = config.families[restored.activeFamily];
+    if (!family || family.disabled) return;
+
+    activeFamily = restored.activeFamily;
+    routingMode = restored.routingMode;
+    lockedModelKey = restored.lockedModelKey;
+  }
+
+  /** Reselects the locked model, falling back to auto routing when it is no longer available. */
+  async function applyLockedModel(ctx: ExtensionContext): Promise<void> {
+    if (routingMode !== "locked" || !lockedModelKey) return;
+
+    const lockedModel = parseModelKey(lockedModelKey);
+    const model = lockedModel ? ctx.modelRegistry.find(lockedModel.provider, lockedModel.model) : undefined;
+    if (!model) {
+      ctx.ui.notify(`Model families: locked model unavailable: ${lockedModelKey}; resuming auto`, "warning");
+      routingMode = "auto";
+      lockedModelKey = undefined;
+      persistState();
+      return;
+    }
+
+    selectedByExtension = true;
+    try {
+      await pi.setModel(model);
+    } finally {
+      selectedByExtension = false;
+    }
+  }
+
   pi.on("session_start", async (_event, ctx) => {
     config = loadConfig(ctx.cwd, isProjectTrusted(ctx), ctx);
     activeFamily = config.defaultFamily;
@@ -733,42 +749,14 @@ export default function modelFamilies(pi: ExtensionAPI) {
     routingMode = !isTidyChildProcess && config.autoRoute ? "auto" : "locked";
     lockedModelKey = undefined;
 
-    const restored = isTidyChildProcess ? undefined : readPersistedState(ctx);
-    if (
-      restored &&
-      config.families[restored.activeFamily] &&
-      !config.families[restored.activeFamily]?.disabled
-    ) {
-      activeFamily = restored.activeFamily;
-      routingMode = restored.routingMode;
-      lockedModelKey = restored.lockedModelKey;
-    }
-
+    restoreSessionState(ctx);
     setStatus(ctx);
+
     // The tidy child CLI applies its exact --model/--thinking selection after session_start.
     // Lock routing without setting a model here, so that startup selection remains authoritative.
     if (isTidyChildProcess) return;
 
-    if (routingMode === "locked" && lockedModelKey) {
-      const lockedModel = parseModelKey(lockedModelKey);
-      const model = lockedModel ? ctx.modelRegistry.find(lockedModel.provider, lockedModel.model) : undefined;
-      if (model) {
-        selectedByExtension = true;
-        try {
-          await pi.setModel(model);
-        } finally {
-          selectedByExtension = false;
-        }
-      } else {
-        ctx.ui.notify(
-          `Model families: locked model unavailable: ${lockedModelKey}; resuming auto`,
-          "warning"
-        );
-        routingMode = "auto";
-        lockedModelKey = undefined;
-        persistState();
-      }
-    }
+    await applyLockedModel(ctx);
   });
 
   pi.on("model_select", async (event, ctx) => {

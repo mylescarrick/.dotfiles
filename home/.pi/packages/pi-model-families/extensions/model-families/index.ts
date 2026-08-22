@@ -573,6 +573,68 @@ export default function modelFamilies(pi: ExtensionAPI) {
     }
   }
 
+  function listFamilies(ctx: ExtensionContext): void {
+    const lines = Object.entries(config.families).map(
+      ([name, family]) =>
+        `  ${name}${name === activeFamily ? " *" : ""}${family.disabled ? " [disabled]" : ""}${family.description ? ` — ${family.description}` : ""}`
+    );
+    ctx.ui.notify(`Model families:\n${lines.join("\n")}`, "info");
+  }
+
+  async function reloadConfig(ctx: ExtensionContext): Promise<void> {
+    config = loadConfig(ctx.cwd, isProjectTrusted(ctx), ctx);
+    if (!config.families[activeFamily] || config.families[activeFamily]?.disabled) {
+      activeFamily = config.defaultFamily;
+    }
+    routingMode = config.autoRoute ? "auto" : "locked";
+    lockedModelKey = routingMode === "locked" ? currentModelKey(ctx) : undefined;
+    nextRoute = undefined;
+    setStatus(ctx);
+    persistState();
+    await applyRole(config.returnRole, "reloaded config", ctx);
+    showStatus(ctx);
+  }
+
+  function lockToCurrentModel(ctx: ExtensionContext): void {
+    routingMode = "locked";
+    lockedModelKey = currentModelKey(ctx);
+    nextRoute = undefined;
+    setStatus(ctx);
+    persistState();
+    ctx.ui.notify(`Model families: locked to ${lockedModelKey}`, "info");
+  }
+
+  async function handleRoleCommand(parts: readonly string[], ctx: ExtensionContext): Promise<void> {
+    const role = parts[1];
+    if (!isRole(role)) {
+      ctx.ui.notify(helpText(config), "warning");
+      return;
+    }
+    await queueRole(role, parts.slice(2).join(" "), ctx);
+  }
+
+  async function handleTargetCommand(parts: readonly string[], ctx: ExtensionContext): Promise<void> {
+    await useManualTarget(parts[1] ?? "", parts.slice(2).join(" "), ctx);
+  }
+
+  /** Commands whose name is a fixed keyword. Anything else falls through to a role or family name. */
+  const STATIC_COMMANDS: Readonly<
+    Record<string, (parts: readonly string[], ctx: ExtensionContext) => Promise<void> | void>
+  > = {
+    audit: (parts, ctx) => showAudit(parts[1], config, ctx),
+    auto: (parts, ctx) => useFamily(parts[1] ?? activeFamily, ctx),
+    default: (_parts, ctx) => useFamily(config.defaultFamily, ctx),
+    escalate: handleTargetCommand,
+    list: (_parts, ctx) => listFamilies(ctx),
+    lock: (_parts, ctx) => lockToCurrentModel(ctx),
+    models: (parts, ctx) => showModels(parts.slice(1).join(" "), ctx),
+    reload: (_parts, ctx) => reloadConfig(ctx),
+    role: handleRoleCommand,
+    status: (_parts, ctx) => showStatus(ctx),
+    target: handleTargetCommand,
+    use: (parts, ctx) => useFamily(parts[1] ?? activeFamily, ctx),
+  };
+
   async function handleCommand(args: string, ctx: ExtensionContext): Promise<void> {
     if (isTidyChildProcess) {
       ctx.ui.notify("Model families: routing commands are disabled in tidy child processes", "warning");
@@ -582,87 +644,16 @@ export default function modelFamilies(pi: ExtensionAPI) {
     const parts = splitArgs(args);
     const command = parts[0]?.toLowerCase();
 
-    if (!command || command === "status") {
-      showStatus(ctx);
+    const staticHandler = STATIC_COMMANDS[command ?? "status"];
+    if (staticHandler) {
+      await staticHandler(parts, ctx);
       return;
     }
-
-    if (command === "list") {
-      const lines = Object.entries(config.families).map(
-        ([name, family]) =>
-          `  ${name}${name === activeFamily ? " *" : ""}${family.disabled ? " [disabled]" : ""}${family.description ? ` — ${family.description}` : ""}`
-      );
-      ctx.ui.notify(`Model families:\n${lines.join("\n")}`, "info");
+    if (command && isRole(command)) {
+      await queueRole(command, parts.slice(1).join(" "), ctx);
       return;
     }
-
-    if (command === "models") {
-      showModels(parts.slice(1).join(" "), ctx);
-      return;
-    }
-
-    if (command === "audit") {
-      showAudit(parts[1], config, ctx);
-      return;
-    }
-
-    if (command === "reload") {
-      config = loadConfig(ctx.cwd, isProjectTrusted(ctx), ctx);
-      if (!config.families[activeFamily] || config.families[activeFamily]?.disabled)
-        activeFamily = config.defaultFamily;
-      routingMode = config.autoRoute ? "auto" : "locked";
-      lockedModelKey = routingMode === "locked" ? currentModelKey(ctx) : undefined;
-      nextRoute = undefined;
-      setStatus(ctx);
-      persistState();
-      await applyRole(config.returnRole, "reloaded config", ctx);
-      showStatus(ctx);
-      return;
-    }
-
-    if (command === "lock") {
-      routingMode = "locked";
-      lockedModelKey = currentModelKey(ctx);
-      nextRoute = undefined;
-      setStatus(ctx);
-      persistState();
-      ctx.ui.notify(`Model families: locked to ${lockedModelKey}`, "info");
-      return;
-    }
-
-    if (command === "default") {
-      await useFamily(config.defaultFamily, ctx);
-      return;
-    }
-
-    if (command === "use" || command === "auto") {
-      await useFamily(parts[1] ?? activeFamily, ctx);
-      return;
-    }
-
-    if (command === "role") {
-      const role = parts[1];
-      if (!isRole(role)) {
-        ctx.ui.notify(helpText(config), "warning");
-        return;
-      }
-      const prompt = parts.slice(2).join(" ");
-      await queueRole(role, prompt, ctx);
-      return;
-    }
-
-    if (command === "target" || command === "escalate") {
-      await useManualTarget(parts[1] ?? "", parts.slice(2).join(" "), ctx);
-      return;
-    }
-
-    if (isRole(command)) {
-      const prompt = parts.slice(1).join(" ");
-      await queueRole(command, prompt, ctx);
-      return;
-    }
-
-    if (config.families[command]) {
+    if (command && config.families[command]) {
       await useFamily(command, ctx);
       return;
     }

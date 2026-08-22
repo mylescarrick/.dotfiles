@@ -59,6 +59,13 @@ const commands: readonly CommandDescription[] = [
   { summary: "Show this help", usage: "help" },
 ];
 
+interface CommandContext {
+  readonly dependencies: ApplicationDependencies;
+  readonly invocation: Invocation;
+  readonly processes: ProcessRunner;
+  readonly terminal: Terminal;
+}
+
 function failureOutcome(error: unknown): CommandOutcome {
   const message = error instanceof Error ? error.message : String(error);
   return {
@@ -83,6 +90,210 @@ ${commandLines}
 `;
 }
 
+async function handleInit(ctx: CommandContext): Promise<CommandOutcome> {
+  if (ctx.invocation.argv.length !== 1) {
+    return { exitCode: 2, stderr: "dot: usage: dot init\n", stdout: "" };
+  }
+  try {
+    const outcome = await initialize({
+      checkoutRoot: ctx.dependencies.checkoutRoot,
+      env: ctx.invocation.env,
+      knownBrewPaths: ctx.dependencies.knownBrewPaths,
+      processes: ctx.processes,
+      terminal: ctx.terminal,
+    });
+    return { ...outcome, stderr: "" };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
+async function handleSkills(ctx: CommandContext): Promise<CommandOutcome> {
+  const { invocation, dependencies, processes, terminal } = ctx;
+  const action = invocation.argv[1] ?? "list";
+  let args = invocation.argv.slice(2);
+  let acceptAll = false;
+  if ((action === "update" || action === "add" || action === "remove") && args.at(-1) === "--yes") {
+    acceptAll = true;
+    args = args.slice(0, -1);
+  }
+  const valid =
+    (action === "list" && args.length === 0) ||
+    (action === "sync" && args.length === 0) ||
+    (action === "update" && args.length === 0) ||
+    (action === "add" && args.length >= 2) ||
+    (action === "remove" && args.length >= 1);
+  if (!valid) {
+    return {
+      exitCode: 2,
+      stderr:
+        "dot: usage: dot skills [list|sync|update [--yes]|add REPO SKILL... [--yes]|remove SKILL... [--yes]]\n",
+      stdout: "",
+    };
+  }
+  try {
+    let stdout: string;
+    if (action === "list") {
+      stdout = await listSkills(dependencies.checkoutRoot);
+    } else if (action === "sync") {
+      stdout = await syncSkillLinks({
+        checkoutRoot: dependencies.checkoutRoot,
+        env: invocation.env,
+        processes,
+      });
+    } else {
+      stdout = await runSkillsMutation({
+        acceptAll,
+        action: action as "add" | "update" | "remove",
+        args,
+        checkoutRoot: dependencies.checkoutRoot,
+        env: invocation.env,
+        processes,
+        terminal,
+      });
+    }
+    return { exitCode: 0, stderr: "", stdout };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
+async function handlePiAuthExa(ctx: CommandContext): Promise<CommandOutcome> {
+  const parsed = parseExaAuthArgs(ctx.invocation.argv.slice(3));
+  if (!parsed.ok) return { exitCode: 2, stderr: parsed.message, stdout: "" };
+  const home = ctx.invocation.env.HOME;
+  if (!home) return { exitCode: 1, stderr: "dot: HOME is required\n", stdout: "" };
+  try {
+    const stdout = await configureExaAuth({ ...parsed.input, home });
+    return { exitCode: 0, stderr: "", stdout };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
+async function handlePi(ctx: CommandContext): Promise<CommandOutcome> {
+  const { invocation, terminal } = ctx;
+  if (invocation.argv[1] === "auth" && invocation.argv[2] === "exa") return handlePiAuthExa(ctx);
+
+  if (invocation.argv[1] !== "auth" || invocation.argv[2] !== "cloudflare") {
+    return { exitCode: 2, stderr: "dot: usage: dot pi auth cloudflare [OPTIONS]\n", stdout: "" };
+  }
+  const parsed = parseCloudflareAuthArgs(invocation.argv.slice(3));
+  if (!parsed.ok) return { exitCode: 2, stderr: parsed.message, stdout: "" };
+  const home = invocation.env.HOME;
+  if (!home) return { exitCode: 1, stderr: "dot: HOME is required\n", stdout: "" };
+  try {
+    const stdout = await configureCloudflareAuth({ ...parsed.input, env: invocation.env, home, terminal });
+    return { exitCode: 0, stderr: "", stdout };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
+async function handlePackage(ctx: CommandContext): Promise<CommandOutcome> {
+  const { invocation, dependencies, processes } = ctx;
+  const [, action, name, option] = invocation.argv;
+  const validAdd =
+    action === "add" &&
+    Boolean(name) &&
+    (invocation.argv.length === 3 || (invocation.argv.length === 4 && option === "--cask"));
+  const validRemove = action === "remove" && Boolean(name) && invocation.argv.length === 3;
+  if (!(validAdd || validRemove)) {
+    return {
+      exitCode: 2,
+      stderr: "dot: usage: dot package add NAME [--cask] | dot package remove NAME\n",
+      stdout: "",
+    };
+  }
+  try {
+    const stdout = validAdd
+      ? await addPackage({
+          cask: option === "--cask",
+          checkoutRoot: dependencies.checkoutRoot,
+          env: invocation.env,
+          name: name!,
+          processes,
+        })
+      : await removePackage({ checkoutRoot: dependencies.checkoutRoot, name: name! });
+    return { exitCode: 0, stderr: "", stdout };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
+async function handleBun(ctx: CommandContext): Promise<CommandOutcome> {
+  const { invocation, dependencies, processes } = ctx;
+  const action = invocation.argv[1];
+  const name = invocation.argv[2];
+  const validAdd = action === "add" && Boolean(name) && invocation.argv.length === 3;
+  const validRemove = action === "remove" && Boolean(name) && invocation.argv.length === 3;
+  if (!(validAdd || validRemove)) {
+    return {
+      exitCode: 2,
+      stderr: "dot: usage: dot bun add NAME[@VERSION] | dot bun remove NAME\n",
+      stdout: "",
+    };
+  }
+  try {
+    const stdout = validAdd
+      ? await addGlobalBunPackage({
+          checkoutRoot: dependencies.checkoutRoot,
+          env: invocation.env,
+          name: name!,
+          processes,
+        })
+      : await removeGlobalBunPackage({ checkoutRoot: dependencies.checkoutRoot, name: name! });
+    return { exitCode: 0, stderr: "", stdout };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
+async function handleDoctor(ctx: CommandContext): Promise<CommandOutcome> {
+  if (ctx.invocation.argv.length !== 1) {
+    return { exitCode: 2, stderr: "dot: usage: dot doctor\n", stdout: "" };
+  }
+  try {
+    const report = await runDoctor({
+      checkoutRoot: ctx.dependencies.checkoutRoot,
+      env: ctx.invocation.env,
+      processes: ctx.processes,
+    });
+    return { exitCode: report.healthy ? 0 : 1, stderr: "", stdout: report.stdout };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
+async function handleApplyUpdateUpgrade(
+  ctx: CommandContext,
+  command: "apply" | "update" | "upgrade"
+): Promise<CommandOutcome> {
+  const { invocation, dependencies, processes, terminal } = ctx;
+  if (invocation.argv.length > 2 || (invocation.argv.length === 2 && invocation.argv[1] !== "--yes")) {
+    return { exitCode: 2, stderr: `dot: usage: dot ${command} [--yes]\n`, stdout: "" };
+  }
+  try {
+    const options = { checkoutRoot: dependencies.checkoutRoot, env: invocation.env, processes, terminal };
+    const stdout =
+      command === "upgrade"
+        ? await upgrade({ ...options, acceptAll: invocation.argv[1] === "--yes" })
+        : await apply({ ...options, acceptTracked: invocation.argv[1] === "--yes" });
+    return { exitCode: 0, stderr: "", stdout };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
+const SINGLE_WORD_HANDLERS: Readonly<Record<string, (ctx: CommandContext) => Promise<CommandOutcome>>> = {
+  bun: handleBun,
+  doctor: handleDoctor,
+  init: handleInit,
+  package: handlePackage,
+  pi: handlePi,
+  skills: handleSkills,
+};
+
 export function createApplication(dependencies: ApplicationDependencies): DotApplication {
   const processes = dependencies.processes ?? bunProcessRunner;
   const terminal = dependencies.terminal ?? systemTerminal;
@@ -95,242 +306,17 @@ export function createApplication(dependencies: ApplicationDependencies): DotApp
       ) {
         return { exitCode: 0, stderr: "", stdout: renderHelp() };
       }
-
       if (invocation.argv.length === 1 && command === "--version") {
-        return {
-          exitCode: 0,
-          stderr: "",
-          stdout: `dot version ${packageMetadata.version}\n`,
-        };
+        return { exitCode: 0, stderr: "", stdout: `dot version ${packageMetadata.version}\n` };
       }
 
-      if (command === "init") {
-        if (invocation.argv.length !== 1) {
-          return {
-            exitCode: 2,
-            stderr: "dot: usage: dot init\n",
-            stdout: "",
-          };
-        }
-        try {
-          const outcome = await initialize({
-            checkoutRoot: dependencies.checkoutRoot,
-            env: invocation.env,
-            knownBrewPaths: dependencies.knownBrewPaths,
-            processes,
-            terminal,
-          });
-          return { ...outcome, stderr: "" };
-        } catch (error) {
-          return failureOutcome(error);
-        }
-      }
-
-      if (command === "skills") {
-        const action = invocation.argv[1] ?? "list";
-        let args = invocation.argv.slice(2);
-        let acceptAll = false;
-        if ((action === "update" || action === "add" || action === "remove") && args.at(-1) === "--yes") {
-          acceptAll = true;
-          args = args.slice(0, -1);
-        }
-        const valid =
-          (action === "list" && args.length === 0) ||
-          (action === "sync" && args.length === 0) ||
-          (action === "update" && args.length === 0) ||
-          (action === "add" && args.length >= 2) ||
-          (action === "remove" && args.length >= 1);
-        if (!valid) {
-          return {
-            exitCode: 2,
-            stderr:
-              "dot: usage: dot skills [list|sync|update [--yes]|add REPO SKILL... [--yes]|remove SKILL... [--yes]]\n",
-            stdout: "",
-          };
-        }
-        try {
-          let stdout: string;
-          if (action === "list") {
-            stdout = await listSkills(dependencies.checkoutRoot);
-          } else if (action === "sync") {
-            stdout = await syncSkillLinks({
-              checkoutRoot: dependencies.checkoutRoot,
-              env: invocation.env,
-              processes,
-            });
-          } else {
-            stdout = await runSkillsMutation({
-              acceptAll,
-              action: action as "add" | "update" | "remove",
-              args,
-              checkoutRoot: dependencies.checkoutRoot,
-              env: invocation.env,
-              processes,
-              terminal,
-            });
-          }
-          return { exitCode: 0, stderr: "", stdout };
-        } catch (error) {
-          return failureOutcome(error);
-        }
-      }
-
-      if (command === "pi" && invocation.argv[1] === "auth" && invocation.argv[2] === "exa") {
-        const parsed = parseExaAuthArgs(invocation.argv.slice(3));
-        if (!parsed.ok) {
-          return { exitCode: 2, stderr: parsed.message, stdout: "" };
-        }
-        const home = invocation.env.HOME;
-        if (!home) return { exitCode: 1, stderr: "dot: HOME is required\n", stdout: "" };
-        try {
-          const stdout = await configureExaAuth({ ...parsed.input, home });
-          return { exitCode: 0, stderr: "", stdout };
-        } catch (error) {
-          return failureOutcome(error);
-        }
-      }
-
-      if (command === "pi") {
-        if (invocation.argv[1] !== "auth" || invocation.argv[2] !== "cloudflare") {
-          return {
-            exitCode: 2,
-            stderr: "dot: usage: dot pi auth cloudflare [OPTIONS]\n",
-            stdout: "",
-          };
-        }
-        const parsed = parseCloudflareAuthArgs(invocation.argv.slice(3));
-        if (!parsed.ok) {
-          return { exitCode: 2, stderr: parsed.message, stdout: "" };
-        }
-        const home = invocation.env.HOME;
-        if (!home) return { exitCode: 1, stderr: "dot: HOME is required\n", stdout: "" };
-        try {
-          const stdout = await configureCloudflareAuth({
-            ...parsed.input,
-            env: invocation.env,
-            home,
-            terminal,
-          });
-          return { exitCode: 0, stderr: "", stdout };
-        } catch (error) {
-          return failureOutcome(error);
-        }
-      }
-
-      if (command === "package") {
-        const [, action, name, option] = invocation.argv;
-        const validAdd =
-          action === "add" &&
-          Boolean(name) &&
-          (invocation.argv.length === 3 || (invocation.argv.length === 4 && option === "--cask"));
-        const validRemove = action === "remove" && Boolean(name) && invocation.argv.length === 3;
-        if (!(validAdd || validRemove)) {
-          return {
-            exitCode: 2,
-            stderr: "dot: usage: dot package add NAME [--cask] | dot package remove NAME\n",
-            stdout: "",
-          };
-        }
-        try {
-          const stdout = validAdd
-            ? await addPackage({
-                cask: option === "--cask",
-                checkoutRoot: dependencies.checkoutRoot,
-                env: invocation.env,
-                name: name!,
-                processes,
-              })
-            : await removePackage({ checkoutRoot: dependencies.checkoutRoot, name: name! });
-          return { exitCode: 0, stderr: "", stdout };
-        } catch (error) {
-          return failureOutcome(error);
-        }
-      }
-
-      if (command === "bun") {
-        const action = invocation.argv[1];
-        const name = invocation.argv[2];
-        const validAdd = action === "add" && Boolean(name) && invocation.argv.length === 3;
-        const validRemove = action === "remove" && Boolean(name) && invocation.argv.length === 3;
-        if (!(validAdd || validRemove)) {
-          return {
-            exitCode: 2,
-            stderr: "dot: usage: dot bun add NAME[@VERSION] | dot bun remove NAME\n",
-            stdout: "",
-          };
-        }
-        try {
-          const stdout = validAdd
-            ? await addGlobalBunPackage({
-                checkoutRoot: dependencies.checkoutRoot,
-                env: invocation.env,
-                name: name!,
-                processes,
-              })
-            : await removeGlobalBunPackage({ checkoutRoot: dependencies.checkoutRoot, name: name! });
-          return { exitCode: 0, stderr: "", stdout };
-        } catch (error) {
-          return failureOutcome(error);
-        }
-      }
-
-      if (command === "doctor") {
-        if (invocation.argv.length !== 1) {
-          return {
-            exitCode: 2,
-            stderr: "dot: usage: dot doctor\n",
-            stdout: "",
-          };
-        }
-        try {
-          const report = await runDoctor({
-            checkoutRoot: dependencies.checkoutRoot,
-            env: invocation.env,
-            processes,
-          });
-          return {
-            exitCode: report.healthy ? 0 : 1,
-            stderr: "",
-            stdout: report.stdout,
-          };
-        } catch (error) {
-          return failureOutcome(error);
-        }
-      }
-
+      const ctx: CommandContext = { dependencies, invocation, processes, terminal };
       if (command === "apply" || command === "update" || command === "upgrade") {
-        if (invocation.argv.length > 2 || (invocation.argv.length === 2 && invocation.argv[1] !== "--yes")) {
-          return {
-            exitCode: 2,
-            stderr: `dot: usage: dot ${command} [--yes]\n`,
-            stdout: "",
-          };
-        }
-        try {
-          const options = {
-            checkoutRoot: dependencies.checkoutRoot,
-            env: invocation.env,
-            processes,
-            terminal,
-          };
-          return {
-            exitCode: 0,
-            stderr: "",
-            stdout:
-              command === "upgrade"
-                ? await upgrade({
-                    ...options,
-                    acceptAll: invocation.argv[1] === "--yes",
-                  })
-                : await apply({
-                    ...options,
-                    acceptTracked: invocation.argv[1] === "--yes",
-                  }),
-          };
-        } catch (error) {
-          return failureOutcome(error);
-        }
+        return handleApplyUpdateUpgrade(ctx, command);
       }
+
+      const handler = command ? SINGLE_WORD_HANDLERS[command] : undefined;
+      if (handler) return handler(ctx);
 
       return {
         exitCode: 2,

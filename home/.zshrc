@@ -35,3 +35,6 @@ function vp() {
     command vp "$@"
   fi
 }
+
+# bun completions
+[ -s "/Users/carrickm/.bun/_bun" ] && source "/Users/carrickm/.bun/_bun"

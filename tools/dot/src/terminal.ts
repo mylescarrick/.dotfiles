@@ -2,8 +2,8 @@ import { createInterface } from "node:readline/promises";
 
 export interface Terminal {
   readonly interactive: boolean;
-  prompt(message: string): Promise<string>;
-  write(message: string): void;
+  prompt: (message: string) => Promise<string>;
+  write: (message: string) => void;
 }
 
 export const systemTerminal: Terminal = {

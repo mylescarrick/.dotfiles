@@ -22,6 +22,7 @@ import {
 } from "./types.ts";
 import { parseWebFetchToolParams } from "./webfetch-input.ts";
 
+// biome-ignore lint/performance/noBarrelFile: webfetch.ts is this tool's public surface; fetch-page.ts is its implementation detail, not an unrelated module graph
 export {
   createWebFetchHeaders,
   getFallbackUserAgent,

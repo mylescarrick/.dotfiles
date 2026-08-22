@@ -62,6 +62,7 @@ export default function saveMarkdownExtension(pi: ExtensionAPI) {
           flag: "wx",
         });
       } catch (error) {
+        // biome-ignore lint/suspicious/noUnnecessaryConditions: typeof x === "object" is true for null in JS, so the null check is genuinely required, not redundant
         if (typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST") {
           ctx.ui.notify(`File already exists: ${path}`, "error");
           return;

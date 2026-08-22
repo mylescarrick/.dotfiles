@@ -2,14 +2,12 @@ import { resolveExaApiKeyCached } from "../exa-auth.ts";
 import { decodeTextBuffer, isAbortError, parseContentType, readBodyWithLimit } from "../network.ts";
 import { err, ok, type Result } from "../result.ts";
 import type { PublicHttpUrl } from "../types.ts";
-import {
-  type ExaProtocolParseError,
-  encodeExaSearchRequest,
-  normalizeExaDepth,
-  parseExaMcpResponse,
-  parseSseDataLines,
-} from "./exa-protocol.ts";
+import { type ExaProtocolParseError, encodeExaSearchRequest, parseExaMcpResponse } from "./exa-protocol.ts";
 import { parseExaSearchText } from "./exa-results.ts";
+
+// biome-ignore lint/performance/noBarrelFile: two named re-exports from a sibling implementation file, not an aggregating barrel
+export { normalizeExaDepth, parseSseDataLines } from "./exa-protocol.ts";
+
 import type {
   NormalizedSearchResult,
   SearchProvider,
@@ -167,8 +165,6 @@ export class ExaSearchProvider implements SearchProvider {
   }
 }
 
-export { normalizeExaDepth, parseSseDataLines };
-
 /** Compatibility helper for extracting text messages from an Exa MCP response. */
 export function extractSearchTextFromResponse(body: string, contentType: string): string {
   const parsed = parseExaMcpResponse(body, contentType);
@@ -192,7 +188,7 @@ export function extractSearchErrorFromResponse(body: string, contentType: string
   return providerError?._tag === "ProviderError" ? providerError.safeMessage : undefined;
 }
 
-export { parseExaSearchText };
+export { parseExaSearchText } from "./exa-results.ts";
 
 function mapHttpClientError(error: HttpClientError): SearchProviderError {
   switch (error._tag) {

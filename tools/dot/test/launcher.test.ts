@@ -61,6 +61,7 @@ async function makeFixture(options: { withBun?: boolean; withGit?: boolean } = {
   if (options.withBun !== false) {
     await writeFile(
       join(fakeBin, "bun"),
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: this is a shell script body; ${DOT_TEST_MAIN_CONTENT_LOG:-} is a shell parameter expansion, not a forgotten JS template literal
       '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOT_TEST_INVOCATION_LOG"\n[ -z "${DOT_TEST_MAIN_CONTENT_LOG:-}" ] || cat "$1" > "$DOT_TEST_MAIN_CONTENT_LOG"\nexit 0\n'
     );
     await chmod(join(fakeBin, "bun"), 0o755);

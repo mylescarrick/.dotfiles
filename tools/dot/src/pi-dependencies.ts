@@ -4,6 +4,12 @@ import { dirname, join, relative } from "node:path";
 import { replaceFileAtomic } from "./atomic-file";
 import type { ProcessRunner } from "./process";
 
+function compareStrings(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
 interface InstallState {
   readonly lock: string;
   readonly manifests: string;
@@ -40,7 +46,7 @@ async function manifestDigest(root: string): Promise<string> {
   }
   await visit(root);
   const hash = createHash("sha256");
-  for (const path of manifests.sort()) {
+  for (const path of manifests.sort(compareStrings)) {
     hash.update(relative(root, path));
     hash.update("\0");
     hash.update(await readFile(path));

@@ -113,76 +113,55 @@ async function withKnownHomebrew(
   return undefined;
 }
 
-export async function bootstrapMachine(options: {
+interface BootstrapOptions {
   readonly checkoutRoot: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly knownBrewPaths?: readonly string[];
   readonly processes: ProcessRunner;
   readonly terminal: Terminal;
-}): Promise<BootstrapResult> {
-  if (!options.terminal.interactive) {
-    throw new Error("dot init requires an interactive terminal");
-  }
-  const home = options.env.HOME;
-  if (!home) throw new Error("HOME is required");
+}
 
-  let env = options.env;
-  const knownBrewPaths = options.knownBrewPaths ?? [
-    ...(env.HOMEBREW_PREFIX ? [join(env.HOMEBREW_PREFIX, "bin/brew")] : []),
-    "/opt/homebrew/bin/brew",
-    "/usr/local/bin/brew",
-  ];
-  const lines: string[] = [];
-  let brewAvailable = await available({
-    command: "brew",
+type BootstrapEnv = Readonly<Record<string, string | undefined>>;
+
+/** Homebrew is required, so every failure path here throws rather than degrading. */
+async function ensureHomebrew(
+  options: BootstrapOptions,
+  startingEnv: BootstrapEnv,
+  knownBrewPaths: readonly string[]
+): Promise<{ env: BootstrapEnv; line: string }> {
+  let env = startingEnv;
+  const brewOnPath = () =>
+    available({ command: "brew", cwd: options.checkoutRoot, env, processes: options.processes });
+
+  if (await brewOnPath()) return { env, line: "Homebrew already installed" };
+  const preinstalled = await withKnownHomebrew(env, knownBrewPaths);
+  if (preinstalled) return { env: preinstalled, line: "Homebrew already installed" };
+
+  const answer = await options.terminal.prompt(
+    "Homebrew is missing. Install it from the official installer? [y/N]: "
+  );
+  if (!confirmed(answer)) throw new Error("Homebrew installation declined");
+  const installed = await installer({
     cwd: options.checkoutRoot,
-    env,
+    env: { ...env, NONINTERACTIVE: "1" },
+    interpreter: "/bin/bash",
     processes: options.processes,
+    url: "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh",
   });
-  if (!brewAvailable) {
+  if (!installed) throw new Error("Homebrew installer failed");
+
+  if (!(await brewOnPath())) {
     const known = await withKnownHomebrew(env, knownBrewPaths);
-    if (known) {
-      env = known;
-      brewAvailable = true;
-    }
+    if (!known) throw new Error("Homebrew installer completed but brew was not found");
+    env = known;
   }
+  return { env, line: "Homebrew installed" };
+}
 
-  if (brewAvailable) {
-    lines.push("Homebrew already installed");
-  } else {
-    const answer = await options.terminal.prompt(
-      "Homebrew is missing. Install it from the official installer? [y/N]: "
-    );
-    if (!confirmed(answer)) throw new Error("Homebrew installation declined");
-    const installed = await installer({
-      cwd: options.checkoutRoot,
-      env: { ...env, NONINTERACTIVE: "1" },
-      interpreter: "/bin/bash",
-      processes: options.processes,
-      url: "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh",
-    });
-    if (!installed) throw new Error("Homebrew installer failed");
-
-    if (
-      !(await available({
-        command: "brew",
-        cwd: options.checkoutRoot,
-        env,
-        processes: options.processes,
-      }))
-    ) {
-      const known = await withKnownHomebrew(env, knownBrewPaths);
-      if (!known) throw new Error("Homebrew installer completed but brew was not found");
-      env = known;
-    }
-    lines.push("Homebrew installed");
-  }
-
+/** oh-my-zsh is optional, so a declined prompt or a failed installer is reported, not thrown. */
+async function ensureOhMyZsh(options: BootstrapOptions, env: BootstrapEnv, home: string): Promise<string> {
   try {
-    if ((await lstat(join(home, ".oh-my-zsh"))).isDirectory()) {
-      lines.push("oh-my-zsh already installed");
-      return { env, stdout: `${lines.join("\n")}\n` };
-    }
+    if ((await lstat(join(home, ".oh-my-zsh"))).isDirectory()) return "oh-my-zsh already installed";
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -190,10 +169,8 @@ export async function bootstrapMachine(options: {
   const answer = await options.terminal.prompt(
     "oh-my-zsh is missing. Install it from the official installer? [y/N]: "
   );
-  if (!confirmed(answer)) {
-    lines.push("oh-my-zsh skipped");
-    return { env, stdout: `${lines.join("\n")}\n` };
-  }
+  if (!confirmed(answer)) return "oh-my-zsh skipped";
+
   const installed = await installer({
     cwd: options.checkoutRoot,
     env: { ...env, CHSH: "no", KEEP_ZSHRC: "yes", RUNZSH: "no" },
@@ -202,6 +179,23 @@ export async function bootstrapMachine(options: {
     processes: options.processes,
     url: "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh",
   });
-  lines.push(installed ? "oh-my-zsh installed" : "oh-my-zsh installation failed (continuing)");
-  return { env, stdout: `${lines.join("\n")}\n` };
+  return installed ? "oh-my-zsh installed" : "oh-my-zsh installation failed (continuing)";
+}
+
+export async function bootstrapMachine(options: BootstrapOptions): Promise<BootstrapResult> {
+  if (!options.terminal.interactive) {
+    throw new Error("dot init requires an interactive terminal");
+  }
+  const home = options.env.HOME;
+  if (!home) throw new Error("HOME is required");
+
+  const knownBrewPaths = options.knownBrewPaths ?? [
+    ...(options.env.HOMEBREW_PREFIX ? [join(options.env.HOMEBREW_PREFIX, "bin/brew")] : []),
+    "/opt/homebrew/bin/brew",
+    "/usr/local/bin/brew",
+  ];
+
+  const homebrew = await ensureHomebrew(options, options.env, knownBrewPaths);
+  const zsh = await ensureOhMyZsh(options, homebrew.env, home);
+  return { env: homebrew.env, stdout: `${homebrew.line}\n${zsh}\n` };
 }

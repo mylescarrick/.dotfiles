@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import { lstat, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { replaceFileAtomic } from "./atomic-file";
@@ -36,7 +37,7 @@ export async function replacePrivateFile(path: string, content: string): Promise
 
 export async function inspectPiSettings(home: string): Promise<string[]> {
   const path = join(home, ".pi/agent/settings.json");
-  let metadata;
+  let metadata: Stats;
   try {
     metadata = await lstat(path);
   } catch (error) {
@@ -75,7 +76,7 @@ export async function planPiSettings(options: {
     defaults = parseJsonObject(await readFile(defaultsPath, "utf8"), "Tracked Pi settings defaults");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`tracked Pi settings defaults are missing at ${defaultsPath}`);
+      throw new Error(`tracked Pi settings defaults are missing at ${defaultsPath}`, { cause: error });
     }
     throw error;
   }
@@ -104,7 +105,7 @@ export async function planPiClaudeBridgeSettings(options: {
     defaults = parseJsonObject(await readFile(defaultsPath, "utf8"), "Tracked Pi Claude Bridge defaults");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`tracked Pi Claude Bridge defaults are missing at ${defaultsPath}`);
+      throw new Error(`tracked Pi Claude Bridge defaults are missing at ${defaultsPath}`, { cause: error });
     }
     throw error;
   }

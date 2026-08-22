@@ -309,6 +309,7 @@ class AnswerComponent implements Component, Focusable {
   }
 
   handleInput(data: string): void {
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: showingConfirmation is mutated in other methods; this rule's flow analysis doesn't track cross-method reassignment of a mutable field
     if (this.showingConfirmation) {
       if (matchesKey(data, Key.enter) || data.toLowerCase() === "y") {
         this.submit();
@@ -450,6 +451,7 @@ class AnswerComponent implements Component, Focusable {
     pushBoxLine();
     lines.push(this.border(`├${"─".repeat(innerWidth)}┤`));
 
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: showingConfirmation is mutated in other methods; this rule's flow analysis doesn't track cross-method reassignment of a mutable field
     if (this.showingConfirmation) {
       const message =
         unanswered > 0

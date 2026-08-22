@@ -3,6 +3,12 @@ import type { FrontmatterDocument, SkillDiagnostic } from "../types.ts";
 
 const FRONTMATTER_KEY_RE = /^([A-Za-z0-9_-]+)\s*:/;
 
+function compareStrings(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
 export function deriveSkillMetadata(
   filePath: string,
   doc: FrontmatterDocument
@@ -56,7 +62,7 @@ export function getDuplicateFrontmatterKeys(doc: FrontmatterDocument): string[] 
   return [...getTopLevelFrontmatterKeyCounts(doc)]
     .filter(([, count]) => count > 1)
     .map(([key]) => key)
-    .sort();
+    .sort(compareStrings);
 }
 
 function getTopLevelFrontmatterKeyCounts(doc: FrontmatterDocument): Map<string, number> {

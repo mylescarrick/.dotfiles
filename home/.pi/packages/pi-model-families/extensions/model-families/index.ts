@@ -23,18 +23,18 @@ import {
 } from "./policy";
 
 type RoutingMode = "auto" | "locked";
-type PersistedState = {
-  version: 1;
+interface PersistedState {
   activeFamily: string;
-  routingMode: RoutingMode;
   lockedModelKey?: string;
+  routingMode: RoutingMode;
   timestamp: number;
-};
-type CustomSessionEntry = {
-  type: string;
+  version: 1;
+}
+interface CustomSessionEntry {
   customType?: string;
   data?: unknown;
-};
+  type: string;
+}
 const CONFIG_DIR_NAME = ".pi";
 const CONFIG_FILE = "model-families.json";
 const STATE_ENTRY_TYPE = "model-family-state";
@@ -77,7 +77,7 @@ function findProjectConfig(cwd: string): string | undefined {
   let dir = cwd;
   const root = parse(cwd).root;
 
-  while (true) {
+  for (;;) {
     const candidate = join(dir, CONFIG_DIR_NAME, CONFIG_FILE);
     if (existsSync(candidate)) return candidate;
 
@@ -144,13 +144,13 @@ function currentModelKey(ctx: ExtensionContext): string {
 
 type RegistryModel = ReturnType<ExtensionContext["modelRegistry"]["getAll"]>[number];
 
-type ProviderAuthStatusShape = {
+interface ProviderAuthStatusShape {
   configured?: boolean;
-  source?: string;
   label?: string;
-};
+  source?: string;
+}
 
-function familyEnabledEntries(config: ModelFamiliesConfig): Array<[string, ModelFamily]> {
+function familyEnabledEntries(config: ModelFamiliesConfig): [string, ModelFamily][] {
   return Object.entries(config.families).filter(([, family]) => !family.disabled);
 }
 
@@ -191,6 +191,12 @@ function clampThinkingLevel(model: RegistryModel, level: ThinkingLevel): Thinkin
   }
 
   return available[0] ?? "off";
+}
+
+function thinkingStatus(model: RegistryModel, thinkingLevel: ThinkingLevel | undefined): string {
+  if (!thinkingLevel) return "⚠ thinking unset; current level is retained";
+  if (supportedThinkingLevels(model).includes(thinkingLevel)) return `✓ thinking ${thinkingLevel}`;
+  return `⚠ thinking ${thinkingLevel} unsupported; clamps to ${clampThinkingLevel(model, thinkingLevel)}`;
 }
 
 function modelRef(model: RegistryModel): string {
@@ -314,12 +320,7 @@ function auditFamily(name: string, family: ModelFamily, ctx: ExtensionContext): 
 
     const available = ctx.modelRegistry.hasConfiguredAuth(model);
     const auth = ctx.modelRegistry.getProviderAuthStatus(model.provider) as ProviderAuthStatusShape;
-    const supported = supportedThinkingLevels(model);
-    const thinking = target.thinkingLevel
-      ? supported.includes(target.thinkingLevel)
-        ? `✓ thinking ${target.thinkingLevel}`
-        : `⚠ thinking ${target.thinkingLevel} unsupported; clamps to ${clampThinkingLevel(model, target.thinkingLevel)}`
-      : "⚠ thinking unset; current level is retained";
+    const thinking = thinkingStatus(model, target.thinkingLevel);
     const missingEnv = missingEnvPlaceholders(model, ctx);
     const envText = missingEnv.length ? `; missing env ${missingEnv.join(",")}` : "";
 
@@ -341,12 +342,7 @@ function auditFamily(name: string, family: ModelFamily, ctx: ExtensionContext): 
 
     const available = ctx.modelRegistry.hasConfiguredAuth(model);
     const auth = ctx.modelRegistry.getProviderAuthStatus(model.provider) as ProviderAuthStatusShape;
-    const supported = supportedThinkingLevels(model);
-    const thinking = target.thinkingLevel
-      ? supported.includes(target.thinkingLevel)
-        ? `✓ thinking ${target.thinkingLevel}`
-        : `⚠ thinking ${target.thinkingLevel} unsupported; clamps to ${clampThinkingLevel(model, target.thinkingLevel)}`
-      : "⚠ thinking unset; current level is retained";
+    const thinking = thinkingStatus(model, target.thinkingLevel);
     const missingEnv = missingEnvPlaceholders(model, ctx);
     const envText = missingEnv.length ? `; missing env ${missingEnv.join(",")}` : "";
 
@@ -701,11 +697,14 @@ export default function modelFamilies(pi: ExtensionAPI) {
       const first = parts[0] ?? "";
       const suggestFamilies = prefix.endsWith(" ") || ["use", "auto", "audit"].includes(first);
       const suggestTargets = ["target", "escalate"].includes(first);
-      const source = suggestTargets
-        ? Object.keys(config.families[activeFamily]?.manualTargets ?? {})
-        : suggestFamilies
-          ? familyNames(config, { enabledOnly: !["audit"].includes(first) })
-          : [...COMMANDS, ...familyNames(config)];
+      let source: string[];
+      if (suggestTargets) {
+        source = Object.keys(config.families[activeFamily]?.manualTargets ?? {});
+      } else if (suggestFamilies) {
+        source = familyNames(config, { enabledOnly: !["audit"].includes(first) });
+      } else {
+        source = [...COMMANDS, ...familyNames(config)];
+      }
       const items = source
         .filter((value) => value.startsWith(last))
         .map((value) => ({ label: value, value }));
@@ -731,7 +730,7 @@ export default function modelFamilies(pi: ExtensionAPI) {
     activeFamily = config.defaultFamily;
     // Tidy sets this only on spawned children. The environment marker is available before
     // Pi's startup model selection and is therefore the reliable child-runtime signal.
-    routingMode = isTidyChildProcess ? "locked" : config.autoRoute ? "auto" : "locked";
+    routingMode = !isTidyChildProcess && config.autoRoute ? "auto" : "locked";
     lockedModelKey = undefined;
 
     const restored = isTidyChildProcess ? undefined : readPersistedState(ctx);

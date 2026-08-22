@@ -198,7 +198,9 @@ describe("dot apply Pi settings", () => {
         prompts.push(message);
         return "n";
       },
-      write() {},
+      write() {
+        /* test double: discard output */
+      },
     };
     const outcome = await createApplication({
       checkoutRoot: fixture.checkout,
@@ -234,7 +236,9 @@ describe("dot apply Pi settings", () => {
       async prompt() {
         throw new Error("unexpected prompt");
       },
-      write() {},
+      write() {
+        /* test double: discard output */
+      },
     };
 
     expect(
@@ -408,7 +412,9 @@ describe("dot apply Pi settings", () => {
         await writeFile(settingsPath, '{"defaultProvider":"changed-during-prompt","packages":[]}\n');
         return "u";
       },
-      write() {},
+      write() {
+        /* test double: discard output */
+      },
     };
 
     const outcome = await createApplication({

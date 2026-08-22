@@ -1,34 +1,34 @@
 export type Role = "research" | "architecture" | "planning" | "delivery" | "verification";
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
-export type TargetModel = {
-  provider: string;
+export interface TargetModel {
   model: string;
+  provider: string;
   thinkingLevel?: ThinkingLevel;
-};
+}
 
 export type ManualTarget = TargetModel & {
   description?: string;
 };
 
-export type ModelFamily = {
+export interface ModelFamily {
   description?: string;
   disabled?: boolean;
-  roles: Partial<Record<Role, TargetModel>>;
   manualTargets?: Record<string, ManualTarget>;
-};
+  roles: Partial<Record<Role, TargetModel>>;
+}
 
-export type ModelFamiliesConfig = {
-  defaultFamily: string;
+export interface ModelFamiliesConfig {
   autoRoute: boolean;
-  returnRole: Role;
+  defaultFamily: string;
   families: Record<string, ModelFamily>;
-};
+  returnRole: Role;
+}
 
-export type RoleRoute = {
-  role: Role;
+export interface RoleRoute {
   reason: string;
-};
+  role: Role;
+}
 
 export const ROLES = ["research", "architecture", "planning", "delivery", "verification"] as const;
 export const THINKING_LEVEL_ORDER = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;

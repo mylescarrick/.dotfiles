@@ -30,7 +30,7 @@ export interface CommandOutcome {
 }
 
 export interface DotApplication {
-  execute(invocation: Invocation): Promise<CommandOutcome>;
+  execute: (invocation: Invocation) => Promise<CommandOutcome>;
 }
 
 interface CommandDescription {
@@ -149,24 +149,26 @@ export function createApplication(dependencies: ApplicationDependencies): DotApp
           };
         }
         try {
-          const stdout =
-            action === "list"
-              ? await listSkills(dependencies.checkoutRoot)
-              : action === "sync"
-                ? await syncSkillLinks({
-                    checkoutRoot: dependencies.checkoutRoot,
-                    env: invocation.env,
-                    processes,
-                  })
-                : await runSkillsMutation({
-                    acceptAll,
-                    action: action as "add" | "update" | "remove",
-                    args,
-                    checkoutRoot: dependencies.checkoutRoot,
-                    env: invocation.env,
-                    processes,
-                    terminal,
-                  });
+          let stdout: string;
+          if (action === "list") {
+            stdout = await listSkills(dependencies.checkoutRoot);
+          } else if (action === "sync") {
+            stdout = await syncSkillLinks({
+              checkoutRoot: dependencies.checkoutRoot,
+              env: invocation.env,
+              processes,
+            });
+          } else {
+            stdout = await runSkillsMutation({
+              acceptAll,
+              action: action as "add" | "update" | "remove",
+              args,
+              checkoutRoot: dependencies.checkoutRoot,
+              env: invocation.env,
+              processes,
+              terminal,
+            });
+          }
           return { exitCode: 0, stderr: "", stdout };
         } catch (error) {
           return failureOutcome(error);

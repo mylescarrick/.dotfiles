@@ -99,7 +99,7 @@ export async function fetchWithRedirects(
   let currentUrl = initialUrl;
   let redirects = 0;
 
-  while (true) {
+  for (;;) {
     assertUrlHasNoCredentials(currentUrl);
     if (options.blockPrivateHosts) {
       await assertPublicUrl(currentUrl);
@@ -124,8 +124,8 @@ export async function fetchWithRedirects(
       let nextUrl: URL;
       try {
         nextUrl = new URL(location, currentUrl);
-      } catch {
-        throw new Error("Redirect response had an invalid Location header");
+      } catch (error) {
+        throw new Error("Redirect response had an invalid Location header", { cause: error });
       }
       if (nextUrl.protocol !== "http:" && nextUrl.protocol !== "https:") {
         throw new Error("Redirected to unsupported protocol");
@@ -154,7 +154,7 @@ export async function readBodyWithLimit(
   let bytes = 0;
 
   try {
-    while (true) {
+    for (;;) {
       if (signal?.aborted) {
         await reader.cancel(signal.reason).catch(() => undefined);
         throw signal.reason instanceof Error ? signal.reason : new Error("Operation cancelled");
@@ -461,7 +461,7 @@ async function fetchWithUserAgent(
   let currentUrl = new URL(request.url);
   let redirects = 0;
 
-  while (true) {
+  for (;;) {
     if (signal?.aborted) {
       return err(classifySignalAbort(signal));
     }

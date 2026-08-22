@@ -2,8 +2,8 @@ export function parseJsonObject(text: string, label: string): Record<string, unk
   let value: unknown;
   try {
     value = text.trim() ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(`${label} contains invalid JSON`);
+  } catch (error) {
+    throw new Error(`${label} contains invalid JSON`, { cause: error });
   }
   if (!value || Array.isArray(value) || typeof value !== "object") {
     throw new Error(`${label} must contain a JSON object`);

@@ -20,7 +20,9 @@ export type ParsePublicHttpUrlError =
   | { readonly _tag: "InvalidUrl"; readonly input: RedactedValue<string> }
   | { readonly _tag: "UrlCredentialsUnsupported"; readonly url: RedactedValue<string> };
 
-export type ParseSearchQueryError = { readonly _tag: "EmptySearchQuery" };
+export interface ParseSearchQueryError {
+  readonly _tag: "EmptySearchQuery";
+}
 
 export interface WebToolsSettings {
   readonly fetch: {

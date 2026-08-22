@@ -7,7 +7,7 @@ import type { SkillRecord } from "../types.ts";
 import { classifyInvocationMode } from "./classifier.ts";
 
 export interface SkillInventory {
-  load(cwd: string): Promise<SkillRecord[]>;
+  load: (cwd: string) => Promise<SkillRecord[]>;
 }
 
 export class DefaultSkillInventory implements SkillInventory {

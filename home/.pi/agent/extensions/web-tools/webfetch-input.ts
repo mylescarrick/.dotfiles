@@ -40,7 +40,7 @@ export function parseWebFetchToolParams(
     }
   }
 
-  const urlValue = raw["url"];
+  const urlValue = raw.url;
   if (typeof urlValue !== "string") {
     return err({ _tag: "InvalidToolField", field: "url", message: "Expected a string" });
   }
@@ -50,7 +50,7 @@ export function parseWebFetchToolParams(
     return url;
   }
 
-  const formatValue = raw["format"];
+  const formatValue = raw.format;
   let format = settings.defaultFormat;
   if (formatValue !== undefined) {
     if (typeof formatValue !== "string" || !isWebFetchFormat(formatValue)) {
@@ -63,7 +63,7 @@ export function parseWebFetchToolParams(
     format = formatValue;
   }
 
-  const timeoutValue = raw["timeout"];
+  const timeoutValue = raw.timeout;
   let timeoutSeconds = clampInteger(settings.timeoutSeconds, {
     fallback: FETCH_TIMEOUT_SECONDS.default,
     max: FETCH_TIMEOUT_SECONDS.max,

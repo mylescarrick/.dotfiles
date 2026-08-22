@@ -2,7 +2,7 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { SkillTogglePlanner } from "./apply/planner.ts";
 import type { SkillChangeWriter } from "./apply/writer.ts";
 import type { SkillInventory } from "./inventory/loader.ts";
-import type { ApplyResult } from "./types.ts";
+import type { ApplyResult, SkillChange, SkillRecord } from "./types.ts";
 import { showSkillToggleUi } from "./ui/overlay.ts";
 
 export interface ToggleSkillsCommandDeps {
@@ -20,7 +20,7 @@ export async function runToggleSkillsCommand(
     return;
   }
 
-  let skills;
+  let skills: SkillRecord[];
   try {
     skills = await deps.inventory.load(ctx.cwd);
   } catch (error) {
@@ -39,7 +39,7 @@ export async function runToggleSkillsCommand(
   const result = await showSkillToggleUi(ctx, skills);
   if (result.action !== "apply") return;
 
-  let changes;
+  let changes: SkillChange[];
   try {
     changes = await deps.planner.plan(skills, result.drafts);
   } catch (error) {

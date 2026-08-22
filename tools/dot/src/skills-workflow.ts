@@ -43,13 +43,14 @@ function commitSubjectFor(action: "add" | "update" | "remove", args: readonly st
   return `chore(skills): remove ${args.join(", ")}`;
 }
 
+function detailFor(action: "add" | "update" | "remove", args: readonly string[]): string {
+  if (action === "update") return "Refreshed vendored skills from their upstream sources.";
+  if (action === "add") return `Vendored ${args.slice(1).join(", ")} from ${args[0]}.`;
+  return `Removed vendored skill(s): ${args.join(", ")}.`;
+}
+
 function prBodyFor(action: "add" | "update" | "remove", args: readonly string[]): string {
-  const detail =
-    action === "update"
-      ? "Refreshed vendored skills from their upstream sources."
-      : action === "add"
-        ? `Vendored ${args.slice(1).join(", ")} from ${args[0]}.`
-        : `Removed vendored skill(s): ${args.join(", ")}.`;
+  const detail = detailFor(action, args);
   return `Automated via \`dot skills ${action}\`.\n\n## Summary\n- ${detail}\n\n## Test plan\n- [ ] Review the diff for unexpected upstream changes\n`;
 }
 

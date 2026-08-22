@@ -308,37 +308,31 @@ class AnswerComponent implements Component, Focusable {
     this.done(null);
   }
 
-  handleInput(data: string): void {
-    if (this.showingConfirmation) {
-      if (matchesKey(data, Key.enter) || data.toLowerCase() === "y") {
-        this.submit();
-        return;
-      }
-      if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c")) || data.toLowerCase() === "n") {
-        this.showingConfirmation = false;
-        this.invalidate();
-        this.tui.requestRender();
-        return;
-      }
+  /** Keys accepted while the submit confirmation is showing. */
+  private handleConfirmationInput(data: string): void {
+    if (matchesKey(data, Key.enter) || data.toLowerCase() === "y") {
+      this.submit();
       return;
     }
-
-    if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
-      this.cancel();
-      return;
+    if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c")) || data.toLowerCase() === "n") {
+      this.showingConfirmation = false;
+      this.invalidate();
+      this.tui.requestRender();
     }
+  }
 
+  /** Tab, shift+tab, and arrow movement between questions. Returns true when the key was consumed. */
+  private handleNavigationInput(data: string): boolean {
     if (matchesKey(data, Key.tab)) {
       if (this.currentIndex < this.questions.length - 1) {
         this.navigateTo(this.currentIndex + 1);
-        this.tui.requestRender();
       } else {
         this.saveCurrentAnswer();
         this.showingConfirmation = true;
         this.invalidate();
-        this.tui.requestRender();
       }
-      return;
+      this.tui.requestRender();
+      return true;
     }
 
     if (matchesKey(data, Key.shift("tab"))) {
@@ -346,13 +340,14 @@ class AnswerComponent implements Component, Focusable {
         this.navigateTo(this.currentIndex - 1);
         this.tui.requestRender();
       }
-      return;
+      return true;
     }
 
+    // Arrows only navigate from an empty editor, so they stay usable for text editing.
     if (matchesKey(data, Key.up) && this.editor.getText() === "" && this.currentIndex > 0) {
       this.navigateTo(this.currentIndex - 1);
       this.tui.requestRender();
-      return;
+      return true;
     }
 
     if (
@@ -362,8 +357,25 @@ class AnswerComponent implements Component, Focusable {
     ) {
       this.navigateTo(this.currentIndex + 1);
       this.tui.requestRender();
+      return true;
+    }
+
+    return false;
+  }
+
+  handleInput(data: string): void {
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: showingConfirmation is mutated in other methods; this rule's flow analysis doesn't track cross-method reassignment of a mutable field
+    if (this.showingConfirmation) {
+      this.handleConfirmationInput(data);
       return;
     }
+
+    if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
+      this.cancel();
+      return;
+    }
+
+    if (this.handleNavigationInput(data)) return;
 
     if (matchesKey(data, Key.enter) && !matchesKey(data, Key.shift("enter"))) {
       this.saveCurrentAnswer();
@@ -450,6 +462,7 @@ class AnswerComponent implements Component, Focusable {
     pushBoxLine();
     lines.push(this.border(`├${"─".repeat(innerWidth)}┤`));
 
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: showingConfirmation is mutated in other methods; this rule's flow analysis doesn't track cross-method reassignment of a mutable field
     if (this.showingConfirmation) {
       const message =
         unanswered > 0
@@ -474,40 +487,104 @@ class AnswerComponent implements Component, Focusable {
   }
 }
 
+/** Asks the extraction model for questions, falling back to local parsing when it returns nothing usable. */
+async function extractQuestions(
+  modelRegistry: {
+    getApiKeyAndHeaders: (
+      model: Model<Api>
+    ) => Promise<
+      { ok: true; apiKey?: string; headers?: Record<string, string> } | { ok: false; error: string }
+    >;
+  },
+  extractionModel: Model<Api>,
+  lastAssistantText: string,
+  signal: AbortSignal
+): Promise<ExtractionOutcome> {
+  const auth = await modelRegistry.getApiKeyAndHeaders(extractionModel);
+  if (!auth.ok) {
+    const authError = "error" in auth ? auth.error : "Unknown auth error";
+    return {
+      message: `No auth available for ${extractionModel.provider}/${extractionModel.id}: ${authError}`,
+      type: "error",
+    };
+  }
+
+  const userMessage: UserMessage = {
+    content: [{ text: lastAssistantText, type: "text" }],
+    role: "user",
+    timestamp: Date.now(),
+  };
+
+  const response = await complete(
+    extractionModel,
+    { messages: [userMessage], systemPrompt: SYSTEM_PROMPT },
+    {
+      apiKey: auth.apiKey,
+      headers: auth.headers,
+      signal,
+      ...(extractionModel.provider === "openai-codex" ? { reasoningEffort: "none" } : {}),
+    }
+  );
+
+  if (response.stopReason === "aborted") return { type: "cancelled" };
+
+  const responseText = getTextParts(response.content).join("\n").trim();
+  if (!responseText) {
+    return { result: fallbackExtractQuestions(lastAssistantText), type: "success" };
+  }
+
+  const parsed = parseExtractionResult(responseText);
+  if (parsed.type === "error") {
+    const fallback = fallbackExtractQuestions(lastAssistantText);
+    if (fallback.questions.length > 0) return { result: fallback, type: "success" };
+  }
+  return parsed;
+}
+
+/** Validates the session and picks an extraction model, notifying and returning undefined on any blocker. */
+async function prepareExtraction(
+  ctx: ExtensionContext
+): Promise<{ extractionModel: Model<Api>; lastAssistantText: string } | undefined> {
+  if (!ctx.hasUI) {
+    ctx.ui.notify("answer requires interactive mode", "error");
+    return undefined;
+  }
+
+  if (!ctx.model) {
+    ctx.ui.notify("No model selected", "error");
+    return undefined;
+  }
+
+  const { text: lastAssistantText, skippedIncomplete } = findLastCompletedAssistantMessage(ctx);
+  if (!lastAssistantText) {
+    ctx.ui.notify(
+      skippedIncomplete ? "No completed assistant message found yet" : "No assistant messages found",
+      "error"
+    );
+    return undefined;
+  }
+
+  if (skippedIncomplete) {
+    ctx.ui.notify("Using the last completed assistant message", "warning");
+  }
+
+  const extractionModel = await selectExtractionModel(ctx.modelRegistry, EXTRACTION_MODEL_PREFERENCES);
+  if (!extractionModel) {
+    ctx.ui.notify(
+      `No configured extraction model is available with a configured API key. Checked: ${formatExtractionModelPreferences(EXTRACTION_MODEL_PREFERENCES)}`,
+      "error"
+    );
+    return undefined;
+  }
+
+  return { extractionModel, lastAssistantText };
+}
+
 export default function (pi: ExtensionAPI) {
   const answerHandler = async (ctx: ExtensionContext) => {
-    if (!ctx.hasUI) {
-      ctx.ui.notify("answer requires interactive mode", "error");
-      return;
-    }
-
-    if (!ctx.model) {
-      ctx.ui.notify("No model selected", "error");
-      return;
-    }
-
-    const { text: lastAssistantText, skippedIncomplete } = findLastCompletedAssistantMessage(ctx);
-    if (!lastAssistantText) {
-      ctx.ui.notify(
-        skippedIncomplete ? "No completed assistant message found yet" : "No assistant messages found",
-        "error"
-      );
-      return;
-    }
-
-    if (skippedIncomplete) {
-      ctx.ui.notify("Using the last completed assistant message", "warning");
-    }
-
-    const extractionModelPreferences = EXTRACTION_MODEL_PREFERENCES;
-    const extractionModel = await selectExtractionModel(ctx.modelRegistry, extractionModelPreferences);
-    if (!extractionModel) {
-      ctx.ui.notify(
-        `No configured extraction model is available with a configured API key. Checked: ${formatExtractionModelPreferences(extractionModelPreferences)}`,
-        "error"
-      );
-      return;
-    }
+    const prepared = await prepareExtraction(ctx);
+    if (!prepared) return;
+    const { extractionModel, lastAssistantText } = prepared;
 
     const extractionOutcome = await ctx.ui.custom<ExtractionOutcome>((tui, theme, _kb, done) => {
       const loader = new BorderedLoader(
@@ -517,61 +594,7 @@ export default function (pi: ExtensionAPI) {
       );
       loader.onAbort = () => done({ type: "cancelled" });
 
-      const doExtract = async () => {
-        const auth = await ctx.modelRegistry.getApiKeyAndHeaders(extractionModel);
-        if (!auth.ok) {
-          const authError = "error" in auth ? auth.error : "Unknown auth error";
-          return {
-            message: `No auth available for ${extractionModel.provider}/${extractionModel.id}: ${authError}`,
-            type: "error",
-          } as ExtractionOutcome;
-        }
-
-        const userMessage: UserMessage = {
-          content: [{ text: lastAssistantText, type: "text" }],
-          role: "user",
-          timestamp: Date.now(),
-        };
-
-        const response = await complete(
-          extractionModel,
-          { messages: [userMessage], systemPrompt: SYSTEM_PROMPT },
-          {
-            apiKey: auth.apiKey,
-            headers: auth.headers,
-            signal: loader.signal,
-            ...(extractionModel.provider === "openai-codex" ? { reasoningEffort: "none" } : {}),
-          }
-        );
-
-        if (response.stopReason === "aborted") {
-          return { type: "cancelled" } as ExtractionOutcome;
-        }
-
-        const responseText = getTextParts(response.content).join("\n").trim();
-        if (!responseText) {
-          const fallback = fallbackExtractQuestions(lastAssistantText);
-          return {
-            result: fallback,
-            type: "success",
-          } as ExtractionOutcome;
-        }
-
-        const parsed = parseExtractionResult(responseText);
-        if (parsed.type === "error") {
-          const fallback = fallbackExtractQuestions(lastAssistantText);
-          if (fallback.questions.length > 0) {
-            return {
-              result: fallback,
-              type: "success",
-            } as ExtractionOutcome;
-          }
-        }
-
-        return parsed;
-      };
-
-      doExtract()
+      extractQuestions(ctx.modelRegistry, extractionModel, lastAssistantText, loader.signal)
         .then(done)
         .catch((error) => {
           done({

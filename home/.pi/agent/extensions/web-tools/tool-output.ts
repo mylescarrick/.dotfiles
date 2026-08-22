@@ -13,14 +13,17 @@ import { writeTempTextFile } from "./temp.ts";
 import type { SearchDepth, SearchProviderName, WebFetchFormat } from "./types.ts";
 
 export interface ToolOutputStore {
-  writeTextFile(
+  writeTextFile: (
     prefix: string,
     fileName: string,
     content: string
-  ): Promise<Result<string, ToolOutputStoreError>>;
+  ) => Promise<Result<string, ToolOutputStoreError>>;
 }
 
-export type ToolOutputStoreError = { readonly _tag: "TempFileWriteFailed"; readonly cause: unknown };
+export interface ToolOutputStoreError {
+  readonly _tag: "TempFileWriteFailed";
+  readonly cause: unknown;
+}
 
 export class TempFileToolOutputStore implements ToolOutputStore {
   /** Write full tool output to a temporary text file. */
@@ -37,8 +40,15 @@ export class TempFileToolOutputStore implements ToolOutputStore {
   }
 }
 
-export type PiTextContent = { readonly type: "text"; readonly text: string };
-export type PiImageContent = { readonly type: "image"; readonly data: string; readonly mimeType: string };
+export interface PiTextContent {
+  readonly text: string;
+  readonly type: "text";
+}
+export interface PiImageContent {
+  readonly data: string;
+  readonly mimeType: string;
+  readonly type: "image";
+}
 
 export interface PiToolResult<Details> {
   readonly content: Array<PiTextContent | PiImageContent>;

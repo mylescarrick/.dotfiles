@@ -145,21 +145,21 @@ function parseMcpPayload(payload: unknown): Result<readonly ExaProtocolMessage[]
     return err({ _tag: "InvalidMcpPayload", reason: "Expected an object payload" });
   }
 
-  if (isRecord(payload["error"])) {
+  if (isRecord(payload.error)) {
     return ok([{ _tag: "ProviderError", safeMessage: "Search provider returned an error" }]);
   }
 
-  const result = payload["result"];
+  const result = payload.result;
   if (!isRecord(result)) {
     return err({ _tag: "InvalidMcpPayload", reason: "Missing result object" });
   }
 
-  const content = result["content"];
+  const content = result.content;
   if (!Array.isArray(content)) {
     return err({ _tag: "InvalidMcpPayload", reason: "Missing result.content array" });
   }
 
-  if (result["isError"] === true) {
+  if (result.isError === true) {
     return ok([{ _tag: "ProviderError", safeMessage: "Search provider returned an error" }]);
   }
 
@@ -168,10 +168,10 @@ function parseMcpPayload(payload: unknown): Result<readonly ExaProtocolMessage[]
     if (!isRecord(item)) {
       continue;
     }
-    if (item["type"] !== "text" || typeof item["text"] !== "string") {
+    if (item.type !== "text" || typeof item.text !== "string") {
       continue;
     }
-    const text = item["text"].trim();
+    const text = item.text.trim();
     if (text) {
       messages.push({ _tag: "Text", text });
     }

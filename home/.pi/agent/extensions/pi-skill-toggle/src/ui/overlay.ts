@@ -1,7 +1,12 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, type TUI } from "@earendil-works/pi-tui";
 import { formatSourceKind } from "../inventory/classifier.ts";
-import type { SkillInvocationMode, SkillRecord, SkillToggleUiResult } from "../types.ts";
+import type {
+  SkillDiagnosticSeverity,
+  SkillInvocationMode,
+  SkillRecord,
+  SkillToggleUiResult,
+} from "../types.ts";
 import { bottomBorder, combineColumns, divider, fit, frameLine, topBorder } from "./render.ts";
 import { filterSkills, modeLabel, toggleMode } from "./view-model.ts";
 
@@ -93,6 +98,7 @@ class SkillToggleOverlay {
     const header = this.renderHeader(innerWidth);
     const search = frameLine(
       this.theme,
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: this.search is mutated in other methods; this rule's flow analysis doesn't track cross-method reassignment of a mutable field
       this.theme.fg("muted", `Search: ${this.search || "(type to filter)"}`),
       innerWidth
     );
@@ -125,7 +131,9 @@ class SkillToggleOverlay {
     ];
   }
 
-  invalidate(): void {}
+  invalidate(): void {
+    /* this overlay has no cached layout to invalidate */
+  }
 
   private renderHeader(innerWidth: number): string {
     const title = this.theme.fg("accent", this.theme.bold("Pi Skill Toggle"));
@@ -212,8 +220,7 @@ class SkillToggleOverlay {
       lines.push("");
       lines.push(this.theme.fg("muted", "Diagnostics:"));
       for (const diagnostic of skill.diagnostics.slice(0, 4)) {
-        const color =
-          diagnostic.severity === "error" ? "error" : diagnostic.severity === "warning" ? "warning" : "dim";
+        const color = diagnosticColor(diagnostic.severity);
         lines.push(...wrap(`- ${diagnostic.message}`, width).map((line) => this.theme.fg(color, line)));
       }
     }
@@ -248,6 +255,12 @@ class SkillToggleOverlay {
     const rows = this.tui.terminal.rows ?? 30;
     return clamp(Math.floor(rows * 0.82), 16, 52);
   }
+}
+
+function diagnosticColor(severity: SkillDiagnosticSeverity): "error" | "warning" | "dim" {
+  if (severity === "error") return "error";
+  if (severity === "warning") return "warning";
+  return "dim";
 }
 
 function isPrintableInput(data: string): boolean {
@@ -290,5 +303,6 @@ function wrap(text: string, width: number): string[] {
 }
 
 function visibleLength(input: string): number {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: \x1b (ESC) is the standard ANSI escape sequence marker, matched deliberately to strip color codes
   return input.replace(/\x1b\[[0-9;]*m/g, "").length;
 }

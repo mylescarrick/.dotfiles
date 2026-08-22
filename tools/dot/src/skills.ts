@@ -1,15 +1,16 @@
+import type { Stats } from "node:fs";
 import { lstat, readdir, readlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ProcessRunner } from "./process";
 import { skillAgentDirectories } from "./skill-layout";
 
 async function assertLink(path: string, target: string): Promise<void> {
-  let metadata;
+  let metadata: Stats;
   try {
     metadata = await lstat(path);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`tracked skill link is missing: ${path}`);
+      throw new Error(`tracked skill link is missing: ${path}`, { cause: error });
     }
     throw error;
   }
@@ -57,7 +58,7 @@ export async function validateSkillLinks(options: {
         await stat(path);
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          throw new Error(`tracked skill link is dangling: ${path}`);
+          throw new Error(`tracked skill link is dangling: ${path}`, { cause: error });
         }
         throw error;
       }

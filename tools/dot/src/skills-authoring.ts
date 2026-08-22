@@ -151,7 +151,9 @@ export async function listSkills(checkoutRoot: string): Promise<string> {
   let lock = "";
   try {
     lock = await readFile(lockPath, "utf8");
-  } catch {}
+  } catch {
+    /* no vendored skills lock yet; only local skills exist */
+  }
   const lines: string[] = [];
   for (const entry of (await readdir(canonical, { withFileTypes: true })).sort((a, b) =>
     a.name.localeCompare(b.name)

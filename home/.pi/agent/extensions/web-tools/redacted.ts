@@ -14,8 +14,8 @@ declare const redactedBrand: unique symbol;
 
 /** A sensitive value wrapper with safe string, JSON, and inspect projections. */
 export interface Redacted<A> {
-  toJSON(): string;
-  toString(): string;
+  toJSON: () => string;
+  toString: () => string;
   readonly [redactedBrand]?: A;
 }
 

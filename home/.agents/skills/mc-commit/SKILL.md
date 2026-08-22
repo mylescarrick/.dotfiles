@@ -9,21 +9,17 @@ Create commits following conventional commit standards.
 
 ## Process
 
-### 1. Pre-flight
+### 1. Pre-flight & Analyze (one call)
+
+Gather everything in a single command rather than four round-trips:
 
 ```bash
-git status --porcelain        # anything to commit?
-git branch --show-current     # on main/master? ask whether to branch first
+git branch --show-current && git status --porcelain && git diff --stat HEAD && git log --oneline -5
 ```
 
-### 2. Analyze & Stage
+If on `main`/`master`, ask whether to branch first. If nothing is staged or modified, stop.
 
-```bash
-git status --porcelain
-git diff --stat HEAD
-git diff --name-only HEAD
-git log --oneline -5
-```
+### 2. Stage
 
 - Identify which top-level areas are touched (directory names, packages, or modules) and the type of change
 - Read full diffs only for files you need to classify or stage safely
@@ -50,30 +46,30 @@ git log --oneline -5
 
 Never include AI attribution footers unless the user explicitly asks.
 
-### 4. Commit & Verify
+### 4. Verify, then Commit
 
-Before each commit:
+First, run whatever cheap verification actually applies to what changed — e.g. `bash -n <script>` for a touched shell script, `npm run typecheck`/`lint` if a `package.json` defines them and JS/TS files changed. Skip verification that clearly doesn't apply; don't invent checks the project doesn't have. If a verification step already ran this session against the currently staged changes with nothing since, don't re-run it — just mention it already passed.
+
+**Always write the message to a temp file and commit with `git commit -F`.** Do not use inline `-m`
+for anything but a bare subject line, and never use a heredoc inside process substitution
+(`git commit -F <(cat <<'EOF' ...)`). A single apostrophe in a word like "shell's", or a backtick,
+`$`, or quote anywhere in the body, breaks the shell and costs a retry. The temp file is always
+correct, so skip straight to it:
 
 ```bash
-git diff --cached --stat
-git diff --cached --check   # catches trailing whitespace / conflict markers
+# write /tmp/commit-msg.txt with the file-writing tool, then:
+git diff --cached --stat && git diff --cached --check && git commit -F /tmp/commit-msg.txt
 ```
 
-Run whatever cheap verification actually applies to what changed — e.g. `bash -n <script>` for a touched shell script, `npm run typecheck`/`lint` if a `package.json` defines them and JS/TS files changed. Skip verification that clearly doesn't apply; don't invent checks the project doesn't have. If a verification step already ran this session against the currently staged changes with nothing since, don't re-run it — just mention it already passed.
+`git diff --cached --check` catches trailing whitespace and conflict markers.
+
+Then confirm in one call:
 
 ```bash
-git commit -F <(cat <<'EOF'
-type(scope): subject line here
-
-Optional body explaining why.
-EOF
-)
-
-git status --porcelain        # confirm clean tree or continue staged groups
-git log -1 --format="%B"      # verify message
+git status --porcelain && git log -1 --format="%B"
 ```
 
-Prefer writing multi-line messages to a temp file and using `git commit -F <file>` over inline heredocs — commit bodies containing backticks, `$`, or quotes are easy to break with inline shell interpolation.
+Clean up the temp file once the commit is verified.
 
 ## Examples
 
@@ -102,3 +98,8 @@ chore(packages): drop fish and fisher from the base bundle
 - If current branch is `main`/`master`, ask whether to create a branch first; suggest `<scope>/<short-topic>`
 - Explain **why**, not just **what**
 - Never skip pre-commit hooks (`--no-verify`)
+- Batch independent git reads into one command; every extra round-trip costs time and tokens
+- **Never run `git stash pop` speculatively.** It pops whatever is on top of the stack, which may be
+  an unrelated stash someone left months ago. Only pop a stash you just created in the same command
+  chain, and use `git stash push` + an explicit `git stash apply stash@{0}` if you must be sure.
+  To read a file from another ref, use `git show <ref>:<path>` instead of stashing.

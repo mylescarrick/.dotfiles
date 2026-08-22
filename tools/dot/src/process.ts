@@ -12,7 +12,7 @@ export interface ProcessResult {
 }
 
 export interface ProcessRunner {
-  run(request: ProcessRequest): Promise<ProcessResult>;
+  run: (request: ProcessRequest) => Promise<ProcessResult>;
 }
 
 export const bunProcessRunner: ProcessRunner = {

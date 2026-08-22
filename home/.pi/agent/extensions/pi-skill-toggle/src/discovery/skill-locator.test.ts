@@ -64,7 +64,9 @@ class MemoryTreeFileSystem implements FileSystem {
     return "---\nname: test\ndescription: Test skill.\n---\n";
   }
 
-  async writeFileAtomic(): Promise<void> {}
+  async writeFileAtomic(): Promise<void> {
+    /* test double: discard writes */
+  }
 
   async access(path: string): Promise<boolean> {
     return this.files.has(path) || this.dirs.has(path);

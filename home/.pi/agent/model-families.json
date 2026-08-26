@@ -307,6 +307,88 @@
         }
       }
     },
+    "openai-codex-extreme": {
+      "description": "Sol-heavy OpenAI Codex family for extreme work: gpt-5.6-sol high for every automatic role so cache never switches. Terra fallback and Luna budget are explicit persistent targets only.",
+      "roles": {
+        "research": {
+          "provider": "openai-codex",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "architecture": {
+          "provider": "openai-codex",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "planning": {
+          "provider": "openai-codex",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "delivery": {
+          "provider": "openai-codex",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        },
+        "verification": {
+          "provider": "openai-codex",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        }
+      },
+      "manualTargets": {
+        "terra": {
+          "description": "Fallback to a balanced model for less demanding sessions; stays locked until /mf auto.",
+          "provider": "openai-codex",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        },
+        "luna": {
+          "description": "Explicit low-cost budget work; stays locked until /mf auto.",
+          "provider": "openai-codex",
+          "model": "gpt-5.6-luna",
+          "thinkingLevel": "low"
+        }
+      }
+    },
+    "openai-codex-balanced": {
+      "description": "Terra-centric OpenAI Codex family with Sol used sparingly and a little Luna where it works: gpt-5.6-terra medium for research, architecture, planning, and verification; gpt-5.6-luna low for delivery.",
+      "roles": {
+        "research": {
+          "provider": "openai-codex",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        },
+        "architecture": {
+          "provider": "openai-codex",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        },
+        "planning": {
+          "provider": "openai-codex",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        },
+        "delivery": {
+          "provider": "openai-codex",
+          "model": "gpt-5.6-luna",
+          "thinkingLevel": "low"
+        },
+        "verification": {
+          "provider": "openai-codex",
+          "model": "gpt-5.6-terra",
+          "thinkingLevel": "medium"
+        }
+      },
+      "manualTargets": {
+        "sol": {
+          "description": "Escalate to frontier reasoning for the hardest long-horizon work; stays locked until /mf auto.",
+          "provider": "openai-codex",
+          "model": "gpt-5.6-sol",
+          "thinkingLevel": "high"
+        }
+      }
+    },
     "claude-main": {
       "description": "Claude Bridge mainline: Opus 5 for planning/architecture, Sonnet 5 for building.",
       "roles": {

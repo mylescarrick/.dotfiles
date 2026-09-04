@@ -8,7 +8,6 @@ Global Pi configuration and local extensions, stowed to `~/.pi`.
 .pi/
 ├── agent/
 │   ├── settings.json          # Private runtime settings, synced from config/pi defaults
-│   ├── cloak.json             # Read-output masking patterns
 │   ├── extensions/            # Global, universal extensions only
 │   ├── skills/                # Symlinks to canonical ~/.agents/skills
 │   └── themes/

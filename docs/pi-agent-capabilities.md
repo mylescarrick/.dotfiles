@@ -99,8 +99,8 @@ export default function (pi: ExtensionAPI) {
 `thinking_level_select`), provider (`before_provider_request`, `after_provider_response`), and
 `context` (mutate messages before the LLM call).
 
-The user's global `~/.pi/agent/extensions/` already holds several (answer, git-interceptor,
-pi-cloak, pi-skill-toggle, a local supacode extension). The dir is a bun workspace
+The user's global `~/.pi/agent/extensions/` already holds several extensions, including
+git-interceptor and pi-skill-toggle. The dir is a Bun workspace
 (`~/.pi/package.json` `"workspaces": ["agent/extensions/*"]`).
 
 ## 4. Prompt templates & skills

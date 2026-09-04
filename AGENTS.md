@@ -87,7 +87,7 @@ bun run --cwd tools/dot check  # Typecheck + tests
 | Zsh | `.zshrc` / `.zprofile` | oh-my-zsh bootstrap, EDITOR, tool inits (starship, zoxide, vp) |
 | Git | `config` | SSH signing, `pull.rebase`, conditional include |
 | Starship | `starship.toml` | 2s timeout (Vite+ shims) |
-| Pi | `config/pi/settings.defaults.json` / `home/.pi/agent/model-families.json` | Tracked package/theme defaults sync to private runtime settings; role-routed model families |
+| Pi | `config/pi/settings.defaults.json` | Tracked package/theme defaults sync to private runtime settings |
 | Shared output style | `home/.claude/output-styles/Attention-kind.md` | Loaded by Pi extension and Claude Code; canonical Attention-kind body |
 | Claude Code | `home/.claude/settings.defaults.json` | Default `outputStyle` synced to `~/.claude/settings.json` |
 

@@ -1,47 +1,18 @@
 # .pi
 
-Global pi config, synced via dotfiles and stowed into `~/.pi`.
+Global Pi configuration, stowed to `~/.pi` by this dotfiles repository.
 
 ## Extension dependency workspace
 
-Package-style global extensions stay in `agent/extensions/` so pi can still auto-discover them from:
-
-- `~/.pi/agent/extensions/*.ts`
-- `~/.pi/agent/extensions/*/index.ts`
-
-This directory is the shared Bun workspace root for local extensions with their own `package.json` files.
-
-Install or refresh all local extension dependencies from here:
+Package-style global extensions remain under `agent/extensions/` so Pi auto-discovers their `index.ts` entry points. This is the Bun workspace root for extensions that declare their own dependencies.
 
 ```bash
-bun install
+bun install       # Install or refresh local extension dependencies
+bun run check     # Run checks for tested local extensions
 ```
 
-Run workspace checks:
+Global extensions must be useful across repositories. Put project- or stack-specific behavior in that project's `.pi/` resources instead.
 
-```bash
-bun run check
-```
+Runtime Pi package sources are tracked in `../../config/pi/settings.defaults.json` and synced into private `~/.pi/agent/settings.json` by `dot apply` / `dot update`.
 
-Current workspace-managed local extensions live under:
-
-- `agent/extensions/opencode-cloudflare`
-- `agent/extensions/save-md`
-- `agent/extensions/web-tools`
-- `packages/pi-model-families/extensions/model-families`
-
-Global model-family defaults are tracked in `agent/model-families.json`; trusted projects can override them with `.pi/model-families.json`.
-
-Runtime Pi package sources are tracked in `../../config/pi/settings.defaults.json` and synced into private `~/.pi/agent/settings.json` by canonical `dot apply` / `dot update`. Published packages currently include `@mobrienv/pi-tidy-tools`, `@mobrienv/pi-tidy-subagents`, and `@plannotator/pi-extension`; local package prototypes live under `packages/` and are referenced with paths relative to the runtime settings file.
-
-Package/publish helpers for local packages:
-
-```bash
-bun run pack:pi-packages          # build tarballs in out/ for inspection
-bun run publish:pi-model-families # publish one package with bun publish
-bun run publish:pi-packages       # publish all local packages
-```
-
-Before publishing, authenticate with `bunx npm login` (or another npm-compatible login flow) and confirm the package names/visibility are still intended.
-
-After changing extension code or package settings, reload pi with `/reload` or restart the session.
+After changing extension code or package settings, reload Pi with `/reload` or restart the session.

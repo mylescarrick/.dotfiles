@@ -1,5 +1,5 @@
 {
-  "name": "pi-model-families-extension",
+  "name": "pi-safety-guard",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,10 +7,6 @@
     "check": "bun run typecheck && bun run test",
     "test": "bun test test",
     "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@types/node": "^24.5.2",
-    "typescript": "^5.9.2"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

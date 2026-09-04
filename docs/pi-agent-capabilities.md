@@ -22,8 +22,8 @@ no sub-agents, no plan mode, no looping/cron, and no dynamic model routing**. Ev
 core loop is expected to be added via its **extension API** (TypeScript, loaded with `jiti`), its
 **skills** system (Agent Skills standard), **prompt templates**, and installable Pi packages. Config
 is layered global → project, gated by a **trust** decision. Model defaults are **static** (settings +
-`/model` + `--model`); anything adaptive is an extension concern. This dotfiles repo currently adds
-role-based routing through `pi-model-families` and delegation through `@mobrienv/pi-tidy-subagents`.
+`/model` + `--model`); anything adaptive is an extension concern. This dotfiles repo adds delegation
+through `@mobrienv/pi-tidy-subagents`.
 
 ---
 
@@ -99,8 +99,7 @@ export default function (pi: ExtensionAPI) {
 `thinking_level_select`), provider (`before_provider_request`, `after_provider_response`), and
 `context` (mutate messages before the LLM call).
 
-The user's global `~/.pi/agent/extensions/` already holds several (answer, git-interceptor,
-pi-cloak, pi-skill-toggle, a local supacode extension). The dir is a bun workspace
+The user's global `~/.pi/agent/extensions/` holds several extensions. The dir is a Bun workspace
 (`~/.pi/package.json` `"workspaces": ["agent/extensions/*"]`).
 
 ## 4. Prompt templates & skills
@@ -161,9 +160,7 @@ keeping global `compaction.enabled`).
     "npm:pi-claude-bridge",
     "npm:pine-of-glass",
     "npm:@mobrienv/pi-tidy-tools",
-    "npm:@mobrienv/pi-tidy-subagents",
-    "npm:@plannotator/pi-extension",
-    "../packages/pi-model-families"
+    "npm:@mobrienv/pi-tidy-subagents"
   ]
 }
 ```
@@ -190,11 +187,8 @@ installed Claude Code CLI rather than its potentially stale SDK-bundled binary.
 `PI_PACKAGE_DIR`, `PI_OFFLINE`, `PI_SKIP_VERSION_CHECK`, `PI_TELEMETRY`, `PI_CACHE_RETENTION`.
 
 **There is no built-in dynamic/per-turn model routing.** The default model is fixed until changed by
-`/model`, a flag, or an extension calling `pi.setModel()`.
-
-This repo now implements dynamic role-based defaults through the local `pi-model-families` package,
-with global family definitions in `home/.pi/agent/model-families.json` and trusted project overrides
-via `.pi/model-families.json`.
+`/model`, a flag, or an extension calling `pi.setModel()`. This dotfiles repo intentionally uses
+Pi's static model and thinking controls rather than automatic routing.
 
 ---
 

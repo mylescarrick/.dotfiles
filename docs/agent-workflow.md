@@ -16,22 +16,7 @@ Default to the current Pi session. Add tidy subagents only when delegation is wo
 
 ## Model selection
 
-Use **roles** in prompts and skills:
-
-- `research`
-- `architecture`
-- `planning`
-- `delivery`
-- `verification`
-
-Concrete provider/model IDs live in config:
-
-```text
-home/.pi/agent/model-families.json
-.pi/model-families.json
-```
-
-Do not bake concrete model names into shared skills or project workflow docs.
+Use Pi's built-in `/model` and `/thinking` controls deliberately. Keep concrete provider/model IDs out of shared skills and project workflow docs.
 
 ## Delegation
 
@@ -57,23 +42,10 @@ Use the local `harness-routing` skill when an upstream skill mentions background
 
 Translation rules:
 
-- **Pi:** inline by default; tidy subagents only when justified; model roles via `pi-model-families` when available.
+- **Pi:** inline by default; tidy subagents only when justified; choose model and thinking deliberately with Pi's built-in controls.
 - **Claude Code:** use native Claude Code subagents/worktrees when justified.
 - **Unknown/default:** stay sequential unless the runtime explicitly supports the feature.
 
-## Publishing Pi packages
-
-Reusable local Pi behavior is staged under:
-
-```text
-home/.pi/packages/
-```
-
-Publish with Bun from `home/.pi`:
-
-```bash
-bun run pack:pi-packages
-bun run publish:pi-model-families
-```
+## Pi packages
 
 Published third-party Pi packages such as `@mobrienv/pi-tidy-tools` and `@mobrienv/pi-tidy-subagents` are managed through `config/pi/settings.defaults.json` and Pi's package updater.

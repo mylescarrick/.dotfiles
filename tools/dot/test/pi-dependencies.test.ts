@@ -28,6 +28,7 @@ async function fixture(): Promise<{
 class InstallingProcess implements ProcessRunner {
   readonly requests: ProcessRequest[] = [];
   piVersion = "0.84.4";
+  piVersionResult: ProcessResult | undefined;
 
   constructor(
     private readonly liveWorkspace: string,
@@ -37,7 +38,7 @@ class InstallingProcess implements ProcessRunner {
   async run(request: ProcessRequest): Promise<ProcessResult> {
     this.requests.push(request);
     if (request.argv[0] === "pi" && request.argv[1] === "--version") {
-      return { exitCode: 0, stderr: "", stdout: `${this.piVersion}\n` };
+      return this.piVersionResult ?? { exitCode: 0, stderr: "", stdout: `${this.piVersion}\n` };
     }
     if (this.result.exitCode === 0) {
       await mkdir(join(this.liveWorkspace, "node_modules/example"), { recursive: true });
@@ -103,6 +104,21 @@ describe("Pi dependency reconciliation", () => {
 
     expect(await reconcilePiDependencies(options)).toBe("Pi dependencies already current\n");
     expect(processes.requests).toHaveLength(3);
+  });
+
+  test("reports Pi version command failures with an exit code and output", async () => {
+    const state = await fixture();
+    const processes = new InstallingProcess(state.liveWorkspace);
+    processes.piVersionResult = { exitCode: 127, stderr: "", stdout: "pi: command not found\n" };
+
+    await expect(
+      reconcilePiDependencies({
+        checkoutRoot: state.checkout,
+        env: {},
+        home: state.home,
+        processes,
+      })
+    ).rejects.toThrow("failed to determine Pi version (exit 127): pi: command not found");
   });
 
   test("Pi version drift triggers another install", async () => {

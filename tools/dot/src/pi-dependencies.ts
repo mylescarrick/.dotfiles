@@ -99,8 +99,8 @@ async function installedPiVersion(options: {
   });
   const version = result.stdout.trim();
   if (result.exitCode !== 0 || !version) {
-    const detail = result.stderr.trim() || "no version output";
-    throw new Error(`failed to determine Pi version: ${detail}`);
+    const detail = result.stderr.trim() || version || "no version output";
+    throw new Error(`failed to determine Pi version (exit ${result.exitCode}): ${detail}`);
   }
   return version;
 }

@@ -13,8 +13,14 @@ const ENV_FILE_NAME = /^\.env(?:\..+)?$/;
 const SECRET_PATH =
   /(?:^|\/)(?:\.ssh(?:\/|$)|\.aws\/(?:credentials|config)$|\.kube\/config$|\.git-credentials$|auth\.json$|\.npmrc$|\.netrc$|\.pypirc$|id_(?:rsa|ed25519)(?:\.pub)?$)|\.(?:pem|key|p12|kdbx)$/i;
 const BASH_RISKS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
-  { label: "recursive file removal", pattern: /(?:^|[^\w-])rm\s+[^\n;&|]*-[^\s;&|]*r/i },
-  { label: "forced file removal", pattern: /(?:^|[^\w-])rm\s+[^\n;&|]*-[^\s;&|]*f/i },
+  {
+    label: "recursive file removal",
+    pattern: /(?:^|[^\w-])rm\b[^\n;&|]*(?:\s--recursive\b|(?:^|\s)-[a-z]*r[a-z]*(?=\s|$))/i,
+  },
+  {
+    label: "forced file removal",
+    pattern: /(?:^|[^\w-])rm\b[^\n;&|]*(?:\s--force\b|(?:^|\s)-[a-z]*f[a-z]*(?=\s|$))/i,
+  },
   { label: "Git history reset", pattern: /\bgit\s+reset\b/i },
   { label: "Git clean", pattern: /\bgit\s+clean\b[^\n;&|]*-[^\s;&|]*f/i },
   { label: "force Git push", pattern: /\bgit\s+push\b[^\n;&|]*--force(?:-with-lease)?\b/i },

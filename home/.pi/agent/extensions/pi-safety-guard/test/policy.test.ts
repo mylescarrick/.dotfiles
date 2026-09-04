@@ -39,7 +39,13 @@ for (const command of [
   });
 }
 
+test("safety guard recognizes explicit long rm options", () => {
+  assert.notEqual(classifyBashCommand("rm --recursive build"), undefined);
+  assert.notEqual(classifyBashCommand("rm --force generated.txt"), undefined);
+});
+
 test("safety guard does not interrupt ordinary development commands", () => {
   assert.equal(classifyBashCommand("bun test"), undefined);
   assert.equal(classifyBashCommand("git status --short"), undefined);
+  assert.equal(classifyBashCommand("rm --preserve-root generated.txt"), undefined);
 });

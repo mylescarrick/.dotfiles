@@ -63,7 +63,6 @@ home/.pi/**/package-lock.json
 
 !home/.pi/agent/tsconfig.json
 !home/.pi/agent/package.json
-!home/.pi/agent/model-families.json
 !home/.pi/agent/cloak.json
 !home/.pi/agent/themes/
 !home/.pi/agent/themes/*.json

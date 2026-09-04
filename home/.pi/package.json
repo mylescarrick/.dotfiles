@@ -2,16 +2,9 @@
   "name": ".pi",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "agent/extensions/*",
-    "packages/*",
-    "packages/*/extensions/*"
-  ],
+  "workspaces": ["agent/extensions/*"],
   "scripts": {
-    "check": "bun run --cwd packages/pi-model-families/extensions/model-families check && bun run --cwd agent/extensions/save-md check && bun run --cwd agent/extensions/web-tools check && bun run --cwd agent/extensions/output-style check",
-    "pack:pi-packages": "mkdir -p out && bun run --cwd packages/pi-model-families/extensions/model-families check && (cd packages/pi-model-families && bun pm pack --destination ../../out)",
-    "publish:pi-model-families": "bun run --cwd packages/pi-model-families/extensions/model-families check && (cd packages/pi-model-families && bun publish --access public)",
-    "publish:pi-packages": "bun run publish:pi-model-families",
+    "check": "bun run --cwd agent/extensions/save-md check && bun run --cwd agent/extensions/web-tools check && bun run --cwd agent/extensions/output-style check",
     "test:codex-fast-mode": "node --import tsx --test tests/codex-fast-mode.test.ts",
     "test:save-md": "bun run --cwd agent/extensions/save-md test",
     "test:web-tools": "bun run --cwd agent/extensions/web-tools test"

@@ -160,8 +160,7 @@ keeping global `compaction.enabled`).
     "npm:pi-claude-bridge",
     "npm:pine-of-glass",
     "npm:@mobrienv/pi-tidy-tools",
-    "npm:@mobrienv/pi-tidy-subagents",
-    "npm:@plannotator/pi-extension"
+    "npm:@mobrienv/pi-tidy-subagents"
   ]
 }
 ```

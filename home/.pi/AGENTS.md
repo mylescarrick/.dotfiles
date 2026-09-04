@@ -36,7 +36,6 @@ bun run check                  # Check tested local extensions
 |---|---|
 | `@mobrienv/pi-tidy-tools` | Compact rendering for built-in Pi tool calls and `/diff` recap. |
 | `@mobrienv/pi-tidy-subagents` | Foreground/background child Pi agents for justified delegation. |
-| `@plannotator/pi-extension` | Plan mode, code review, document annotation, and last-message review. |
 
 ## Anti-patterns
 

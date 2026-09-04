@@ -13,7 +13,8 @@ function compareStrings(a: string, b: string): number {
 interface InstallState {
   readonly lock: string;
   readonly manifests: string;
-  readonly schema: 1;
+  readonly piVersion: string;
+  readonly schema: 2;
 }
 
 async function existsDirectory(path: string): Promise<boolean> {
@@ -67,9 +68,10 @@ async function readState(path: string): Promise<InstallState | undefined> {
     if (
       value &&
       typeof value === "object" &&
-      (value as InstallState).schema === 1 &&
+      (value as InstallState).schema === 2 &&
       typeof (value as InstallState).manifests === "string" &&
-      typeof (value as InstallState).lock === "string"
+      typeof (value as InstallState).lock === "string" &&
+      typeof (value as InstallState).piVersion === "string"
     ) {
       return value as InstallState;
     }
@@ -82,6 +84,25 @@ async function readState(path: string): Promise<InstallState | undefined> {
 async function writeState(path: string, state: InstallState): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await replaceFileAtomic(path, `${JSON.stringify(state, null, 2)}\n`);
+}
+
+async function installedPiVersion(options: {
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly processes: ProcessRunner;
+}): Promise<string> {
+  const result = await options.processes.run({
+    argv: ["pi", "--version"],
+    cwd: options.cwd,
+    env: options.env,
+    output: "capture",
+  });
+  const version = result.stdout.trim();
+  if (result.exitCode !== 0 || !version) {
+    const detail = result.stderr.trim() || "no version output";
+    throw new Error(`failed to determine Pi version: ${detail}`);
+  }
+  return version;
 }
 
 export async function reconcilePiDependencies(options: {
@@ -105,6 +126,11 @@ export async function reconcilePiDependencies(options: {
   const nodeModules = join(liveWorkspace, "node_modules");
   const lockPath = join(liveWorkspace, "bun.lock");
   const statePath = join(nodeModules, ".dotfiles-install-state.json");
+  const piVersion = await installedPiVersion({
+    cwd: liveWorkspace,
+    env: options.env,
+    processes: options.processes,
+  });
   const manifests = await manifestDigest(trackedWorkspace);
   const lockRegular = await regularFile(lockPath);
   const lock = lockRegular ? await fileDigest(lockPath) : undefined;
@@ -113,7 +139,8 @@ export async function reconcilePiDependencies(options: {
     (await existsDirectory(nodeModules)) &&
     lock &&
     current?.manifests === manifests &&
-    current.lock === lock
+    current.lock === lock &&
+    current.piVersion === piVersion
   ) {
     return "Pi dependencies already current\n";
   }
@@ -131,7 +158,8 @@ export async function reconcilePiDependencies(options: {
   await writeState(statePath, {
     lock: await fileDigest(lockPath),
     manifests,
-    schema: 1,
+    piVersion,
+    schema: 2,
   });
   return "Pi dependencies installed\n";
 }

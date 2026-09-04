@@ -27,12 +27,18 @@ async function fixture(): Promise<{
 
 class InstallingProcess implements ProcessRunner {
   readonly requests: ProcessRequest[] = [];
+  piVersion = "0.84.4";
+
   constructor(
     private readonly liveWorkspace: string,
     private readonly result: ProcessResult = { exitCode: 0, stderr: "", stdout: "" }
   ) {}
+
   async run(request: ProcessRequest): Promise<ProcessResult> {
     this.requests.push(request);
+    if (request.argv[0] === "pi" && request.argv[1] === "--version") {
+      return { exitCode: 0, stderr: "", stdout: `${this.piVersion}\n` };
+    }
     if (this.result.exitCode === 0) {
       await mkdir(join(this.liveWorkspace, "node_modules/example"), { recursive: true });
       await writeFile(join(this.liveWorkspace, "bun.lock"), "lock-v1\n");
@@ -77,6 +83,12 @@ describe("Pi dependency reconciliation", () => {
     expect(await reconcilePiDependencies(options)).toBe("Pi dependencies installed\n");
     expect(processes.requests).toEqual([
       {
+        argv: ["pi", "--version"],
+        cwd: state.liveWorkspace,
+        env: { HOME: state.home },
+        output: "capture",
+      },
+      {
         argv: ["bun", "install"],
         cwd: state.liveWorkspace,
         env: { HOME: state.home },
@@ -87,10 +99,26 @@ describe("Pi dependency reconciliation", () => {
       JSON.parse(
         await readFile(join(state.liveWorkspace, "node_modules/.dotfiles-install-state.json"), "utf8")
       )
-    ).toMatchObject({ schema: 1 });
+    ).toMatchObject({ piVersion: "0.84.4", schema: 2 });
 
     expect(await reconcilePiDependencies(options)).toBe("Pi dependencies already current\n");
-    expect(processes.requests).toHaveLength(1);
+    expect(processes.requests).toHaveLength(3);
+  });
+
+  test("Pi version drift triggers another install", async () => {
+    const state = await fixture();
+    const processes = new InstallingProcess(state.liveWorkspace);
+    const options = {
+      checkoutRoot: state.checkout,
+      env: {},
+      home: state.home,
+      processes,
+    };
+    await reconcilePiDependencies(options);
+    processes.piVersion = "0.85.0";
+
+    expect(await reconcilePiDependencies(options)).toBe("Pi dependencies installed\n");
+    expect(processes.requests.filter((request) => request.argv[0] === "bun")).toHaveLength(2);
   });
 
   test("manifest drift triggers another install", async () => {
@@ -109,7 +137,7 @@ describe("Pi dependency reconciliation", () => {
     );
 
     expect(await reconcilePiDependencies(options)).toBe("Pi dependencies installed\n");
-    expect(processes.requests).toHaveLength(2);
+    expect(processes.requests.filter((request) => request.argv[0] === "bun")).toHaveLength(2);
   });
 
   test("failed installation leaves no convergence marker and retries", async () => {

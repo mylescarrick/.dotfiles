@@ -153,8 +153,26 @@ describe("reconcile global Bun packages", () => {
     ]);
 
     await expect(reconcileGlobalBunPackages({ checkoutRoot: checkout, env: {}, processes })).rejects.toThrow(
-      "failed to install declared global Bun packages"
+      "failed to install global Bun packages"
     );
+  });
+
+  test("updates installed un-pinned packages to the latest version", async () => {
+    const checkout = await checkoutFixture("frog\n");
+    const processes = new RecordingProcesses([
+      {
+        exitCode: 0,
+        stderr: "",
+        stdout: ["/Users/test/.bun/install/global node_modules (1)", "└── frog@1.0.0"].join("\n"),
+      },
+      { exitCode: 0, stderr: "", stdout: "" },
+    ]);
+
+    expect(await reconcileGlobalBunPackages({ checkoutRoot: checkout, env: {}, processes })).toBe(
+      "Updated 1 global Bun package(s)\n"
+    );
+    expect(processes.requests[0]!.argv).toEqual(["bun", "pm", "ls", "-g"]);
+    expect(processes.requests[1]!.argv).toEqual(["bun", "update", "-g", "--latest", "frog"]);
   });
 });
 

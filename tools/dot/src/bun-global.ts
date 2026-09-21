@@ -106,26 +106,54 @@ export async function reconcileGlobalBunPackages(options: ReconcileOptions): Pro
   if (manifest.length === 0) return "";
 
   const installed = await listInstalledGlobal(options);
-  const missing: GlobalBunPackage[] = [];
+  const toInstall: GlobalBunPackage[] = [];
+  const toUpdate: GlobalBunPackage[] = [];
   for (const pkg of manifest) {
     const installedVersion = installed.get(pkg.name);
-    if (!installedVersion || (pkg.version && installedVersion !== pkg.version)) {
-      missing.push(pkg);
+    if (!installedVersion) {
+      toInstall.push(pkg);
+    } else if (pkg.version && installedVersion !== pkg.version) {
+      toInstall.push(pkg);
+    } else if (!pkg.version) {
+      toUpdate.push(pkg);
     }
   }
 
-  if (missing.length === 0) return "Global Bun packages already current\n";
-
-  const result = await options.processes.run({
-    argv: ["bun", "add", "-g", ...missing.map(formatGlobalBunPackage)],
-    cwd: options.checkoutRoot,
-    env: options.env,
-    output: "inherit",
-  });
-  if (result.exitCode !== 0) {
-    throw new Error("failed to install declared global Bun packages");
+  if (toInstall.length === 0 && toUpdate.length === 0) {
+    return "Global Bun packages already current\n";
   }
-  return `Installed ${missing.length} global Bun package(s)\n`;
+
+  if (toInstall.length > 0) {
+    const result = await options.processes.run({
+      argv: ["bun", "add", "-g", ...toInstall.map(formatGlobalBunPackage)],
+      cwd: options.checkoutRoot,
+      env: options.env,
+      output: "inherit",
+    });
+    if (result.exitCode !== 0) {
+      throw new Error("failed to install global Bun packages");
+    }
+  }
+
+  if (toUpdate.length > 0) {
+    const result = await options.processes.run({
+      argv: ["bun", "update", "-g", "--latest", ...toUpdate.map((pkg) => pkg.name)],
+      cwd: options.checkoutRoot,
+      env: options.env,
+      output: "inherit",
+    });
+    if (result.exitCode !== 0) {
+      throw new Error("failed to update global Bun packages");
+    }
+  }
+
+  if (toInstall.length > 0 && toUpdate.length > 0) {
+    return `Installed ${toInstall.length} and updated ${toUpdate.length} global Bun package(s)\n`;
+  }
+  if (toInstall.length > 0) {
+    return `Installed ${toInstall.length} global Bun package(s)\n`;
+  }
+  return `Updated ${toUpdate.length} global Bun package(s)\n`;
 }
 
 export async function addGlobalBunPackage(options: {

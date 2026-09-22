@@ -220,7 +220,6 @@
       "installedAt": "2026-08-08T07:46:56.474Z",
       "updatedAt": "2026-08-08T07:46:56.474Z"
     },
-<<<<<<< HEAD
     "orchestration": {
       "source": "stablyai/orca",
       "sourceType": "github",
@@ -229,7 +228,7 @@
       "skillFolderHash": "23bc2ff6bb9f6e7d17f41734709ac951dbe3ee80",
       "installedAt": "2026-09-22T11:09:49.165Z",
       "updatedAt": "2026-09-22T11:09:49.165Z"
-=======
+    },
     "orca-linear": {
       "source": "stablyai/orca",
       "sourceType": "github",
@@ -238,7 +237,6 @@
       "skillFolderHash": "2b0b3b3d422f0d9cdb88574e955c345ed4370ea8",
       "installedAt": "2026-09-22T06:04:27.222Z",
       "updatedAt": "2026-09-22T06:04:27.222Z"
->>>>>>> origin/main
     }
   },
   "dismissed": {

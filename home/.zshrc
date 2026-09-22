@@ -4,6 +4,12 @@ if [ -d "$FNM_PATH" ]; then
   eval "$(fnm env --use-on-cd --shell zsh)"
 fi
 
+# libpq (keg-only PostgreSQL client tools)
+LIBPQ_PATH="/opt/homebrew/opt/libpq/bin"
+if [ -d "$LIBPQ_PATH" ]; then
+  export PATH="$LIBPQ_PATH:$PATH"
+fi
+
 # oh-my-zsh
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="robbyrussell"

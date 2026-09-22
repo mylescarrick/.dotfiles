@@ -8,7 +8,7 @@ docs, and local config.
 Sources:
 - Installed package: `~/.bun/install/global/node_modules/@earendil-works/pi-coding-agent/`
   (docs under `docs/`, `README.md`; binary symlinked from `~/.bun/bin/pi`).
-- User config: `~/.pi/agent/` (`settings.json`, `claude-bridge.json`, `extensions/`, `skills/`, `trust.json`).
+- User config: `~/.pi/agent/` (`settings.json`, `auth.json`, `extensions/`, `skills/`, `trust.json`).
 - Knoxi project config: `~/projects/knoxi-apps/.pi/` and `~/projects/knoxi-apps/.agents/`.
 
 Researched 2026-07-11.
@@ -157,10 +157,12 @@ keeping global `compaction.enabled`).
 {
   "theme": "dark",
   "packages": [
-    "npm:pi-claude-bridge",
+    "npm:pi-claude-code-provider",
+    "npm:pi-mcp-adapter",
     "npm:pine-of-glass",
     "npm:@mobrienv/pi-tidy-tools",
-    "npm:@mobrienv/pi-tidy-subagents"
+    "npm:@mobrienv/pi-tidy-subagents",
+    "npm:@rahularya01/pi-cursor"
   ]
 }
 ```
@@ -177,11 +179,16 @@ Related keys (`docs/settings.md`): `hideThinkingBlock`, `thinkingBudgets` (per-l
 `:thinking` suffix, e.g. `sonnet:high`), `--models <patterns>`, `--thinking <level>`,
 `--api-key`, `--list-models`. Runtime: the `/model` command.
 
-**Anthropic bridge** (`~/.pi/agent/claude-bridge.json`): `askClaude` + provider settings for
-the `pi-claude-bridge` package. `dot apply` syncs this private runtime file from
-`config/pi/claude-bridge.defaults.json`; it pins
-`provider.pathToClaudeCodeExecutable` to `/opt/homebrew/bin/claude` so the bridge uses the current
-installed Claude Code CLI rather than its potentially stale SDK-bundled binary.
+**Claude Code provider** (`npm:pi-claude-code-provider`): uses the installed `claude` executable
+in Anthropic's documented non-interactive `--print` mode, billed to the Claude Pro/Max/Team/Enterprise
+subscription. Pi remains in charge of tools, branching, compaction, and history; select a model with
+`/model pi-claude-code-provider/sonnet` (also `fable`, `opus`, `haiku`) and verify the setup with
+`/pi-claude-code-provider-doctor`.
+
+The legacy `npm:pi-claude-bridge` package used `~/.pi/agent/claude-bridge.json`, which `dot apply`
+synced from `config/pi/claude-bridge.defaults.json`; that file is no longer the configured default and
+is kept only for backwards compatibility while the bridge package is absent from the tracked package
+list.
 
 **Env vars** (`README.md:656`): `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`,
 `PI_PACKAGE_DIR`, `PI_OFFLINE`, `PI_SKIP_VERSION_CHECK`, `PI_TELEMETRY`, `PI_CACHE_RETENTION`.

@@ -6,8 +6,8 @@ Research question: *What are the best Pi provider extensions for using Claude an
 
 For subscription-only access in the Pi coding-agent harness (`@earendil-works/pi-coding-agent`), the current best options are:
 
-- **Claude:** `npm:pi-claude-bridge` (already present in this repo's defaults) or the newer `npm:pi-claude-code-provider` if you prefer a documented public protocol over the Agent SDK.
-- **Cursor:** `npm:@rahularya01/pi-cursor` offers the most mature native Pi integration, though it is an unofficial reverse-engineered client. If you want tostay on Cursor's officially supported surface, use `npm:@akepka/pi-cursor-cli-provider` or `npm:@netandreus/pi-cursor-provider`, both of which shell out to the Cursor Agent CLI.
+- **Claude:** `npm:pi-claude-code-provider` (current default in this repo, documented public protocol) or `npm:pi-claude-bridge` if you prefer the Agent SDK/bridge approach.
+- **Cursor:** `npm:@rahularya01/pi-cursor` offers the most mature native Pi integration, though it is an unofficial reverse-engineered client. If you want to stay on Cursor's officially supported surface, use `npm:@akepka/pi-cursor-cli-provider` or `npm:@netandreus/pi-cursor-provider`, both of which shell out to the Cursor Agent CLI.
 
 Avoid `npm:pi-cursor-sdk` if your goal is to bill against a Cursor subscription; it requires a Cursor SDK API key.
 
@@ -19,7 +19,7 @@ Avoid `npm:pi-cursor-sdk` if your goal is to bill against a Cursor subscription;
 
 - **Auth model:** Uses your existing Claude Code installation and Anthropic Agent SDK; no separate Anthropic API key.
 - **Billing:** Draws from your Claude Pro/Max/Team/Enterprise subscription usage limits (same as Claude Code). Anthropic paused a planned Agent-SDK-only credit change on June 15, 2026, so for now it still consumes subscription quota.[^anthropic-agent-sdk-billing][^pi-claude-bridge]
-- **Status in this repo:** Already listed in `config/pi/settings.defaults.json`.
+- **Status in this repo:** Was the previous configured default; still a valid alternative to `npm:pi-claude-code-provider`.
 - **Maturity:** v0.8.0, ~40.8K npm downloads/month, active maintenance, extensive test suite, `askClaude` delegation tool, skills forwarding, session resume/persistence.
 - **Caveats:** Known to rewrite Claude Code sessions from Pi history on abort/compact/tree navigation, which can lose prompt cache and some file-edit snapshots. `ANTHROPIC_API_KEY`/`ANTHROPIC_BASE_URL` env vars leak into the child process and can break auth.[^pi-claude-bridge-readme]
 
@@ -82,12 +82,12 @@ Trade-offs of the CLI approach:
 
 ## Recommendation for `config/pi/settings.defaults.json`
 
-This repo already declares `npm:pi-claude-bridge`. The minimal change for subscription-based Cursor access is to add the most mature subscription provider:
+The current defaults use `npm:pi-claude-code-provider` for Claude and `npm:@rahularya01/pi-cursor` for Cursor:
 
 ```json
 {
   "packages": [
-    "npm:pi-claude-bridge",
+    "npm:pi-claude-code-provider",
     "npm:pi-mcp-adapter",
     "npm:pine-of-glass",
     "npm:@mobrienv/pi-tidy-tools",
@@ -97,9 +97,7 @@ This repo already declares `npm:pi-claude-bridge`. The minimal change for subscr
 }
 ```
 
-If you prefer to avoid reverse-engineered Cursor clients, replace `npm:@rahularya01/pi-cursor` with either `npm:@akepka/pi-cursor-cli-provider` or `npm:@netandreus/pi-cursor-provider`, but note that you must also install the Cursor Agent CLI (`agent`) separately and authenticate it with your Cursor subscription.
-
-For Claude, if you want the most conservative/public-protocol route, swap `npm:pi-claude-bridge` for `npm:pi-claude-code-provider`.
+If you prefer the Agent SDK bridge, replace `npm:pi-claude-code-provider` with `npm:pi-claude-bridge`. To avoid the reverse-engineered Cursor client, replace `npm:@rahularya01/pi-cursor` with either `npm:@akepka/pi-cursor-cli-provider` or `npm:@netandreus/pi-cursor-provider`; you must also install the Cursor Agent CLI (`agent`) separately and authenticate it with your Cursor subscription.
 
 ---
 

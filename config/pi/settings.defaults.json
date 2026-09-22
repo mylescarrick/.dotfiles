@@ -4,10 +4,11 @@
   "defaultModel": "gpt-5.6-terra",
   "defaultThinkingLevel": "medium",
   "packages": [
-    "npm:pi-claude-bridge",
+    "npm:pi-claude-code-provider",
     "npm:pi-mcp-adapter",
     "npm:pine-of-glass",
     "npm:@mobrienv/pi-tidy-tools",
-    "npm:@mobrienv/pi-tidy-subagents"
+    "npm:@mobrienv/pi-tidy-subagents",
+    "npm:@rahularya01/pi-cursor"
   ]
 }

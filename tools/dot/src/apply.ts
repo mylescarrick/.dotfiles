@@ -2,7 +2,7 @@ import { reconcileGlobalBunPackages } from "./bun-global";
 import { guardCanonicalCheckout } from "./checkout";
 import { applyClaudeSettings, planClaudeSettings } from "./claude";
 import { reconcilePackages } from "./packages";
-import { applyPiSettings, planPiClaudeBridgeSettings, planPiSettings } from "./pi";
+import { applyPiSettings, planPiSettings } from "./pi";
 import { reconcilePiDependencies } from "./pi-dependencies";
 import { reconcilePiPackages } from "./pi-packages";
 import type { ProcessRunner } from "./process";
@@ -38,7 +38,6 @@ export async function apply(options: {
     stage = "Pi settings preflight";
     await Promise.all([
       planPiSettings({ checkoutRoot: options.checkoutRoot, home }),
-      planPiClaudeBridgeSettings({ checkoutRoot: options.checkoutRoot, home }),
       planClaudeSettings({ checkoutRoot: options.checkoutRoot, home }),
     ]);
 
@@ -62,22 +61,16 @@ export async function apply(options: {
       checkoutRoot: options.checkoutRoot,
       home,
     });
-    const piClaudeBridgeSettings = await planPiClaudeBridgeSettings({
-      checkoutRoot: options.checkoutRoot,
-      home,
-    });
     const claudeSettings = await planClaudeSettings({
       checkoutRoot: options.checkoutRoot,
       home,
     });
 
-    const [changed, bridgeChanged, claudeChanged] = await Promise.all([
+    const [changed, claudeChanged] = await Promise.all([
       applyPiSettings(piSettings),
-      applyPiSettings(piClaudeBridgeSettings),
       applyClaudeSettings(claudeSettings),
     ]);
     progress += `${changed ? "Pi settings synced" : "Pi settings already current"}\n`;
-    progress += `${bridgeChanged ? "Pi Claude Bridge settings synced" : "Pi Claude Bridge settings already current"}\n`;
     if (claudeSettings.tracked) {
       progress += `${claudeChanged ? "Claude settings synced" : "Claude settings already current"}\n`;
     }

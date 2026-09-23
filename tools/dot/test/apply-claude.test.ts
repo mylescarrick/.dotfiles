@@ -32,10 +32,6 @@ async function makeFixture(): Promise<{
     `${JSON.stringify({ packages: [], theme: "dark" }, null, 2)}\n`
   );
   await writeFile(
-    join(checkout, "config/pi/claude-bridge.defaults.json"),
-    `${JSON.stringify({ provider: {} }, null, 2)}\n`
-  );
-  await writeFile(
     join(checkout, "home/.claude/settings.defaults.json"),
     `${JSON.stringify({ outputStyle: "Attention-kind" }, null, 2)}\n`
   );

@@ -42,20 +42,8 @@ async function makeFixture(): Promise<{
     join(checkout, "config/pi/settings.defaults.json"),
     `${JSON.stringify(
       {
-        packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
+        packages: ["npm:pi-claude-code-provider", "npm:@mobrienv/pi-tidy-tools"],
         theme: "dark",
-      },
-      null,
-      2
-    )}\n`
-  );
-  await writeFile(
-    join(checkout, "config/pi/claude-bridge.defaults.json"),
-    `${JSON.stringify(
-      {
-        provider: {
-          pathToClaudeCodeExecutable: "/opt/homebrew/bin/claude",
-        },
       },
       null,
       2
@@ -68,7 +56,7 @@ async function makeFixture(): Promise<{
       {
         dependencies: {
           "@mobrienv/pi-tidy-tools": "^0.4.1",
-          "pi-claude-bridge": "^0.7.0",
+          "pi-claude-code-provider": "^0.7.0",
         },
         name: "pi-extensions",
         private: true,
@@ -310,7 +298,7 @@ describe("dot apply Pi settings", () => {
       settingsPath,
       JSON.stringify({
         defaultModel: "claude-opus-4-8",
-        defaultProvider: "claude-bridge",
+        defaultProvider: "claude-code-provider",
         packages: ["runtime-owned-package"],
         theme: "custom",
         unknownRuntimeKey: true,
@@ -327,12 +315,12 @@ describe("dot apply Pi settings", () => {
       exitCode: 0,
       stderr: "",
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
       defaultModel: "claude-opus-4-8",
-      defaultProvider: "claude-bridge",
-      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
+      defaultProvider: "claude-code-provider",
+      packages: ["npm:pi-claude-code-provider", "npm:@mobrienv/pi-tidy-tools"],
       theme: "custom",
       unknownRuntimeKey: true,
     });
@@ -342,7 +330,6 @@ describe("dot apply Pi settings", () => {
   test("creates private settings and leaves an exact rerun untouched", async () => {
     const fixture = await makeFixture();
     const settingsPath = join(fixture.home, ".pi/agent/settings.json");
-    const bridgeSettingsPath = join(fixture.home, ".pi/agent/claude-bridge.json");
     const app = createApplication({ checkoutRoot: fixture.checkout });
 
     expect(
@@ -354,16 +341,9 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     const first = await lstat(settingsPath);
-    const firstBridgeSettings = await lstat(bridgeSettingsPath);
-    expect(JSON.parse(await readFile(bridgeSettingsPath, "utf8"))).toMatchObject({
-      provider: {
-        pathToClaudeCodeExecutable: "/opt/homebrew/bin/claude",
-      },
-    });
-    expect(firstBridgeSettings.mode & 0o777).toBe(0o600);
 
     expect(
       await app.execute({
@@ -374,14 +354,11 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings already current\nPi Claude Bridge settings already current\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings already current\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     const second = await lstat(settingsPath);
-    const secondBridgeSettings = await lstat(bridgeSettingsPath);
     expect(second.ino).toBe(first.ino);
     expect(second.mtimeMs).toBe(first.mtimeMs);
-    expect(secondBridgeSettings.ino).toBe(firstBridgeSettings.ino);
-    expect(secondBridgeSettings.mtimeMs).toBe(firstBridgeSettings.mtimeMs);
 
     await chmod(settingsPath, 0o644);
     expect(
@@ -393,7 +370,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi Claude Bridge settings already current\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
   });
@@ -489,7 +466,7 @@ describe("dot apply Pi settings", () => {
     expect((await lstat(settingsPath)).isSymbolicLink()).toBe(false);
     expect(await Bun.file(join(fixture.home, ".pi/agent/missing-settings.json")).exists()).toBe(false);
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
-      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
+      packages: ["npm:pi-claude-code-provider", "npm:@mobrienv/pi-tidy-tools"],
       theme: "dark",
     });
   });
@@ -522,7 +499,7 @@ describe("dot apply Pi settings", () => {
     expect(await readFile(oldPath, "utf8")).toBe(oldBytes);
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
       defaultProvider: "github-copilot",
-      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
+      packages: ["npm:pi-claude-code-provider", "npm:@mobrienv/pi-tidy-tools"],
     });
   });
 });

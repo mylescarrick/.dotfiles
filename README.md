@@ -63,10 +63,13 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 | `dot package remove NAME` | Remove desired Brewfile state without uninstalling |
 | `dot bun add NAME[@VERSION]` | Record sorted global Bun package state, then install it |
 | `dot bun remove NAME` | Remove desired global Bun package state without uninstalling |
-| `dot skills [list]` | List canonical skills as local or vendored |
+| `dot skills [list]` | List canonical skills as local, vendored, or external |
 | `dot skills add REPO SKILL...` | Vendor skills into the current checkout |
 | `dot skills update` | Update vendored skills in the current checkout |
 | `dot skills remove SKILL...` | Remove local or vendored skills safely |
+| `dot skills external list` | List externally managed skills |
+| `dot skills external add NAME [--source PATH]` | Register an externally managed skill |
+| `dot skills external remove NAME` | Unregister an externally managed skill |
 | `dot skills sync` | Rebuild relative Pi and Claude Code skill links |
 | `dot pi auth cloudflare [OPTIONS]` | Configure private Pi Cloudflare auth |
 | `dot help` / `dot --version` | Show command or version information |
@@ -162,6 +165,7 @@ dot skills list
 dot skills add mattpocock/skills wayfinder to-spec
 dot skills update
 dot skills remove tech-spec
+dot skills external add orca-linear
 dot skills sync
 ```
 

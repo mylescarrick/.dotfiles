@@ -27,10 +27,6 @@ async function fixture(): Promise<{
   await mkdir(join(checkout, "home"), { recursive: true });
   await mkdir(join(home, ".oh-my-zsh"));
   await writeFile(join(checkout, "config/pi/settings.defaults.json"), '{"theme":"dark","packages":[]}\n');
-  await writeFile(
-    join(checkout, "config/pi/claude-bridge.defaults.json"),
-    '{"provider":{"pathToClaudeCodeExecutable":"/opt/homebrew/bin/claude"}}\n'
-  );
   await writeFile(join(checkout, "packages/bundle"), 'brew "stow"\n');
   await writeFile(
     join(checkout, "packages/bun-global"),

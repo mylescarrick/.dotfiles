@@ -185,11 +185,6 @@ subscription. Pi remains in charge of tools, branching, compaction, and history;
 `/model pi-claude-code-provider/sonnet` (also `fable`, `opus`, `haiku`) and verify the setup with
 `/pi-claude-code-provider-doctor`.
 
-The legacy `npm:pi-claude-bridge` package used `~/.pi/agent/claude-bridge.json`, which `dot apply`
-synced from `config/pi/claude-bridge.defaults.json`; that file is no longer the configured default and
-is kept only for backwards compatibility while the bridge package is absent from the tracked package
-list.
-
 **Env vars** (`README.md:656`): `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`,
 `PI_PACKAGE_DIR`, `PI_OFFLINE`, `PI_SKIP_VERSION_CHECK`, `PI_TELEMETRY`, `PI_CACHE_RETENTION`.
 

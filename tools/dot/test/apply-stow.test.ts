@@ -185,6 +185,7 @@ describe("dot apply stow", () => {
     const outcome = await createApplication({
       checkoutRoot: fixture.checkout,
       processes,
+      terminal: { interactive: false, async prompt() { throw new Error("unexpected prompt"); }, write() {} },
     }).execute({
       argv: ["apply"],
       cwd: fixture.checkout,

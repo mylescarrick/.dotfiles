@@ -243,7 +243,10 @@ describe("dot init", () => {
 
   test("refuses noninteractive init before mutation", async () => {
     const state = await fixture();
-    const outcome = await createApplication({ checkoutRoot: state.checkout }).execute({
+    const outcome = await createApplication({
+      checkoutRoot: state.checkout,
+      terminal: { interactive: false, async prompt() { throw new Error("unexpected prompt"); }, write() {} },
+    }).execute({
       argv: ["init"],
       cwd: state.checkout,
       env: state.env,

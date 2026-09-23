@@ -1,6 +1,7 @@
 import { lstat, mkdir, mkdtemp, readdir, readFile, readlink, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { replaceFileAtomic } from "./atomic-file";
 import type { ProcessRunner } from "./process";
 import { skillAgentDirectories } from "./skill-layout";
 
@@ -28,11 +29,47 @@ async function ensureLink(path: string, target: string): Promise<void> {
   await symlink(target, path);
 }
 
+interface ExternalSkill {
+  readonly source?: string;
+}
+
+type ExternalSkills = Readonly<Record<string, ExternalSkill>>;
+
+function externalSkillsPath(checkoutRoot: string): string {
+  return join(checkoutRoot, "home/.agents/.external-skills.json");
+}
+
+async function readExternalSkills(checkoutRoot: string): Promise<ExternalSkills> {
+  try {
+    const text = await readFile(externalSkillsPath(checkoutRoot), "utf8");
+    const parsed = JSON.parse(text) as { readonly skills?: ExternalSkills };
+    if (parsed && typeof parsed.skills === "object" && parsed.skills !== null) {
+      return parsed.skills;
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw error;
+  }
+  return {};
+}
+
+async function writeExternalSkills(checkoutRoot: string, skills: ExternalSkills): Promise<void> {
+  const payload = { version: 1, skills };
+  await replaceFileAtomic(externalSkillsPath(checkoutRoot), `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function externalSourcePath(home: string, name: string, entry: ExternalSkill): string {
+  return join(home, entry.source ?? `.agents/skills/${name}`);
+}
+
 export async function syncSkillLinks(options: {
   readonly checkoutRoot: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly processes: ProcessRunner;
 }): Promise<string> {
+  const home = options.env.HOME;
+  if (!home) throw new Error("HOME is required");
+
   const canonical = join(options.checkoutRoot, "home/.agents/skills");
   const agentDirectories = skillAgentDirectories(options.checkoutRoot);
   for (const directory of agentDirectories) {
@@ -51,6 +88,16 @@ export async function syncSkillLinks(options: {
     names.push(entry.name);
     for (const directory of agentDirectories) {
       await ensureLink(join(directory.path, entry.name), directory.target(entry.name));
+    }
+  }
+
+  const external = await readExternalSkills(options.checkoutRoot);
+  for (const [name, entry] of Object.entries(external)) {
+    validateSkillName(name);
+    if (!(await exists(externalSourcePath(home, name, entry)))) continue;
+    names.push(name);
+    for (const directory of agentDirectories) {
+      await ensureLink(join(directory.path, name), directory.target(name));
     }
   }
 
@@ -154,12 +201,64 @@ export async function listSkills(checkoutRoot: string): Promise<string> {
   } catch {
     /* no vendored skills lock yet; only local skills exist */
   }
-  const lines: string[] = [];
+  const external = await readExternalSkills(checkoutRoot);
+  const lines = new Map<string, string>();
   for (const entry of (await readdir(canonical, { withFileTypes: true })).sort((a, b) =>
     a.name.localeCompare(b.name)
   )) {
     if (!entry.isDirectory()) continue;
-    lines.push(`${entry.name}\t${lock.includes(`"${entry.name}": {`) ? "vendored" : "local"}`);
+    lines.set(entry.name, lock.includes(`"${entry.name}": {`) ? "vendored" : "local");
   }
-  return lines.length ? `${lines.join("\n")}\n` : "No skills installed\n";
+  for (const name of Object.keys(external).sort((a, b) => a.localeCompare(b))) {
+    lines.set(name, "external");
+  }
+  return lines.size ? `${[...lines.entries()].map(([name, kind]) => `${name}\t${kind}`).join("\n")}\n` : "No skills installed\n";
+}
+
+export async function listExternalSkills(checkoutRoot: string): Promise<string> {
+  const skills = await readExternalSkills(checkoutRoot);
+  const names = Object.keys(skills).sort((a, b) => a.localeCompare(b));
+  if (names.length === 0) return "No external skills registered\n";
+  return `${names.join("\n")}\n`;
+}
+
+export async function addExternalSkill(options: {
+  readonly checkoutRoot: string;
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly name: string;
+  readonly processes: ProcessRunner;
+  readonly source?: string;
+}): Promise<string> {
+  validateSkillName(options.name);
+  const skills = await readExternalSkills(options.checkoutRoot);
+  if (skills[options.name]) {
+    throw new Error(`external skill already registered: ${options.name}`);
+  }
+  await writeExternalSkills(options.checkoutRoot, { ...skills, [options.name]: { source: options.source } });
+  return syncSkillLinks({ checkoutRoot: options.checkoutRoot, env: options.env, processes: options.processes });
+}
+
+export async function removeExternalSkill(options: {
+  readonly checkoutRoot: string;
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly name: string;
+  readonly processes: ProcessRunner;
+}): Promise<string> {
+  validateSkillName(options.name);
+  const skills = await readExternalSkills(options.checkoutRoot);
+  if (!skills[options.name]) {
+    throw new Error(`external skill not registered: ${options.name}`);
+  }
+  const { [options.name]: _, ...rest } = skills;
+  await writeExternalSkills(options.checkoutRoot, rest);
+  for (const directory of skillAgentDirectories(options.checkoutRoot)) {
+    const path = join(directory.path, options.name);
+    try {
+      const metadata = await lstat(path);
+      if (metadata.isSymbolicLink()) await rm(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+  return syncSkillLinks({ checkoutRoot: options.checkoutRoot, env: options.env, processes: options.processes });
 }

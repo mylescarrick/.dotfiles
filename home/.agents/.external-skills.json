@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "skills": {
+    "orca-linear": {
+      "source": ".agents/skills/orca-linear"
+    }
+  }
+}

@@ -12,7 +12,7 @@ import {
   parseExaAuthArgs,
 } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
-import { listSkills, syncSkillLinks } from "./skills-authoring";
+import { listExternalSkills, listSkills, syncSkillLinks, addExternalSkill, removeExternalSkill } from "./skills-authoring";
 import { runSkillsMutation } from "./skills-workflow";
 import { systemTerminal, type Terminal } from "./terminal";
 import { UpgradeFailure, upgrade } from "./upgrade";
@@ -122,12 +122,13 @@ async function handleSkills(ctx: CommandContext): Promise<CommandOutcome> {
     (action === "sync" && args.length === 0) ||
     (action === "update" && args.length === 0) ||
     (action === "add" && args.length >= 2) ||
-    (action === "remove" && args.length >= 1);
+    (action === "remove" && args.length >= 1) ||
+    (action === "external" && args.length >= 1);
   if (!valid) {
     return {
       exitCode: 2,
       stderr:
-        "dot: usage: dot skills [list|sync|update [--yes]|add REPO SKILL... [--yes]|remove SKILL... [--yes]]\n",
+        "dot: usage: dot skills [list|sync|update [--yes]|add REPO SKILL... [--yes]|remove SKILL... [--yes]|external list|external add NAME [--source PATH]|external remove NAME]\n",
       stdout: "",
     };
   }
@@ -135,6 +136,36 @@ async function handleSkills(ctx: CommandContext): Promise<CommandOutcome> {
     let stdout: string;
     if (action === "list") {
       stdout = await listSkills(dependencies.checkoutRoot);
+    } else if (action === "external") {
+      const sub = args[0];
+      if (sub === "list" && args.length === 1) {
+        stdout = await listExternalSkills(dependencies.checkoutRoot);
+      } else if (sub === "add" && args.length >= 2) {
+        const name = args[1];
+        const sourceFlag = args.find((arg) => arg.startsWith("--source="));
+        const source = sourceFlag ? sourceFlag.slice("--source=".length) : undefined;
+        stdout = await addExternalSkill({
+          checkoutRoot: dependencies.checkoutRoot,
+          env: invocation.env,
+          name,
+          processes,
+          source,
+        });
+      } else if (sub === "remove" && args.length === 2) {
+        stdout = await removeExternalSkill({
+          checkoutRoot: dependencies.checkoutRoot,
+          env: invocation.env,
+          name: args[1]!,
+          processes,
+        });
+      } else {
+        return {
+          exitCode: 2,
+          stderr:
+            "dot: usage: dot skills external [list|add NAME [--source PATH]|remove NAME]\n",
+          stdout: "",
+        };
+      }
     } else if (action === "sync") {
       stdout = await syncSkillLinks({
         checkoutRoot: dependencies.checkoutRoot,

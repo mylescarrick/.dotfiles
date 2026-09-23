@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Stats } from "node:fs";
-import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, stat } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { lstat, mkdir, mkdtemp, readdir, readFile, readlink, rename, rm, stat } from "node:fs/promises";
+import { dirname, join, relative as pathRelative } from "node:path";
 import type { ProcessRunner } from "./process";
 import type { Terminal } from "./terminal";
 
@@ -59,7 +59,8 @@ async function sameFile(source: string, target: string): Promise<boolean> {
 }
 
 async function snapshot(path: string): Promise<FileSnapshot> {
-  const [metadata, bytes] = await Promise.all([lstat(path), readFile(path)]);
+  const metadata = await lstat(path);
+  const bytes = metadata.isSymbolicLink() ? Buffer.from(await readlink(path)) : await readFile(path);
   return {
     dev: metadata.dev,
     hash: createHash("sha256").update(bytes).digest("hex"),
@@ -173,8 +174,43 @@ async function planActionFor(
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
   }
+
+  if (targetMetadata.isSymbolicLink()) {
+    const expectedTarget = pathRelative(dirname(target), source);
+    const actualTarget = await readlink(target);
+    if (actualTarget === expectedTarget) {
+      // The live symlink already matches what Stow would create; let Stow restow it.
+      return undefined;
+    }
+
+    if (await sameFile(source, target)) {
+      // The symlink resolves to the same underlying node as the tracked source but
+      // is not stow-owned (e.g. an old skill link that pointed directly at
+      // .agents/skills). Remove it so Stow can create its package-owned link.
+      const targetSnapshot = await snapshot(target);
+      return { kind: "remove-identical", relative, snapshot: targetSnapshot };
+    }
+
+    const targetSnapshot = await snapshot(target);
+    if (options.acceptTracked) return { kind: "backup", relative, snapshot: targetSnapshot };
+    if (!options.terminal.interactive) {
+      throw new Error(`~/${relative} conflicts with tracked state; rerun with --yes`);
+    }
+
+    const choice = await resolveConflict({
+      cwd: options.checkoutRoot,
+      env: options.env,
+      processes: options.processes,
+      relative,
+      source,
+      target,
+      terminal: options.terminal,
+    });
+    return { kind: choice, relative, snapshot: targetSnapshot } as PlannedAction;
+  }
+
   if (await sameFile(source, target)) return undefined;
-  if (targetMetadata.isSymbolicLink() || targetMetadata.isDirectory()) return undefined;
+  if (targetMetadata.isDirectory()) return undefined;
   if (!targetMetadata.isFile()) return undefined;
 
   const [sourceBytes, targetBytes, targetSnapshot] = await Promise.all([
@@ -231,8 +267,10 @@ export async function planStow(options: StowOptions): Promise<StowPlan> {
   });
   if (probe.exitCode !== 0) throw new Error("GNU Stow is required; run 'dot init'");
 
+  const tracked = await trackedPaths(sourceRoot);
+
   const actions: PlannedAction[] = [];
-  for (const relative of await trackedPaths(sourceRoot)) {
+  for (const relative of tracked) {
     const action = await planActionFor(options, sourceRoot, relative);
     if (action) actions.push(action);
   }

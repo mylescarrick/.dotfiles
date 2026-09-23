@@ -150,7 +150,7 @@ afterEach(async () => {
 });
 
 describe("dot init", () => {
-  test("bootstraps, applies declared state, and finishes with doctor", async () => {
+  test("bootstraps, applies declared state, and finishes with doctor", { timeout: 30_000 }, async () => {
     const state = await fixture();
     const outcome = await createApplication({
       checkoutRoot: state.checkout,

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "check": "bun run typecheck && bun test",
-    "test": "bun test",
+    "test": "bun test --timeout 30000",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

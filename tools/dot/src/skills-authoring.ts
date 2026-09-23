@@ -67,8 +67,11 @@ export async function syncSkillLinks(options: {
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly processes: ProcessRunner;
 }): Promise<string> {
+  const external = await readExternalSkills(options.checkoutRoot);
   const home = options.env.HOME;
-  if (!home) throw new Error("HOME is required");
+  if (Object.keys(external).length > 0 && !home) {
+    throw new Error("HOME is required");
+  }
 
   const canonical = join(options.checkoutRoot, "home/.agents/skills");
   const agentDirectories = skillAgentDirectories(options.checkoutRoot);
@@ -91,10 +94,11 @@ export async function syncSkillLinks(options: {
     }
   }
 
-  const external = await readExternalSkills(options.checkoutRoot);
   for (const [name, entry] of Object.entries(external)) {
     validateSkillName(name);
-    if (!(await exists(externalSourcePath(home, name, entry)))) continue;
+    if (home) {
+      if (!(await exists(externalSourcePath(home, name, entry)))) continue;
+    }
     names.push(name);
     for (const directory of agentDirectories) {
       await ensureLink(join(directory.path, name), directory.target(name));

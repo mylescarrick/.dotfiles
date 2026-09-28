@@ -13,7 +13,6 @@ async function readRuntime(path: string): Promise<Record<string, unknown>> {
   }
 }
 
-
 async function currentRegularFileMatches(path: string, desired: string): Promise<boolean> {
   try {
     const metadata = await lstat(path);

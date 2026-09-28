@@ -12,7 +12,13 @@ import {
   parseExaAuthArgs,
 } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
-import { listExternalSkills, listSkills, syncSkillLinks, addExternalSkill, removeExternalSkill } from "./skills-authoring";
+import {
+  addExternalSkill,
+  listExternalSkills,
+  listSkills,
+  removeExternalSkill,
+  syncSkillLinks,
+} from "./skills-authoring";
 import { runSkillsMutation } from "./skills-workflow";
 import { systemTerminal, type Terminal } from "./terminal";
 import { UpgradeFailure, upgrade } from "./upgrade";
@@ -161,8 +167,7 @@ async function handleSkills(ctx: CommandContext): Promise<CommandOutcome> {
       } else {
         return {
           exitCode: 2,
-          stderr:
-            "dot: usage: dot skills external [list|add NAME [--source PATH]|remove NAME]\n",
+          stderr: "dot: usage: dot skills external [list|add NAME [--source PATH]|remove NAME]\n",
           stdout: "",
         };
       }

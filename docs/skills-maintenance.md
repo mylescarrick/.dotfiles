@@ -43,7 +43,7 @@ Any skill mentioning subagents, background agents, worktrees, MCP, model selecti
 
 Preferred wording:
 
-- Pi: inline by default; use `@mobrienv/pi-tidy-subagents` only when delegation is justified and available.
+- Pi: inline by default; use `pi-subagents` only when delegation is justified and available.
 - Claude Code: native subagents/worktrees only when justified.
 - Model choice: use roles (`research`, `architecture`, `planning`, `delivery`, `verification`), not concrete model IDs.
 

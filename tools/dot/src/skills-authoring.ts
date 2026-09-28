@@ -54,7 +54,7 @@ async function readExternalSkills(checkoutRoot: string): Promise<ExternalSkills>
 }
 
 async function writeExternalSkills(checkoutRoot: string, skills: ExternalSkills): Promise<void> {
-  const payload = { version: 1, skills };
+  const payload = { skills, version: 1 };
   await replaceFileAtomic(externalSkillsPath(checkoutRoot), `${JSON.stringify(payload, null, 2)}\n`);
 }
 
@@ -96,9 +96,7 @@ export async function syncSkillLinks(options: {
 
   for (const [name, entry] of Object.entries(external)) {
     validateSkillName(name);
-    if (home) {
-      if (!(await exists(externalSourcePath(home, name, entry)))) continue;
-    }
+    if (home && !(await exists(externalSourcePath(home, name, entry)))) continue;
     names.push(name);
     for (const directory of agentDirectories) {
       await ensureLink(join(directory.path, name), directory.target(name));
@@ -216,7 +214,9 @@ export async function listSkills(checkoutRoot: string): Promise<string> {
   for (const name of Object.keys(external).sort((a, b) => a.localeCompare(b))) {
     lines.set(name, "external");
   }
-  return lines.size ? `${[...lines.entries()].map(([name, kind]) => `${name}\t${kind}`).join("\n")}\n` : "No skills installed\n";
+  return lines.size
+    ? `${[...lines.entries()].map(([name, kind]) => `${name}\t${kind}`).join("\n")}\n`
+    : "No skills installed\n";
 }
 
 export async function listExternalSkills(checkoutRoot: string): Promise<string> {
@@ -239,7 +239,11 @@ export async function addExternalSkill(options: {
     throw new Error(`external skill already registered: ${options.name}`);
   }
   await writeExternalSkills(options.checkoutRoot, { ...skills, [options.name]: { source: options.source } });
-  return syncSkillLinks({ checkoutRoot: options.checkoutRoot, env: options.env, processes: options.processes });
+  return syncSkillLinks({
+    checkoutRoot: options.checkoutRoot,
+    env: options.env,
+    processes: options.processes,
+  });
 }
 
 export async function removeExternalSkill(options: {
@@ -264,5 +268,9 @@ export async function removeExternalSkill(options: {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
-  return syncSkillLinks({ checkoutRoot: options.checkoutRoot, env: options.env, processes: options.processes });
+  return syncSkillLinks({
+    checkoutRoot: options.checkoutRoot,
+    env: options.env,
+    processes: options.processes,
+  });
 }

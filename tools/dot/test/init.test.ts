@@ -155,23 +155,27 @@ afterEach(async () => {
 });
 
 describe("dot init", () => {
-  test("bootstraps, applies declared state, and finishes with doctor", async () => {
-    const state = await fixture();
-    const outcome = await createApplication({
-      checkoutRoot: state.checkout,
-      terminal: interactive,
-    }).execute({ argv: ["init"], cwd: state.checkout, env: state.env });
+  test(
+    "bootstraps, applies declared state, and finishes with doctor",
+    async () => {
+      const state = await fixture();
+      const outcome = await createApplication({
+        checkoutRoot: state.checkout,
+        terminal: interactive,
+      }).execute({ argv: ["init"], cwd: state.checkout, env: state.env });
 
-    expect(outcome.exitCode).toBe(0);
-    expect(outcome.stderr).toBe("");
-    expect(outcome.stdout).toContain("Homebrew already installed\noh-my-zsh already installed\n");
-    expect(outcome.stdout).toContain(
-      "Packages already current\nGlobal Bun packages already current\nDotfiles stowed\n"
-    );
-    expect(outcome.stdout).toContain("OK    checkout:");
-    expect(outcome.stdout).toContain("OK    bun-global:");
-    expect(outcome.stdout).toContain("0 actionable issues\n");
-  }, { timeout: 30_000 });
+      expect(outcome.exitCode).toBe(0);
+      expect(outcome.stderr).toBe("");
+      expect(outcome.stdout).toContain("Homebrew already installed\noh-my-zsh already installed\n");
+      expect(outcome.stdout).toContain(
+        "Packages already current\nGlobal Bun packages already current\nDotfiles stowed\n"
+      );
+      expect(outcome.stdout).toContain("OK    checkout:");
+      expect(outcome.stdout).toContain("OK    bun-global:");
+      expect(outcome.stdout).toContain("0 actionable issues\n");
+    },
+    { timeout: 30_000 }
+  );
 
   test("threads fresh Homebrew and Pi bootstrap into apply and doctor", async () => {
     const state = await fixture();
@@ -250,7 +254,13 @@ describe("dot init", () => {
     const state = await fixture();
     const outcome = await createApplication({
       checkoutRoot: state.checkout,
-      terminal: { interactive: false, async prompt() { throw new Error("unexpected prompt"); }, write() {} },
+      terminal: {
+        interactive: false,
+        async prompt() {
+          throw new Error("unexpected prompt");
+        },
+        write() {},
+      },
     }).execute({
       argv: ["init"],
       cwd: state.checkout,

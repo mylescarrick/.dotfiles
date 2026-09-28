@@ -47,6 +47,11 @@ async function fixture(): Promise<{
     await writeFile(join(fakeBin, tool), "#!/bin/sh\nexit 0\n");
     await chmod(join(fakeBin, tool), 0o755);
   }
+  await writeFile(
+    join(fakeBin, "bun"),
+    '#!/bin/sh\nif [ "$1" = "--version" ]; then echo 1.4.2; exit 0; fi\nif [ "$1" = "pm" ] && [ "$2" = "ls" ] && [ "$3" = "-g" ]; then\n  echo "├── @earendil-works/pi-coding-agent@0.84.1"\n  echo "└── frog@1.1.0"\n  exit 0\nfi\nexit 0\n'
+  );
+  await chmod(join(fakeBin, "bun"), 0o755);
   return {
     checkout,
     env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}` },
@@ -150,7 +155,7 @@ afterEach(async () => {
 });
 
 describe("dot init", () => {
-  test("bootstraps, applies declared state, and finishes with doctor", { timeout: 30_000 }, async () => {
+  test("bootstraps, applies declared state, and finishes with doctor", async () => {
     const state = await fixture();
     const outcome = await createApplication({
       checkoutRoot: state.checkout,
@@ -166,7 +171,7 @@ describe("dot init", () => {
     expect(outcome.stdout).toContain("OK    checkout:");
     expect(outcome.stdout).toContain("OK    bun-global:");
     expect(outcome.stdout).toContain("0 actionable issues\n");
-  });
+  }, { timeout: 30_000 });
 
   test("threads fresh Homebrew and Pi bootstrap into apply and doctor", async () => {
     const state = await fixture();

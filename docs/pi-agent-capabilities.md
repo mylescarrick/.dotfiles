@@ -23,7 +23,7 @@ core loop is expected to be added via its **extension API** (TypeScript, loaded 
 **skills** system (Agent Skills standard), **prompt templates**, and installable Pi packages. Config
 is layered global → project, gated by a **trust** decision. Model defaults are **static** (settings +
 `/model` + `--model`); anything adaptive is an extension concern. This dotfiles repo adds delegation
-through `@mobrienv/pi-tidy-subagents`.
+through `pi-subagents`.
 
 ---
 
@@ -38,7 +38,7 @@ through `@mobrienv/pi-tidy-subagents`.
 - `README.md:501` — "**No background bash.** Use tmux."
 
 Ways to achieve orchestration instead:
-- **Pi package:** `@mobrienv/pi-tidy-subagents` registers `subagent` and `subagent_control` for foreground/background child Pi agents.
+- **Pi package:** `pi-subagents` provides the `subagent` tool for focused child Pi agents, with built-in agents and foreground/background workflows.
 - **tmux**: run multiple independent `pi` sessions (`docs/tmux.md`).
 - **RPC / headless**: `pi --mode rpc` drives the agent over JSON stdin/stdout for subprocess control (`docs/rpc.md`).
 - **SDK**: embed via `createAgentSession()` / `AgentSessionRuntime` from the package (`docs/sdk.md`, `README.md:455`).
@@ -161,7 +161,7 @@ keeping global `compaction.enabled`).
     "npm:pi-mcp-adapter",
     "npm:pine-of-glass",
     "npm:@mobrienv/pi-tidy-tools",
-    "npm:@mobrienv/pi-tidy-subagents",
+    "npm:pi-subagents",
     "npm:@rahularya01/pi-cursor"
   ]
 }

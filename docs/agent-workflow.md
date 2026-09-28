@@ -48,4 +48,4 @@ Translation rules:
 
 ## Pi packages
 
-Published third-party Pi packages such as `@mobrienv/pi-tidy-tools` and `@mobrienv/pi-tidy-subagents` are managed through `config/pi/settings.defaults.json` and Pi's package updater.
+Published third-party Pi packages such as `@mobrienv/pi-tidy-tools` and `pi-subagents` are managed through `config/pi/settings.defaults.json` and Pi's package updater.

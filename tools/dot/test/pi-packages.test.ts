@@ -118,14 +118,14 @@ describe("reconcilePiPackages", () => {
   });
 
   test("installs missing npm packages", async () => {
-    const fixture = await makeFixture(["npm:pi-mcp-adapter", "npm:pi-claude-code-provider"]);
+    const fixture = await makeFixture(["npm:pi-mcp-adapter", "npm:pi-claude-bridge"]);
     await mkdir(join(fixture.home, ".pi/agent/npm"), { recursive: true });
     await writeFile(
       join(fixture.home, ".pi/agent/npm/package.json"),
       `${JSON.stringify(
         {
           dependencies: {
-            "pi-claude-code-provider": "^0.7.0",
+            "pi-claude-bridge": "^0.9.1",
           },
           name: "pi-extensions",
           private: true,

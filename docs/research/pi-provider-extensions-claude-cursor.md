@@ -1,5 +1,10 @@
 # Pi Provider Extensions for Claude and Cursor Subscriptions
 
+> **Superseded for Claude:** this research predates the switch to `npm:pi-claude-bridge`. The active default
+> is now the Agent SDK-based bridge. Its README says Pi tools execute through Pi's TUI and Pi skills plus
+> selected extension context are forwarded; not all extension injection routes are supported. See
+> https://github.com/elidickinson/pi-claude-bridge#compatibility-with-other-extensions.
+
 Research question: *What are the best Pi provider extensions for using Claude and Cursor subscriptions (not API keys) directly in Pi?*
 
 ## Bottom line

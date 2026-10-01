@@ -42,7 +42,7 @@ async function makeFixture(): Promise<{
     join(checkout, "config/pi/settings.defaults.json"),
     `${JSON.stringify(
       {
-        packages: ["npm:pi-claude-code-provider", "npm:@mobrienv/pi-tidy-tools"],
+        packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
         theme: "dark",
       },
       null,
@@ -56,7 +56,7 @@ async function makeFixture(): Promise<{
       {
         dependencies: {
           "@mobrienv/pi-tidy-tools": "^0.4.1",
-          "pi-claude-code-provider": "^0.7.0",
+          "pi-claude-bridge": "^0.9.1",
         },
         name: "pi-extensions",
         private: true,
@@ -320,7 +320,7 @@ describe("dot apply Pi settings", () => {
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
       defaultModel: "claude-opus-4-8",
       defaultProvider: "claude-code-provider",
-      packages: ["npm:pi-claude-code-provider", "npm:@mobrienv/pi-tidy-tools"],
+      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
       theme: "custom",
       unknownRuntimeKey: true,
     });
@@ -466,7 +466,7 @@ describe("dot apply Pi settings", () => {
     expect((await lstat(settingsPath)).isSymbolicLink()).toBe(false);
     expect(await Bun.file(join(fixture.home, ".pi/agent/missing-settings.json")).exists()).toBe(false);
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
-      packages: ["npm:pi-claude-code-provider", "npm:@mobrienv/pi-tidy-tools"],
+      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
       theme: "dark",
     });
   });
@@ -499,7 +499,7 @@ describe("dot apply Pi settings", () => {
     expect(await readFile(oldPath, "utf8")).toBe(oldBytes);
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
       defaultProvider: "github-copilot",
-      packages: ["npm:pi-claude-code-provider", "npm:@mobrienv/pi-tidy-tools"],
+      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
     });
   });
 });

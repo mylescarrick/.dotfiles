@@ -157,7 +157,7 @@ keeping global `compaction.enabled`).
 {
   "theme": "dark",
   "packages": [
-    "npm:pi-claude-code-provider",
+    "npm:pi-claude-bridge",
     "npm:pi-mcp-adapter",
     "npm:pine-of-glass",
     "npm:@mobrienv/pi-tidy-tools",
@@ -179,11 +179,12 @@ Related keys (`docs/settings.md`): `hideThinkingBlock`, `thinkingBudgets` (per-l
 `:thinking` suffix, e.g. `sonnet:high`), `--models <patterns>`, `--thinking <level>`,
 `--api-key`, `--list-models`. Runtime: the `/model` command.
 
-**Claude Code provider** (`npm:pi-claude-code-provider`): uses the installed `claude` executable
-in Anthropic's documented non-interactive `--print` mode, billed to the Claude Pro/Max/Team/Enterprise
-subscription. Pi remains in charge of tools, branching, compaction, and history; select a model with
-`/model pi-claude-code-provider/sonnet` (also `fable`, `opus`, `haiku`) and verify the setup with
-`/pi-claude-code-provider-doctor`.
+**Claude provider** (`npm:pi-claude-bridge`): integrates Claude Code through Anthropic's Agent SDK
+and uses Claude subscription capacity. Pi remains in charge of the session and tool execution; the
+bridge forwards Pi tools through Pi's TUI and forwards skills and selected extension context to Claude.
+Extension injection routes vary, so see the [bridge compatibility notes](https://github.com/elidickinson/pi-claude-bridge#compatibility-with-other-extensions).
+Select a current Claude model with `/model claude-bridge/claude-opus-5` (or another model from
+pi-ai's Anthropic catalog).
 
 **Env vars** (`README.md:656`): `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`,
 `PI_PACKAGE_DIR`, `PI_OFFLINE`, `PI_SKIP_VERSION_CHECK`, `PI_TELEMETRY`, `PI_CACHE_RETENTION`.

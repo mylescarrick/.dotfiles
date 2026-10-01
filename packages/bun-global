@@ -2,6 +2,7 @@
 # Omit the version to always track the latest release.
 @biomejs/biome
 @earendil-works/pi-coding-agent
+cf
 cloudflared
 frog
 mcp-remote

@@ -37,6 +37,13 @@ bun run check                  # Check tested local extensions
 | `@mobrienv/pi-tidy-tools` | Compact rendering for built-in Pi tool calls and `/diff` recap. |
 | `@mobrienv/pi-tidy-subagents` | Foreground/background child Pi agents for justified delegation. |
 
+## Using Cloudflare?
+
+- When interacting with Cloudflare, use the `cf` CLI unless the project has a Wrangler configuration file (e.g. `wrangler.jsonc`).
+- If the app has a Wrangler config file, suggest updating it with `cf migrate --dry-run` → `cf migrate`.
+- Find the appropriate command options with `cf cli search`, for example: `cf cli search "create D1 database"`.
+- If necessary, prompt the user to sign in interactively with `cf auth login`.
+
 ## Anti-patterns
 
 - Editing live `~/.pi/agent/settings.json` instead of dotfiles defaults/runtime sync.

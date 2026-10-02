@@ -158,7 +158,6 @@ keeping global `compaction.enabled`).
   "theme": "dark",
   "packages": [
     "npm:pi-claude-bridge",
-    "npm:pi-mcp-adapter",
     "npm:pine-of-glass",
     "npm:@mobrienv/pi-tidy-tools",
     "npm:pi-subagents",

@@ -1,16 +1,5 @@
 {
   "mcpServers": {
-    "uidotsh": {
-      "url": "https://ui.sh/mcp?agent=pi",
-      "headers": {
-        "Authorization": "Bearer ${UIDOTSH_TOKEN}"
-      }
-    },
-    "open-computer-use": {
-      "command": "open-computer-use",
-      "args": ["mcp"],
-      "timeout": 60
-    },
     "atlassian": {
       "url": "https://mcp.atlassian.com/v1/mcp/authv2"
     },

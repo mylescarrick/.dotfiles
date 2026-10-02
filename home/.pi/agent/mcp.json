@@ -1,19 +1,26 @@
 {
   "mcpServers": {
     "atlassian": {
-      "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+      "url": "https://mcp.atlassian.com/v1/mcp/authv2",
+      "description": "Search and manage Jira issues and Confluence pages",
+      "exposure": "deferred"
     },
     "deepwiki": {
-      "url": "https://mcp.deepwiki.com/mcp"
+      "url": "https://mcp.deepwiki.com/mcp",
+      "description": "Ask questions about and read documentation for public GitHub repositories"
     },
     "freshservice": {
       "url": "https://knox.freshservice.com/mcp",
+      "description": "Knox Freshservice: tickets, assets, and service catalog",
+      "exposure": "deferred",
       "oauth": {
         "authServerMetadataUrl": "https://knox-594678414652080735.myfreshworks.com/.well-known/oauth-authorization-server"
       }
     },
     "linear": {
-      "url": "https://mcp.linear.app/mcp"
+      "url": "https://mcp.linear.app/mcp",
+      "description": "Search and manage Linear issues, projects, and cycles",
+      "exposure": "deferred"
     }
   }
 }

@@ -25,6 +25,7 @@ bun run check                  # Check tested local extensions
 ## Conventions
 
 - Use Bun commands in this workspace.
+- For repository content searches, prefer `rg` over `grep` or broad shell scans; use `-F` for literal text, and remember it respects `.gitignore` and skips hidden files unless requested.
 - Keep global extensions universal. Put stack- or repository-specific behavior in the relevant project's `.pi/` directory or `.agents/skills`.
 - Select models and thinking deliberately with Pi's built-in controls; do not add automatic model routing.
 - Published Pi packages are declared in `config/pi/settings.defaults.json` and synced into private runtime `~/.pi/agent/settings.json` by `dot apply` / `dot update`.

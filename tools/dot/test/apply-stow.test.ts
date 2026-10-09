@@ -190,7 +190,9 @@ describe("dot apply stow", () => {
         async prompt() {
           throw new Error("unexpected prompt");
         },
-        write() {},
+        write() {
+          // output is irrelevant to this test
+        },
       },
     }).execute({
       argv: ["apply"],

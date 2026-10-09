@@ -114,63 +114,63 @@ async function handleInit(ctx: CommandContext): Promise<CommandOutcome> {
   }
 }
 
-async function handleSkills(ctx: CommandContext): Promise<CommandOutcome> {
-  const { invocation, dependencies, processes, terminal } = ctx;
-  const action = invocation.argv[1] ?? "list";
-  let args = invocation.argv.slice(2);
+const SKILLS_USAGE =
+  "dot: usage: dot skills [list|sync|update [--yes]|add REPO SKILL... [--yes]|remove SKILL... [--yes]|external list|external add NAME [--source PATH]|external remove NAME]\n";
+const SKILLS_EXTERNAL_USAGE = "dot: usage: dot skills external [list|add NAME [--source PATH]|remove NAME]\n";
+
+function parseSkillsArgs(argv: readonly string[]) {
+  const action = argv[1] ?? "list";
+  let args = argv.slice(2);
   let acceptAll = false;
   if ((action === "update" || action === "add" || action === "remove") && args.at(-1) === "--yes") {
     acceptAll = true;
     args = args.slice(0, -1);
   }
   const valid =
-    (action === "list" && args.length === 0) ||
-    (action === "sync" && args.length === 0) ||
-    (action === "update" && args.length === 0) ||
+    ((action === "list" || action === "sync" || action === "update") && args.length === 0) ||
     (action === "add" && args.length >= 2) ||
-    (action === "remove" && args.length >= 1) ||
-    (action === "external" && args.length >= 1);
-  if (!valid) {
-    return {
-      exitCode: 2,
-      stderr:
-        "dot: usage: dot skills [list|sync|update [--yes]|add REPO SKILL... [--yes]|remove SKILL... [--yes]|external list|external add NAME [--source PATH]|external remove NAME]\n",
-      stdout: "",
-    };
+    ((action === "remove" || action === "external") && args.length >= 1);
+  return { acceptAll, action, args, valid };
+}
+
+async function runExternalSkills(ctx: CommandContext, args: readonly string[]): Promise<string | undefined> {
+  const { invocation, dependencies, processes } = ctx;
+  const [sub, name] = args;
+  if (sub === "list" && args.length === 1) {
+    return await listExternalSkills(dependencies.checkoutRoot);
   }
+  if (sub === "add" && name !== undefined) {
+    const sourceFlag = args.find((arg) => arg.startsWith("--source="));
+    return await addExternalSkill({
+      checkoutRoot: dependencies.checkoutRoot,
+      env: invocation.env,
+      name,
+      processes,
+      source: sourceFlag ? sourceFlag.slice("--source=".length) : undefined,
+    });
+  }
+  if (sub === "remove" && name !== undefined && args.length === 2) {
+    return await removeExternalSkill({
+      checkoutRoot: dependencies.checkoutRoot,
+      env: invocation.env,
+      name,
+      processes,
+    });
+  }
+  return undefined;
+}
+
+async function handleSkills(ctx: CommandContext): Promise<CommandOutcome> {
+  const { invocation, dependencies, processes, terminal } = ctx;
+  const { acceptAll, action, args, valid } = parseSkillsArgs(invocation.argv);
+  if (!valid) return { exitCode: 2, stderr: SKILLS_USAGE, stdout: "" };
   try {
-    let stdout: string;
+    let stdout: string | undefined;
     if (action === "list") {
       stdout = await listSkills(dependencies.checkoutRoot);
     } else if (action === "external") {
-      const sub = args[0];
-      if (sub === "list" && args.length === 1) {
-        stdout = await listExternalSkills(dependencies.checkoutRoot);
-      } else if (sub === "add" && args.length >= 2) {
-        const name = args[1];
-        const sourceFlag = args.find((arg) => arg.startsWith("--source="));
-        const source = sourceFlag ? sourceFlag.slice("--source=".length) : undefined;
-        stdout = await addExternalSkill({
-          checkoutRoot: dependencies.checkoutRoot,
-          env: invocation.env,
-          name,
-          processes,
-          source,
-        });
-      } else if (sub === "remove" && args.length === 2) {
-        stdout = await removeExternalSkill({
-          checkoutRoot: dependencies.checkoutRoot,
-          env: invocation.env,
-          name: args[1]!,
-          processes,
-        });
-      } else {
-        return {
-          exitCode: 2,
-          stderr: "dot: usage: dot skills external [list|add NAME [--source PATH]|remove NAME]\n",
-          stdout: "",
-        };
-      }
+      stdout = await runExternalSkills(ctx, args);
+      if (stdout === undefined) return { exitCode: 2, stderr: SKILLS_EXTERNAL_USAGE, stdout: "" };
     } else if (action === "sync") {
       stdout = await syncSkillLinks({
         checkoutRoot: dependencies.checkoutRoot,

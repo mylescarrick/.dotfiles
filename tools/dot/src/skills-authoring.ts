@@ -42,7 +42,7 @@ function externalSkillsPath(checkoutRoot: string): string {
 async function readExternalSkills(checkoutRoot: string): Promise<ExternalSkills> {
   try {
     const text = await readFile(externalSkillsPath(checkoutRoot), "utf8");
-    const parsed = JSON.parse(text) as { readonly skills?: ExternalSkills };
+    const parsed = JSON.parse(text) as { readonly skills?: ExternalSkills } | null;
     if (parsed && typeof parsed.skills === "object" && parsed.skills !== null) {
       return parsed.skills;
     }
@@ -60,6 +60,29 @@ async function writeExternalSkills(checkoutRoot: string, skills: ExternalSkills)
 
 function externalSourcePath(home: string, name: string, entry: ExternalSkill): string {
   return join(home, entry.source ?? `.agents/skills/${name}`);
+}
+
+type AgentDirectories = ReturnType<typeof skillAgentDirectories>;
+
+async function linkSkill(agentDirectories: AgentDirectories, name: string): Promise<void> {
+  for (const directory of agentDirectories) {
+    await ensureLink(join(directory.path, name), directory.target(name));
+  }
+}
+
+async function pruneDanglingLinks(agentDirectories: AgentDirectories): Promise<number> {
+  let pruned = 0;
+  for (const directory of agentDirectories) {
+    for (const entry of await readdir(directory.path, { withFileTypes: true })) {
+      if (!entry.isSymbolicLink()) continue;
+      const path = join(directory.path, entry.name);
+      if (!(await exists(path))) {
+        await rm(path);
+        pruned += 1;
+      }
+    }
+  }
+  return pruned;
 }
 
 export async function syncSkillLinks(options: {
@@ -89,31 +112,17 @@ export async function syncSkillLinks(options: {
     });
     if (ignored.exitCode === 0) continue;
     names.push(entry.name);
-    for (const directory of agentDirectories) {
-      await ensureLink(join(directory.path, entry.name), directory.target(entry.name));
-    }
+    await linkSkill(agentDirectories, entry.name);
   }
 
   for (const [name, entry] of Object.entries(external)) {
     validateSkillName(name);
     if (home && !(await exists(externalSourcePath(home, name, entry)))) continue;
     names.push(name);
-    for (const directory of agentDirectories) {
-      await ensureLink(join(directory.path, name), directory.target(name));
-    }
+    await linkSkill(agentDirectories, name);
   }
 
-  let pruned = 0;
-  for (const directory of agentDirectories) {
-    for (const entry of await readdir(directory.path, { withFileTypes: true })) {
-      if (!entry.isSymbolicLink()) continue;
-      const path = join(directory.path, entry.name);
-      if (!(await exists(path))) {
-        await rm(path);
-        pruned += 1;
-      }
-    }
-  }
+  const pruned = await pruneDanglingLinks(agentDirectories);
   return `Synced ${names.length} skill(s); pruned ${pruned} dangling link(s)\n`;
 }
 

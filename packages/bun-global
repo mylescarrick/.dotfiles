@@ -7,3 +7,7 @@ cloudflared
 frog
 mcp-remote
 wrangler
+@microsoft/workiq
+@openai/codex
+@pnp/cli-microsoft365
+pi-acp

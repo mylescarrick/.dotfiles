@@ -181,16 +181,6 @@
       "installedAt": "2026-07-09T11:26:20.906Z",
       "updatedAt": "2026-10-11T03:40:52.851Z"
     },
-    "writing-great-skills": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mattpocock/skills.git",
-      "skillPath": "skills/productivity/writing-great-skills/SKILL.md",
-      "skillFolderHash": "c84411b360fad91b8756e60fa17fd5b5761422dd",
-      "pluginName": "mattpocock-skills",
-      "installedAt": "2026-07-09T11:26:20.911Z",
-      "updatedAt": "2026-07-09T11:26:20.911Z"
-    },
     "herdr": {
       "source": "herdrdev/herdr",
       "sourceType": "github",

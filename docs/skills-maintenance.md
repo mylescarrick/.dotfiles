@@ -1,6 +1,6 @@
 # Skills Maintenance
 
-Use the `writing-great-skills` vocabulary when adding or editing skills: predictability, context load, cognitive load, branches, completion criteria, progressive disclosure, and pruning.
+When adding or editing skills, keep predictability, context load, cognitive load, branches, completion criteria, progressive disclosure, and pruning in view.
 
 ## Ownership
 

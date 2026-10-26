@@ -315,7 +315,7 @@ describe("dot apply Pi settings", () => {
       exitCode: 0,
       stderr: "",
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Packages already current\nDotfiles stowed\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
       defaultModel: "claude-opus-4-8",
@@ -341,7 +341,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Packages already current\nDotfiles stowed\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     const first = await lstat(settingsPath);
 
@@ -354,7 +354,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings already current\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Packages already current\nDotfiles stowed\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings already current\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     const second = await lstat(settingsPath);
     expect(second.ino).toBe(first.ino);
@@ -370,7 +370,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Skill links valid (0)\nPackages already current\nDotfiles stowed\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Packages already current\nDotfiles stowed\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
   });
@@ -433,7 +433,8 @@ describe("dot apply Pi settings", () => {
     const settingsDirectory = join(fixture.home, ".pi/agent");
     const settingsPath = join(settingsDirectory, "settings.json");
     const original = '{"theme":"custom","packages":[]}\n';
-    await mkdir(settingsDirectory, { recursive: true });
+    // Skill deployment needs its own directory here; only settings replacement should fail.
+    await mkdir(join(settingsDirectory, "skills"), { recursive: true });
     await writeFile(settingsPath, original, { mode: 0o600 });
     await chmod(settingsDirectory, 0o500);
 

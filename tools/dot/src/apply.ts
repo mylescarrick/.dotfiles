@@ -6,7 +6,7 @@ import { applyPiSettings, planPiSettings } from "./pi";
 import { reconcilePiDependencies } from "./pi-dependencies";
 import { reconcilePiPackages } from "./pi-packages";
 import type { ProcessRunner } from "./process";
-import { validateSkillLinks } from "./skills";
+import { applySkills, prepareSkillDirectories } from "./skills";
 import { applyStowPlan, planStow } from "./stow";
 import type { Terminal } from "./terminal";
 
@@ -41,8 +41,8 @@ export async function apply(options: {
       planClaudeSettings({ checkoutRoot: options.checkoutRoot, home }),
     ]);
 
-    stage = "skill-link validation";
-    progress += await validateSkillLinks(options);
+    stage = "skill directory preparation";
+    await prepareSkillDirectories({ checkoutRoot: options.checkoutRoot, home });
 
     stage = "Stow conflict preflight";
     const stowPlan = await planStow({ ...options, home });
@@ -55,6 +55,9 @@ export async function apply(options: {
 
     stage = "dotfile publication";
     progress += await applyStowPlan(stowPlan);
+
+    stage = "skill deployment";
+    progress += await applySkills({ ...options, home });
 
     stage = "Pi settings synchronization";
     const piSettings = await planPiSettings({

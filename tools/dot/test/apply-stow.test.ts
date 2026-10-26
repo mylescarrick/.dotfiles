@@ -260,7 +260,7 @@ describe("dot apply stow", () => {
     });
 
     expect(outcome.exitCode).toBe(1);
-    expect(outcome.stdout).toContain("Skill links valid (0)\n");
+    expect(outcome.stdout).toContain("Packages already current\n");
     expect(outcome.stdout).toContain("Packages already current\n");
     expect(outcome.stdout).toContain("FAILED dotfile publication: GNU Stow failed");
     expect(outcome.stderr).toContain("live-file backups remain at");

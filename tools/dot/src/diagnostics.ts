@@ -6,7 +6,7 @@ import { inspectPackages } from "./packages";
 import { inspectPiSettings, planPiSettings } from "./pi";
 import { inspectPiAuth } from "./pi-auth";
 import type { ProcessRunner } from "./process";
-import { validateSkillLinks } from "./skills";
+import { inspectSkills } from "./skills";
 import { inspectStow } from "./stow";
 
 export interface DiagnosticReport {
@@ -149,10 +149,16 @@ async function checkPiSettings(options: DoctorOptions, home: string, log: Doctor
   });
 }
 
-async function checkSkillLinks(options: DoctorOptions, log: DoctorLog): Promise<void> {
+async function checkSkills(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
   await log.guard("skills", async () => {
-    const summary = await validateSkillLinks(options);
-    log.ok("skills", summary.trim().toLowerCase());
+    const { plan } = await inspectSkills({ ...options, home, network: false });
+    const stale = plan.items.filter((item) => ["install", "remove", "update"].includes(item.decision.action));
+    const uncached = plan.items.filter((item) => item.decision.action === "unavailable");
+    if (stale.length) log.fail("skills", `${stale.length} skill(s) out of date; run 'dot apply'`);
+    if (uncached.length)
+      log.fail("skills", `${uncached.length} vendored skill(s) not cached; run 'dot apply'`);
+    if (plan.drift.length) log.info(`skills: ${plan.drift.length} drift item(s); run 'dot reconcile'`);
+    if (!(stale.length || uncached.length)) log.ok("skills", `${plan.items.length} skill(s) deployed`);
   });
 }
 
@@ -177,7 +183,7 @@ export async function runDoctor(options: DoctorOptions): Promise<DiagnosticRepor
   await checkStowedDotfiles(options, home, log);
   await checkPiAuth(home, log);
   await checkPiSettings(options, home, log);
-  await checkSkillLinks(options, log);
+  await checkSkills(options, home, log);
   await checkSigningKeys(options, home, log);
 
   log.info("freshness: based on local origin/main; no network request was made");

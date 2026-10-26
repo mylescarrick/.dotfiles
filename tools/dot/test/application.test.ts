@@ -44,7 +44,9 @@ COMMANDS
   init                  Bootstrap a new machine, then apply
   package add/remove    Edit the Brewfile
   bun add/remove        Edit the global Bun package manifest
-  skills                Manage the checkout-scoped skills store
+  drift                 Print skill drift as JSON
+  drift restore NAME    Discard local drift for one skill
+  reconcile             Absorb drift into a PR via the Pi agent
   pi auth cloudflare    Configure private Pi Cloudflare auth
   pi auth exa           Configure private web-tools Exa search auth
   help                  Show this help

@@ -17,10 +17,12 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 ├── home/.oh-my-zsh/custom/ # Custom zsh functions/aliases (stowed into ~/.oh-my-zsh/custom/)
 ├── .agents/skills/     # Repo-local skills for maintaining this checkout only
 ├── .pi/                # Repo-local Pi resources for this checkout only
-├── home/.agents/skills/    # Canonical agent-skills library (stowed to ~/.agents/skills/)
 ├── home/.pi/           # Pi agent workspace (AGENTS.md)
 │   ├── agent/extensions/ # TypeScript extensions
-│   └── agent/skills/   # symlinks into ~/.agents/skills/ for pi-specific global path
+├── skills/             # Shared skills, copied (not stowed) to ~/.agents/skills/
+│   ├── lock.json       # Vendored: pinned git tree hashes, contents fetched
+│   ├── external.json   # Installed by other tools; linked only
+│   └── local/<name>/   # Hand-authored
 ├── packages/
 │   └── bundle          # Base Brewfile
 └── docs/
@@ -32,8 +34,8 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 |------|----------|
 | Add package | `dot package add <name>` or edit `packages/bundle` |
 | Add global Bun package | `dot bun add <name>[@version]` or edit `packages/bun-global` |
-| Vendor/update agent skill | `dot skills add <owner/repo> <skill...>` / `dot skills update` |
-| Add global/deployed skill | Author `home/.agents/skills/<name>/SKILL.md`, then `dot skills sync` |
+| Vendor/update agent skill | `bunx skills add -g <owner/repo> -s <skill> -a pi claude-code` / `bunx skills update -g -y`, then `dot reconcile` |
+| Add global/deployed skill | Author `~/.agents/skills/<name>/SKILL.md`, then `dot reconcile` (or add `skills/local/<name>/` in a worktree) |
 | Add repo-only maintenance skill | Author `.agents/skills/<name>/SKILL.md` |
 | Shell alias | `home/.oh-my-zsh/custom/aliases.zsh` |
 | Shell function | `home/.oh-my-zsh/custom/*.zsh` (git.zsh, worktree.zsh, utils.zsh) |
@@ -43,14 +45,14 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 | Shared output style | `home/.claude/output-styles/Attention-kind.md` |
 | Claude Code default style | `home/.claude/settings.defaults.json` |
 | Lint/format rules | `biome.jsonc` at repo root |
-| Pi skill (canonical) | `home/.agents/skills/<name>/SKILL.md` |
+| Pi skill (canonical) | `skills/local/<name>/SKILL.md` |
 | Work git identity | Auto via `home/.config/git/work_config` for `~/Code/work/` |
 
 ## CONVENTIONS
 
 - Stow layout: `home/` mirrors `~`, stow creates symlinks
 - Zsh: oh-my-zsh; custom functions/aliases live in `home/.oh-my-zsh/custom/*.zsh`, loaded after plugins — check plugin aliases/functions before adding new ones (oh-my-zsh's `git` plugin already covers most git shorthand: `git_main_branch`, `git_current_branch`, `gbda`/`gbds`, `grename`, `gdv`, etc.)
-- Agent skills: canonical copy lives in `home/.agents/skills/`; per-agent global dirs that differ from `~/.agents/skills/` (pi, Claude Code) get relative symlinks back to canonical, matching the `skills` CLI's own install behavior. Manage via `dot skills` (add/update/remove/sync/list) — never raw `skills add -g`/`skills update`, which target the wrong checkout, pollute the stow tree via `~/.config`, and fan out to every known agent. Vendored skills are tracked in `home/.agents/.skill-lock.json`; local shared skills are hand-authored and wired in with `dot skills sync` — run `dot skills list` for the current local/vendored split rather than relying on an enumeration here. Pi-only skills live under `home/.pi/packages/*/skills/`, not shared `~/.agents/skills/`
+- Agent skills: sources live in `skills/` (`local/` hand-authored, `lock.json` vendored by git tree hash, `external.json` installed by other tools). `dot apply` **copies** them into `~/.agents/skills/` and gives Pi and Claude Code relative links, matching the `skills` CLI layout — nothing in `~` links into the checkout, so tool writes never dirty `main`. Change skills in `~` (raw `bunx skills add -g … -a pi claude-code` / `skills update -g` are fine now) and run `dot reconcile` to absorb the drift into a PR. Never edit vendored content; it changes only via `skills/lock.json`. Pi-only skills live under `home/.pi/packages/*/skills/`, not shared `~/.agents/skills/`. Design: `docs/design/copy-deploy-and-reconcile.md`
 - Repo-local agent resources: maintenance guidance/tools that only make sense while editing this checkout live at repo root (`.agents/skills/<name>/SKILL.md`, `.pi/skills/<name>/SKILL.md`, `.pi/extensions/<name>/index.ts`). Do not put repo-maintenance-only resources under `home/`; canonical `dot apply` publishes `home/*` resources to real `~` paths.
 - Pi extensions/packages: TypeScript, npm workspaces under `home/.pi/`; generic reusable local Pi packages live in `home/.pi/packages/` before publishing; published Pi packages live in `config/pi/settings.defaults.json`
 - Lint/format: Ultracite (Biome preset) is configured once at the repo root and covers both `tools/dot` and `home/.pi` TypeScript. The root `package.json` is tooling-only — it is not stowed and is not a workspace root for the nested Bun workspaces. Rules marked `"warn"` in `biome.jsonc` are a pre-existing backlog, not permanent exemptions; `"off"` marks deliberate disagreements with the preset.
@@ -74,8 +76,8 @@ dot upgrade [--yes]   # Update → optional Homebrew upgrade → stale cask repa
 dot doctor            # Network-free repository-owned health report
 dot package add X     # Record + install formula (use --cask explicitly)
 dot package remove X  # Remove desired state only
-dot skills update     # Update vendored agent skills to latest
-dot skills sync       # Wire canonical skills into agent dirs
+dot drift             # Skill drift between ~ and the repo, as JSON
+dot reconcile         # Absorb drift into a PR via the Pi reconcile agent
 dot pi auth cloudflare  # Configure private provider auth
 bun run --cwd tools/dot check  # Typecheck + tests
 ```

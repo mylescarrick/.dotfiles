@@ -9,7 +9,7 @@ Global Pi configuration and local extensions, stowed to `~/.pi`.
 ├── agent/
 │   ├── settings.json          # Private runtime settings, synced from config/pi defaults
 │   ├── extensions/            # Global, universal extensions only
-│   ├── skills/                # Symlinks to canonical ~/.agents/skills
+│   ├── skills/                # Links to ~/.agents/skills copies (written by dot)
 │   └── themes/
 ├── package.json               # Bun workspace root
 └── tsconfig.json

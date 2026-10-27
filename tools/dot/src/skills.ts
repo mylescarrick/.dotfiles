@@ -265,11 +265,35 @@ export async function applySkills(options: SkillsOptions): Promise<string> {
   return executePlan(plan, desired, options);
 }
 
+/** A skill the repo has never heard of has no version to restore, so discarding it means removing it. */
+async function discardUnrepoedSkill(
+  options: SkillsOptions & { readonly name: string },
+  plan: SkillPlan,
+  desired: DesiredSkills
+): Promise<string> {
+  const path = join(options.home, SKILLS_HOME, options.name);
+  if (desired.external.has(options.name) || !(await lstatOrUndefined(path))) {
+    throw new Error(`no repo version of skill ${options.name} to restore`);
+  }
+  const roots = await legacyRoots(options.checkoutRoot);
+  const record = await readDeployRecord(options.env, options.home);
+  await rm(path, { force: true, recursive: true });
+  delete record.entries[`${SKILLS_HOME}/${options.name}`];
+  await writeDeployRecord(options.env, options.home, record);
+  if (plan.globalLock[options.name])
+    await writeGlobalLock(options.home, roots, new Map([[options.name, undefined]]));
+  for (const directory of AGENT_LINK_DIRECTORIES) {
+    await removeOwnedLink(join(options.home, directory.path, options.name), directory.prefix, roots);
+  }
+  return `Removed skill ${options.name} (not in the repo)\n`;
+}
+
 /** Discards drift for one skill by redeploying the repo version over whatever is in ~. */
 export async function restoreSkill(options: SkillsOptions & { readonly name: string }): Promise<string> {
   const { desired, plan } = await inspectSkills({ ...options, network: true });
   const item = plan.items.find((candidate) => candidate.name === options.name);
   const want = desired.skills.get(options.name);
+  if (item && !want) return discardUnrepoedSkill(options, plan, desired);
   if (!(item && want?.directory)) throw new Error(`no repo version of skill ${options.name} to restore`);
   const record = await readDeployRecord(options.env, options.home);
   await replaceDirectory(want.directory, join(options.home, SKILLS_HOME, options.name));

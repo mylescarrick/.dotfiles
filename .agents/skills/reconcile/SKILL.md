@@ -40,8 +40,8 @@ managed and settles most judgement calls.
 
 | Kind | Absorb | Discard (tell the user; do not do it) |
 |---|---|---|
-| `added-locally` | copy `homePath` to `skills/local/NAME` | delete the local dir |
-| `vendored-added` | add `globalLockEntry` to `skills/lock.json` | `bunx skills remove -g NAME` |
+| `added-locally` | copy `homePath` to `skills/local/NAME` | `dot drift restore NAME` (removes it) |
+| `vendored-added` | add `globalLockEntry` to `skills/lock.json` | `dot drift restore NAME` (removes it) |
 | `vendored-updated` | replace the entry in `skills/lock.json` with `globalLockEntry` | `dot drift restore NAME` |
 | `modified-locally` (local) | copy `homePath` over `skills/local/NAME` | `dot drift restore NAME` |
 | `modified-locally` (vendored) | not allowed; recommend discarding | `dot drift restore NAME` |

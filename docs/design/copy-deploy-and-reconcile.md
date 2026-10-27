@@ -108,7 +108,7 @@ absent, so the first run migrates them without prompting.
 |---|---|
 | `dot apply` | as before; skills now deploy by copy with the rules above |
 | `dot drift` | prints the drift report as JSON (may fetch uncached skills) |
-| `dot drift restore NAME` | overwrites `~` with the repo version (discards drift) |
+| `dot drift restore NAME` | overwrites `~` with the repo version, or removes a skill the repo lacks (discards drift) |
 | `dot reconcile` | drift → ask → worktree → Pi agent → guard → push → PR |
 
 The `dot skills …` authoring commands are removed. Install skills however you

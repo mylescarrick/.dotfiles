@@ -118,6 +118,21 @@ describe("skill copy deployment", () => {
     expect(await driftKinds(options)).toEqual([]);
   });
 
+  test("discarding a skill the repo lacks removes it and its links", async () => {
+    const { home, options } = await fixture();
+    await applySkills(options);
+    await write(join(home, ".agents/skills/scratch/SKILL.md"), "# Scratch\n");
+    await symlink("../../../.agents/skills/scratch", join(home, ".pi/agent/skills/scratch"));
+
+    expect(await restoreSkill({ ...options, name: "scratch" })).toBe(
+      "Removed skill scratch (not in the repo)\n"
+    );
+    expect(await lstat(join(home, ".agents/skills/scratch")).catch(() => undefined)).toBeUndefined();
+    expect(await lstat(join(home, ".pi/agent/skills/scratch")).catch(() => undefined)).toBeUndefined();
+    expect(await driftKinds(options)).toEqual([]);
+    await expect(restoreSkill({ ...options, name: "ext" })).rejects.toThrow("no repo version of skill ext");
+  });
+
   test("classifies skills CLI installs and updates through its global lock", async () => {
     const { home, options, upstream } = await fixture();
     await applySkills(options);

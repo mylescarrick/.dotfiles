@@ -49,7 +49,10 @@ function timestamp(now: Date): string {
   return now.toISOString().replace(/[-:.]/g, "").replace("T", "-").slice(0, 15);
 }
 
-async function markHandled(options: ReconcileOptions, items: readonly AnyDriftItem[]): Promise<void> {
+async function markHandled(
+  options: Omit<ReconcileOptions, "terminal">,
+  items: readonly AnyDriftItem[]
+): Promise<void> {
   const home = requireHome(options.env);
   const record = await readDeployRecord(options.env, home);
   const at = (options.now ?? new Date()).toISOString();
@@ -63,13 +66,27 @@ async function confirm(terminal: Terminal, message: string, fallback: boolean): 
   return answer === "y" || answer === "yes";
 }
 
-async function offerSnooze(options: ReconcileOptions, items: readonly AnyDriftItem[]): Promise<string> {
-  if (await confirm(options.terminal, "Snooze these drift items until they change again? [y/N]: ", false)) {
-    await markHandled(options, items);
-    return `Snoozed ${items.length} drift item(s)\n`;
-  }
-  return "Drift left in place\n";
+/**
+ * Ignoring drift is its own command, never a follow-up prompt: a second yes/no right after the
+ * agent's own question reads as its answer, and "yes" means the opposite. A skill comes back if
+ * its content changes (the fingerprint includes the hash); a package has nothing to change.
+ */
+export async function ignoreDrift(
+  options: Omit<ReconcileOptions, "terminal">,
+  names: readonly string[] = []
+): Promise<string> {
+  const fresh = (await buildDriftReport(options)).items.filter(
+    (item) => !item.handled && (names.length === 0 || names.includes(item.name))
+  );
+  if (fresh.length === 0) return "Nothing to ignore\n";
+  await markHandled(options, fresh);
+  const comesBack = fresh.some((item) => item.domain === "skill")
+    ? "A skill is asked about again if it changes.\n"
+    : "";
+  return `Ignoring ${fresh.length} item(s); dot will stop asking:\n${describe(fresh)}\n${comesBack}`;
 }
+
+const IGNORE_HINT = "To stop being asked, run 'dot drift ignore [NAME]'.\n";
 
 async function git(options: ReconcileOptions, cwd: string, argv: readonly string[], failure: string) {
   const result = await options.processes.run({ argv: ["git", "-C", cwd, ...argv], cwd, env: options.env });
@@ -135,8 +152,21 @@ async function removeWorktree(
   await git(options, canonical, ["branch", "-D", branch], "failed to delete branch");
 }
 
+const KIND_SENTENCES: Readonly<Record<string, string>> = {
+  "added-locally": "new skill on this Mac, not in the repo",
+  conflict: "skill changed on this Mac and in the repo",
+  "deleted-locally": "skill deleted on this Mac, still in the repo",
+  "installed-undeclared": "installed with Homebrew, not in your Brewfile",
+  "modified-locally": "skill edited on this Mac",
+  "vendored-added": "skill installed with the skills CLI, not in the repo",
+  "vendored-updated": "skill updated on this Mac, repo has the old version",
+};
+
 function describe(items: readonly AnyDriftItem[]): string {
-  return items.map((item) => `  ${item.kind.padEnd(17)}${item.name}`).join("\n");
+  const width = Math.max(...items.map((item) => item.name.length));
+  return items
+    .map((item) => `  ${item.name.padEnd(width)}  ${KIND_SENTENCES[item.kind] ?? item.kind}`)
+    .join("\n");
 }
 
 export async function reconcile(options: ReconcileOptions): Promise<string> {
@@ -148,9 +178,9 @@ export async function reconcile(options: ReconcileOptions): Promise<string> {
     return `${fresh.length} drift item(s); run 'dot reconcile' in a terminal:\n${describe(fresh)}\n`;
   }
 
-  options.terminal.write(`Drift found:\n${describe(fresh)}\n`);
-  if (!(await confirm(options.terminal, "Start the reconcile agent in a worktree? [Y/n]: ", true))) {
-    return offerSnooze(options, fresh);
+  options.terminal.write(`This Mac differs from the repo:\n${describe(fresh)}\n`);
+  if (!(await confirm(options.terminal, "Go through these with the agent? [Y/n]: ", true))) {
+    return `Left as is; you will be asked again next time. ${IGNORE_HINT}`;
   }
 
   const canonical = await realpath(options.checkoutRoot);
@@ -184,7 +214,7 @@ export async function reconcile(options: ReconcileOptions): Promise<string> {
   const commits = await guardWriteBack(options, worktree);
   if (commits === 0) {
     await removeWorktree(options, canonical, worktree, branch);
-    return `Agent made no commits\n${await offerSnooze(options, fresh)}`;
+    return `Nothing was added to the repo. Run 'dot reconcile' to try again. ${IGNORE_HINT}`;
   }
 
   await git(

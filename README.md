@@ -65,6 +65,7 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 | `dot bun add NAME[@VERSION]` | Record sorted global Bun package state, then install it |
 | `dot bun remove NAME` | Remove desired global Bun package state without uninstalling |
 | `dot drift` | Print skill drift between `~` and the repo as JSON |
+| `dot drift ignore [NAME]` | Stop being asked about drift (all, or one item) |
 | `dot drift restore NAME` | Discard local drift by redeploying the repo version |
 | `dot reconcile` | Absorb drift into a PR through the Pi reconcile agent |
 | `dot pi auth cloudflare [OPTIONS]` | Configure private Pi Cloudflare auth |

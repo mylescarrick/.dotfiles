@@ -21,6 +21,9 @@ export const bunProcessRunner: ProcessRunner = {
       cwd: request.cwd,
       env: request.env,
       stderr: request.output === "inherit" ? "inherit" : "pipe",
+      // Bun gives a child no stdin by default. An interactive child (the reconcile agent, a
+      // sudo prompt from brew) needs the terminal or it cannot hear the user.
+      stdin: request.output === "inherit" ? "inherit" : undefined,
       stdout: request.output === "inherit" ? "inherit" : "pipe",
     });
 

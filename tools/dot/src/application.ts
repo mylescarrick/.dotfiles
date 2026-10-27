@@ -12,7 +12,7 @@ import {
   parseExaAuthArgs,
 } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
-import { buildDriftReport, reconcile } from "./reconcile";
+import { buildDriftReport, ignoreDrift, reconcile } from "./reconcile";
 import { restoreSkill } from "./skills";
 import { SyncFailure, sync } from "./sync";
 import { systemTerminal, type Terminal } from "./terminal";
@@ -56,6 +56,7 @@ const commands: readonly CommandDescription[] = [
   { summary: "Edit the global Bun package manifest", usage: "bun add/remove" },
   { summary: "Print skill drift as JSON", usage: "drift" },
   { summary: "Discard local drift for one skill", usage: "drift restore NAME" },
+  { summary: "Stop asking about drift (all, or one NAME)", usage: "drift ignore [NAME]" },
   { summary: "Absorb drift into a PR via the Pi agent", usage: "reconcile" },
   { summary: "Configure private Pi Cloudflare auth", usage: "pi auth cloudflare" },
   { summary: "Configure private web-tools Exa search auth", usage: "pi auth exa" },
@@ -119,8 +120,9 @@ async function handleDrift(ctx: CommandContext): Promise<CommandOutcome> {
   const { invocation, dependencies, processes } = ctx;
   const [, action, name] = invocation.argv;
   const restoring = action === "restore" && Boolean(name) && invocation.argv.length === 3;
-  if (!(invocation.argv.length === 1 || restoring)) {
-    return { exitCode: 2, stderr: "dot: usage: dot drift [restore NAME]\n", stdout: "" };
+  const ignoring = action === "ignore" && invocation.argv.length <= 3;
+  if (!(invocation.argv.length === 1 || restoring || ignoring)) {
+    return { exitCode: 2, stderr: "dot: usage: dot drift [restore NAME | ignore [NAME]]\n", stdout: "" };
   }
   try {
     const options = { checkoutRoot: dependencies.checkoutRoot, env: invocation.env, processes };
@@ -129,6 +131,8 @@ async function handleDrift(ctx: CommandContext): Promise<CommandOutcome> {
       if (!home) throw new Error("HOME is required");
       return { exitCode: 0, stderr: "", stdout: await restoreSkill({ ...options, home, name: name! }) };
     }
+    if (ignoring)
+      return { exitCode: 0, stderr: "", stdout: await ignoreDrift(options, invocation.argv.slice(2)) };
     const report = await buildDriftReport(options);
     return { exitCode: 0, stderr: "", stdout: `${JSON.stringify(report, null, 2)}\n` };
   } catch (error) {

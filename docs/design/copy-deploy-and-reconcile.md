@@ -108,7 +108,7 @@ absent, so the first run migrates them without prompting.
 |---|---|
 | `dot apply` | as before; skills now deploy by copy with the rules above |
 | `dot drift` | prints the drift report as JSON (may fetch uncached skills) |
-| `dot drift snooze` | hides current drift until it changes (the fingerprint includes the content hash) |
+| `dot drift ignore [NAME]` | stops asking about drift: all of it, or one item. A skill is asked about again if its content changes; a package has nothing to change, so it stays ignored |
 | `dot drift restore NAME` | overwrites `~` with the repo version, or removes a skill the repo lacks (discards drift) |
 | `dot reconcile` | drift → ask → worktree → Pi agent → guard → push → PR |
 
@@ -141,7 +141,7 @@ so a stow conflict in a non-interactive run still needs `dot apply --yes`.
 7. Push, `gh pr create --fill`, mark the reported fingerprints handled, remove
    the worktree.
 
-If the agent made no commits, `dot` says so and leaves the drift. Hiding drift is the separate `dot drift snooze`, never a follow-up prompt: a second yes/no right after the agent's own question reads as its answer, and "yes" means the opposite.
+If the agent made no commits, `dot` says so and leaves the drift. Not asking again is the separate `dot drift ignore [NAME]`, never a follow-up prompt: a second yes/no right after the agent's own question reads as its answer, and "yes" means the opposite.
 
 ## Known gaps
 

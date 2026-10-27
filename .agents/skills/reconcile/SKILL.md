@@ -32,17 +32,27 @@ managed and settles most judgement calls.
 
 1. Read the drift report JSON. Skip items with `handled: true`.
 2. For each item, one at a time: say what changed in one sentence, give your
-   recommendation from POLICY.md, and ask. Show a short diff for
-   `modified-locally` or `conflict` (`diff -ru <repo copy> <homePath>`).
+   recommendation from POLICY.md, and ask with exactly these three answers:
+   - **Add** it to the repo (you do this, then commit)
+   - **Skip** for now (you do nothing; `dot` asks again next time)
+   - **Ignore** it (tell the user to run `dot drift ignore NAME`; `dot` stops asking)
+
+   Say "add", "skip" and "ignore" and nothing else: never "absorb", "leave as
+   drift" or "snooze". Show a short diff for `modified-locally` or `conflict`
+   (`diff -ru <repo copy> <homePath>`).
 3. Apply the decision using the table below.
 4. When every item is decided, commit with the `mc-commit` conventions, scope
    `skills` or `packages` (use the one that matches the changes). One commit is fine. Put the per-item decisions in the body.
-5. Tell the user which items you left as drift, and how to discard them
-   (`dot drift restore NAME`). Then tell them to exit Pi.
+5. Say which items were added, skipped or ignored. If they want a skipped item
+   gone from this Mac instead, give the discard command from the table. Then
+   tell them to exit Pi.
 
 Never end a turn on a question and expect `dot` to carry on: if the user has not
 answered, the session is still waiting on them, and quitting Pi means "no
 commits". Ask, wait for the reply, then act.
+
+"Absorb" in the tables below is what you do on **Add**. "Discard" is a separate
+fourth option the user can ask for; give the command, never run it.
 
 | Kind | Absorb | Discard (tell the user; do not do it) |
 |---|---|---|

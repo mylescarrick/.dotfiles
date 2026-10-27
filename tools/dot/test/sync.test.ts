@@ -71,7 +71,7 @@ describe("bare dot", () => {
     expect(outcome.stdout).toContain("Dotfiles stowed\n");
     expect(outcome.stdout).toContain("1 skill drift item(s); run 'dot reconcile'\n");
     expect(outcome.stdout).toContain("1 drift item(s); run 'dot reconcile' in a terminal:\n");
-    expect(outcome.stdout).toContain("added-locally    handmade");
+    expect(outcome.stdout).toContain("handmade  new skill on this Mac, not in the repo");
   });
 
   test("reports no drift on a machine that matches the checkout", async () => {

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readDeployRecord } from "../src/deploy-record";
 import { bunProcessRunner, type ProcessRequest, type ProcessRunner } from "../src/process";
-import { buildDriftReport, reconcile, snoozeDrift } from "../src/reconcile";
+import { buildDriftReport, ignoreDrift, reconcile } from "../src/reconcile";
 import { applySkills } from "../src/skills";
 import type { Terminal } from "../src/terminal";
 
@@ -174,8 +174,8 @@ describe("dot reconcile", () => {
       terminal: terminal(["y"]),
     });
 
-    expect(output).toContain("Agent made no commits, so nothing changed.");
-    expect(output).toContain("dot drift snooze");
+    expect(output).toContain("Nothing was added to the repo.");
+    expect(output).toContain("dot drift ignore");
     expect(
       (await buildDriftReport({ checkoutRoot: checkout, env, processes: bunProcessRunner })).items[0]?.handled
     ).toBe(false);
@@ -184,15 +184,29 @@ describe("dot reconcile", () => {
     expect(report.items.map((item: { name: string }) => item.name)).toEqual(["gamma"]);
   });
 
-  test("snoozes only on the explicit command, until the drift changes", async () => {
+  test("ignores only on the explicit command; a changed skill is asked about again", async () => {
     const { checkout, env, home } = await fixture();
     const options = { checkoutRoot: checkout, env, processes: bunProcessRunner };
 
-    expect(await snoozeDrift(options)).toContain("Snoozed 1 drift item(s)");
-    expect(await snoozeDrift(options)).toBe("No drift to snooze\n");
+    expect(await ignoreDrift(options, ["other"])).toBe("Nothing to ignore\n");
+    expect(await ignoreDrift(options, ["gamma"])).toContain("Ignoring 1 item(s)");
+    expect(await ignoreDrift(options)).toBe("Nothing to ignore\n");
 
     await write(join(home, ".agents/skills/gamma/SKILL.md"), "# Gamma edited\n");
-    expect(await snoozeDrift(options)).toContain("Snoozed 1 drift item(s)");
+    expect(await ignoreDrift(options)).toContain("gamma  new skill on this Mac, not in the repo");
+  });
+
+  test("describes each item in a sentence, not an internal code", async () => {
+    const { checkout, env } = await fixture();
+    const output = await reconcile({
+      checkoutRoot: checkout,
+      env,
+      processes: runner(() => undefined, []),
+      terminal: { ...terminal([]), interactive: false },
+    });
+
+    expect(output).toContain("gamma  new skill on this Mac, not in the repo");
+    expect(output).not.toContain("added-locally");
   });
 
   test("only summarises drift when not attached to a terminal", async () => {
@@ -203,6 +217,6 @@ describe("dot reconcile", () => {
       processes: runner(() => undefined, []),
       terminal: { ...terminal([]), interactive: false },
     });
-    expect(output).toContain("added-locally    gamma");
+    expect(output).toContain("gamma  new skill on this Mac");
   });
 });

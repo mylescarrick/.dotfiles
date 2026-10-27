@@ -5,7 +5,7 @@ import { replaceFileAtomic } from "./atomic-file";
 export interface DeployRecord {
   /** Home-relative path to the hash `dot` last wrote there. */
   entries: Record<string, { hash: string }>;
-  /** Drift fingerprints already sent to a PR or snoozed, with when that happened. */
+  /** Drift fingerprints already sent to a PR or ignored, with when that happened. */
   handled: Record<string, string>;
 }
 

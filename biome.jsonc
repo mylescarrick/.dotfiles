@@ -6,12 +6,10 @@
     // or stowed config that upstream owns.
     "includes": [
       "!**/node_modules",
-      "!home/.agents/skills",
+      "!skills/local",
       "!.agents/skills",
       "!home/.pi/agent/extensions/opencode-cloudflare",
-      "!**/*.lock",
-      // Written by the skills CLI; formatting it only creates churn on the next update.
-      "!home/.agents/.skill-lock.json"
+      "!**/*.lock"
     ]
   },
   "formatter": {

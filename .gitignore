@@ -8,7 +8,6 @@ packages/failed_packages_*.txt
 tmp/
 node_modules/
 .DS_STORE
-home/.agents/skills/ui/
 
 
 # Python
@@ -68,8 +67,4 @@ home/.pi/**/package-lock.json
 home/.pi/agent/extensions/herdr-agent-state.ts
 !home/.pi/agent/mcp.json
 !home/.pi/agent/APPEND_SYSTEM.md
-!home/.pi/agent/skills/
-!home/.pi/agent/skills/**
-home/.pi/agent/skills/ui/
-home/.pi/agent/skills/account-id-tags/
 

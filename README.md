@@ -54,6 +54,7 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 
 | Command | What it does |
 |---|---|
+| `dot` | Fast-forward canonical `main`, re-exec, apply, then offer to reconcile any drift |
 | `dot init` | Bootstrap a new machine, apply desired state, then diagnose it |
 | `dot apply [--yes]` | Reconcile the canonical checked-out state into the machine |
 | `dot update [--yes]` | Strictly fast-forward canonical `main`, re-exec, then apply |
@@ -63,18 +64,13 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 | `dot package remove NAME` | Remove desired Brewfile state without uninstalling |
 | `dot bun add NAME[@VERSION]` | Record sorted global Bun package state, then install it |
 | `dot bun remove NAME` | Remove desired global Bun package state without uninstalling |
-| `dot skills [list]` | List canonical skills as local, vendored, or external |
-| `dot skills add REPO SKILL...` | Vendor skills into the current checkout |
-| `dot skills update` | Update vendored skills in the current checkout |
-| `dot skills remove SKILL...` | Remove local or vendored skills safely |
-| `dot skills external list` | List externally managed skills |
-| `dot skills external add NAME [--source PATH]` | Register an externally managed skill |
-| `dot skills external remove NAME` | Unregister an externally managed skill |
-| `dot skills sync` | Rebuild relative Pi and Claude Code skill links |
+| `dot drift` | Print skill drift between `~` and the repo as JSON |
+| `dot drift restore NAME` | Discard local drift by redeploying the repo version |
+| `dot reconcile` | Absorb drift into a PR through the Pi reconcile agent |
 | `dot pi auth cloudflare [OPTIONS]` | Configure private Pi Cloudflare auth |
 | `dot help` / `dot --version` | Show command or version information |
 
-`apply` validates the canonical checkout, validates skill links, installs only
+`apply` validates the canonical checkout, copies skills into place, installs only
 missing Brewfile and global Bun package state, safely stows `home/`,
 synchronizes private Pi settings, and runs `bun install` in `~/.pi` only when
 workspace state has drifted. It does not run broad upgrades such as
@@ -100,11 +96,10 @@ files before tracked state wins; it never bypasses checkout safety.
 ├── config/pi/               # Tracked defaults for private Pi runtime state
 ├── home/                    # Stowed to ~ (mirrors the home directory)
 │   ├── .config/git/         # Personal/work Git identity split
-│   ├── .agents/skills/      # Canonical shared skills library
-│   ├── .pi/                 # Pi workspace and agent skill links
-│   ├── .claude/skills/      # Claude Code skill links
+│   ├── .pi/                 # Pi workspace
 │   ├── .oh-my-zsh/custom/   # Custom Zsh aliases and functions
 │   └── .zshrc / .zprofile
+├── skills/                  # Shared skills: lock.json, external.json, local/
 ├── packages/bundle          # Base Brewfile
 ├── packages/bun-global      # Global Bun packages
 ├── docs/
@@ -157,26 +152,28 @@ brew trust --cask microsoft/sysinternalstap/zoomit
 
 ## Agent skills
 
-`home/.agents/skills/` is canonical. Pi (`~/.pi/agent/skills/`) and Claude Code
-(`~/.claude/skills/`) receive relative links back to it.
+Skills are **copied** into `~/.agents/skills/`, never linked into the checkout,
+so nothing a tool writes there can dirty `main`. Pi (`~/.pi/agent/skills/`) and
+Claude Code (`~/.claude/skills/`) get relative links to the copies.
+
+| Source | Kind |
+|---|---|
+| `skills/local/<name>/` | hand-authored shared skills |
+| `skills/lock.json` | vendored skills, pinned by git tree hash; contents are fetched, not committed |
+| `skills/external.json` | names installed by other tools; linked, never reported |
+
+Change skills the normal way, then let `dot` absorb it:
 
 ```bash
-dot skills list
-dot skills add mattpocock/skills wayfinder to-spec
-dot skills update
-dot skills remove tech-spec
-dot skills external add orca-linear
-dot skills sync
+bunx skills add -g mattpocock/skills -s wayfinder -a pi claude-code
+bunx skills update -g -y
+$EDITOR ~/.agents/skills/mc-commit/SKILL.md
+dot reconcile   # agent proposes a PR from a worktree
 ```
 
-The wrapper scopes `HOME`, XDG directories, cache state, and target agents to the
-current checkout. Do not call raw `skills add -g` or `skills update`: those can
-write through live Stow links, target the wrong worktree, and fan out to
-unrelated agents.
-
-Vendored skills are tracked in `home/.agents/.skill-lock.json`; local shared
-skills are hand-authored under `home/.agents/skills/`. Pi-only skills live under
-`home/.pi/packages/*/skills/`.
+`dot` keeps a deploy record in `~/.local/state/dot/deployed.json` to tell local
+edits apart from repo changes. See `docs/design/copy-deploy-and-reconcile.md`.
+Pi-only skills live under `home/.pi/packages/*/skills/`.
 
 See `docs/skills-maintenance.md` and `docs/agent-workflow.md` for maintenance and
 workflow details.

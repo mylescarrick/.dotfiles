@@ -6,11 +6,11 @@ const dotRoot = `${import.meta.dir}/..`;
 describe("Bun entry point", () => {
   test("writes application output and returns its exit code", async () => {
     const expected = await application.execute({
-      argv: [],
+      argv: ["help"],
       cwd: dotRoot,
       env: process.env,
     });
-    const child = Bun.spawn([process.execPath, "src/main.ts"], {
+    const child = Bun.spawn([process.execPath, "src/main.ts", "help"], {
       cwd: dotRoot,
       stderr: "pipe",
       stdout: "pipe",

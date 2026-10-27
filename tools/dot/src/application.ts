@@ -12,14 +12,9 @@ import {
   parseExaAuthArgs,
 } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
-import {
-  addExternalSkill,
-  listExternalSkills,
-  listSkills,
-  removeExternalSkill,
-  syncSkillLinks,
-} from "./skills-authoring";
-import { runSkillsMutation } from "./skills-workflow";
+import { buildDriftReport, reconcile } from "./reconcile";
+import { restoreSkill } from "./skills";
+import { SyncFailure, sync } from "./sync";
 import { systemTerminal, type Terminal } from "./terminal";
 import { UpgradeFailure, upgrade } from "./upgrade";
 
@@ -59,7 +54,9 @@ const commands: readonly CommandDescription[] = [
   { summary: "Bootstrap a new machine, then apply", usage: "init" },
   { summary: "Edit the Brewfile", usage: "package add/remove" },
   { summary: "Edit the global Bun package manifest", usage: "bun add/remove" },
-  { summary: "Manage the checkout-scoped skills store", usage: "skills" },
+  { summary: "Print skill drift as JSON", usage: "drift" },
+  { summary: "Discard local drift for one skill", usage: "drift restore NAME" },
+  { summary: "Absorb drift into a PR via the Pi agent", usage: "reconcile" },
   { summary: "Configure private Pi Cloudflare auth", usage: "pi auth cloudflare" },
   { summary: "Configure private web-tools Exa search auth", usage: "pi auth exa" },
   { summary: "Show this help", usage: "help" },
@@ -77,7 +74,10 @@ function failureOutcome(error: unknown): CommandOutcome {
   return {
     exitCode: 1,
     stderr: `dot: ${message}\n`,
-    stdout: error instanceof ApplyFailure || error instanceof UpgradeFailure ? error.stdout : "",
+    stdout:
+      error instanceof ApplyFailure || error instanceof UpgradeFailure || error instanceof SyncFailure
+        ? error.stdout
+        : "",
   };
 }
 
@@ -87,6 +87,7 @@ function renderHelp(): string {
   return `dot - manage this macOS development environment
 
 USAGE
+  dot                     Update, apply, then reconcile any drift
   dot COMMAND [OPTIONS]
   dot --help
   dot --version
@@ -114,80 +115,39 @@ async function handleInit(ctx: CommandContext): Promise<CommandOutcome> {
   }
 }
 
-const SKILLS_USAGE =
-  "dot: usage: dot skills [list|sync|update [--yes]|add REPO SKILL... [--yes]|remove SKILL... [--yes]|external list|external add NAME [--source PATH]|external remove NAME]\n";
-const SKILLS_EXTERNAL_USAGE = "dot: usage: dot skills external [list|add NAME [--source PATH]|remove NAME]\n";
-
-function parseSkillsArgs(argv: readonly string[]) {
-  const action = argv[1] ?? "list";
-  let args = argv.slice(2);
-  let acceptAll = false;
-  if ((action === "update" || action === "add" || action === "remove") && args.at(-1) === "--yes") {
-    acceptAll = true;
-    args = args.slice(0, -1);
-  }
-  const valid =
-    ((action === "list" || action === "sync" || action === "update") && args.length === 0) ||
-    (action === "add" && args.length >= 2) ||
-    ((action === "remove" || action === "external") && args.length >= 1);
-  return { acceptAll, action, args, valid };
-}
-
-async function runExternalSkills(ctx: CommandContext, args: readonly string[]): Promise<string | undefined> {
+async function handleDrift(ctx: CommandContext): Promise<CommandOutcome> {
   const { invocation, dependencies, processes } = ctx;
-  const [sub, name] = args;
-  if (sub === "list" && args.length === 1) {
-    return await listExternalSkills(dependencies.checkoutRoot);
+  const [, action, name] = invocation.argv;
+  const restoring = action === "restore" && Boolean(name) && invocation.argv.length === 3;
+  if (!(invocation.argv.length === 1 || restoring)) {
+    return { exitCode: 2, stderr: "dot: usage: dot drift [restore NAME]\n", stdout: "" };
   }
-  if (sub === "add" && name !== undefined) {
-    const sourceFlag = args.find((arg) => arg.startsWith("--source="));
-    return await addExternalSkill({
-      checkoutRoot: dependencies.checkoutRoot,
-      env: invocation.env,
-      name,
-      processes,
-      source: sourceFlag ? sourceFlag.slice("--source=".length) : undefined,
-    });
+  try {
+    const options = { checkoutRoot: dependencies.checkoutRoot, env: invocation.env, processes };
+    if (restoring) {
+      const home = invocation.env.HOME;
+      if (!home) throw new Error("HOME is required");
+      return { exitCode: 0, stderr: "", stdout: await restoreSkill({ ...options, home, name: name! }) };
+    }
+    const report = await buildDriftReport(options);
+    return { exitCode: 0, stderr: "", stdout: `${JSON.stringify(report, null, 2)}\n` };
+  } catch (error) {
+    return failureOutcome(error);
   }
-  if (sub === "remove" && name !== undefined && args.length === 2) {
-    return await removeExternalSkill({
-      checkoutRoot: dependencies.checkoutRoot,
-      env: invocation.env,
-      name,
-      processes,
-    });
-  }
-  return undefined;
 }
 
-async function handleSkills(ctx: CommandContext): Promise<CommandOutcome> {
+async function handleReconcile(ctx: CommandContext): Promise<CommandOutcome> {
   const { invocation, dependencies, processes, terminal } = ctx;
-  const { acceptAll, action, args, valid } = parseSkillsArgs(invocation.argv);
-  if (!valid) return { exitCode: 2, stderr: SKILLS_USAGE, stdout: "" };
+  if (invocation.argv.length !== 1) {
+    return { exitCode: 2, stderr: "dot: usage: dot reconcile\n", stdout: "" };
+  }
   try {
-    let stdout: string | undefined;
-    if (action === "list") {
-      stdout = await listSkills(dependencies.checkoutRoot);
-    } else if (action === "external") {
-      stdout = await runExternalSkills(ctx, args);
-      if (stdout === undefined) return { exitCode: 2, stderr: SKILLS_EXTERNAL_USAGE, stdout: "" };
-    } else if (action === "sync") {
-      stdout = await syncSkillLinks({
-        checkoutRoot: dependencies.checkoutRoot,
-        env: invocation.env,
-        processes,
-      });
-    } else {
-      stdout = await runSkillsMutation({
-        acceptAll,
-        action: action as "add" | "update" | "remove",
-        args,
-        checkoutRoot: dependencies.checkoutRoot,
-        env: invocation.env,
-        processes,
-        terminal,
-      });
-    }
+    const stdout = await reconcile({
+      checkoutRoot: dependencies.checkoutRoot,
+      env: invocation.env,
+      processes,
+      terminal,
+    });
     return { exitCode: 0, stderr: "", stdout };
   } catch (error) {
     return failureOutcome(error);
@@ -321,13 +281,29 @@ async function handleApplyUpdateUpgrade(
   }
 }
 
+async function handleSync(ctx: CommandContext): Promise<CommandOutcome> {
+  const { invocation, dependencies, processes, terminal } = ctx;
+  try {
+    const stdout = await sync({
+      checkoutRoot: dependencies.checkoutRoot,
+      env: invocation.env,
+      processes,
+      terminal,
+    });
+    return { exitCode: 0, stderr: "", stdout };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
 const SINGLE_WORD_HANDLERS: Readonly<Record<string, (ctx: CommandContext) => Promise<CommandOutcome>>> = {
   bun: handleBun,
   doctor: handleDoctor,
+  drift: handleDrift,
   init: handleInit,
   package: handlePackage,
   pi: handlePi,
-  skills: handleSkills,
+  reconcile: handleReconcile,
 };
 
 export function createApplication(dependencies: ApplicationDependencies): DotApplication {
@@ -336,10 +312,7 @@ export function createApplication(dependencies: ApplicationDependencies): DotApp
   return {
     async execute(invocation) {
       const [command] = invocation.argv;
-      if (
-        invocation.argv.length === 0 ||
-        (invocation.argv.length === 1 && (command === "help" || command === "--help"))
-      ) {
+      if (invocation.argv.length === 1 && (command === "help" || command === "--help")) {
         return { exitCode: 0, stderr: "", stdout: renderHelp() };
       }
       if (invocation.argv.length === 1 && command === "--version") {
@@ -347,6 +320,7 @@ export function createApplication(dependencies: ApplicationDependencies): DotApp
       }
 
       const ctx: CommandContext = { dependencies, invocation, processes, terminal };
+      if (invocation.argv.length === 0) return handleSync(ctx);
       if (command === "apply" || command === "update" || command === "upgrade") {
         return handleApplyUpdateUpgrade(ctx, command);
       }

@@ -131,15 +131,21 @@ so a stow conflict in a non-interactive run still needs `dot apply --yes`.
 3. `git fetch origin main`, then a worktree on `reconcile/<timestamp>` from
    `origin/main` under `<parent of checkout>/.dotfiles-worktrees/`.
 4. Write the report to `$XDG_STATE_HOME/dot/drift-report.json`.
-5. Start Pi interactively in the worktree with the repo-local
+5. Start Pi interactively in the worktree (`--approve`, so Pi does not ask to trust
+   every new worktree) with the repo-local
    `.agents/skills/reconcile` skill and the report path. The agent asks one
-   question at a time, edits `skills/`, and commits. It does not push.
+   question at a time, edits `skills/`, and commits. It does not push. When
+   done it calls `reconcile_finish`, a tool from `.pi/extensions/reconcile-finish`
+   that `dot` loads with `-e`, which ends the session so nobody has to quit Pi.
 6. After Pi exits, `dot` checks the agent's commits **mechanically**:
    - the worktree is clean
    - every changed path is on the allowlist (`skills/`, `packages/bundle`)
    - `gitleaks` passes, if installed
-7. Push, `gh pr create --fill`, mark the reported fingerprints handled, remove
-   the worktree.
+7. Push, then open the PR with a title and body `dot` writes itself from the items
+   the branch actually settles (read from `skills/lock.json`, `skills/local/` and
+   `packages/bundle`), never from the agent's commit text. Only those items are
+   marked handled, so anything the user skipped is asked about again. Remove the
+   worktree.
 
 If the agent made no commits, `dot` says so and leaves the drift. Not asking again is the separate `dot drift ignore [NAME]`, never a follow-up prompt: a second yes/no right after the agent's own question reads as its answer, and "yes" means the opposite.
 

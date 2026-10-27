@@ -17,6 +17,16 @@ How this Mac should be managed. Edit this file to change the agent's defaults.
   credentials, tenant IDs or customer data must not be committed. Recommend
   leaving it, and say why.
 
+## Homebrew packages
+
+- **Declared means wanted on every machine.** Absorb a formula or cask the user
+  installed on purpose. Do not absorb build dependencies someone pulled in to
+  try something; ask when the name looks like a library rather than a tool.
+- **Work-only tools stay out.** Same rule as skills: nothing that names internal
+  Knox systems or customers.
+- **Casks need admin to install.** Mention it when absorbing one, since every
+  other machine will need elevation to converge.
+
 ## Skill quality bar
 
 Before absorbing a new local skill, check it against

@@ -57,6 +57,7 @@ export interface SkillPlanItem {
 
 export interface DriftItem {
   readonly currentHash?: string;
+  readonly domain: "skill";
   readonly fingerprint: string;
   readonly globalLockEntry?: LockEntry;
   readonly homePath: string;
@@ -155,6 +156,7 @@ function driftItem(
   if (item.desired) skillKind = item.desired.kind;
   return {
     currentHash: item.currentHash,
+    domain: "skill",
     fingerprint: `${kind}:${item.name}:${item.currentHash ?? "absent"}`,
     globalLockEntry: globalEntry,
     homePath: join(skillsHome, item.name),

@@ -1,6 +1,6 @@
 # Copy deployment and agent reconcile
 
-Status: spike. Skills only. The rest of `home/` is still stowed.
+Status: spike. Skills deploy by copy; Homebrew drift is reported too. The rest of `home/` is still stowed.
 
 ## Problem
 
@@ -135,7 +135,7 @@ so a stow conflict in a non-interactive run still needs `dot apply --yes`.
    question at a time, edits `skills/`, and commits. It does not push.
 6. After Pi exits, `dot` checks the agent's commits **mechanically**:
    - the worktree is clean
-   - every changed path is under the allowlist (`skills/`)
+   - every changed path is on the allowlist (`skills/`, `packages/bundle`)
    - `gitleaks` passes, if installed
 7. Push, `gh pr create --fill`, mark the reported fingerprints handled, remove
    the worktree.
@@ -154,5 +154,10 @@ If the agent made no commits, `dot` offers to snooze the reported items.
   `session.json` has to be gitignored. Skills deploy refuses to write through
   a folded path. Adding `stow --no-folding` fixes the rest but unfolds every
   folded directory, so it ships as its own change.
-- **Only skills move to copy deployment.** Brew/Bun/Pi package drift and the
-  rest of `home/` are next, using the same record and rules.
+- **Only skills move to copy deployment.** The rest of `home/` is next, using
+  the same record and rules.
+- **Package drift is report-only.** Homebrew packages installed but undeclared
+  are read from `brew bundle cleanup` (a dry run) and absorbed into
+  `packages/bundle`; there is no deploy record because `brew bundle` already
+  converges declared state. Bun globals and Pi packages had no drift on the
+  first machine inspected, so they are not covered yet.

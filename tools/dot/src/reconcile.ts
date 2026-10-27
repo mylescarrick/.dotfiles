@@ -1,5 +1,6 @@
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { type BrewDriftItem, inspectBrewDrift } from "./brew-drift";
 import { readDeployRecord, stateDirectory, writeDeployRecord } from "./deploy-record";
 import type { ProcessRunner } from "./process";
 import type { DriftItem } from "./skill-drift";
@@ -7,7 +8,9 @@ import { inspectSkills } from "./skills";
 import type { Terminal } from "./terminal";
 
 /** The only paths a reconcile PR may touch. Anything else means the agent strayed. */
-export const WRITE_BACK_ALLOWLIST = ["skills/"] as const;
+export const WRITE_BACK_ALLOWLIST = ["skills/", "packages/bundle"] as const;
+
+type AnyDriftItem = BrewDriftItem | DriftItem;
 
 interface ReconcileOptions {
   readonly checkoutRoot: string;
@@ -20,7 +23,7 @@ interface ReconcileOptions {
 export interface DriftReport {
   readonly checkout: string;
   readonly generatedAt: string;
-  readonly items: readonly (DriftItem & { readonly handled: boolean })[];
+  readonly items: readonly (AnyDriftItem & { readonly handled: boolean })[];
   readonly writeBackAllowlist: readonly string[];
 }
 
@@ -33,10 +36,11 @@ export async function buildDriftReport(options: Omit<ReconcileOptions, "terminal
   const home = requireHome(options.env);
   const { plan } = await inspectSkills({ ...options, home, network: true });
   const record = await readDeployRecord(options.env, home);
+  const drift: AnyDriftItem[] = [...plan.drift, ...(await inspectBrewDrift(options))];
   return {
     checkout: options.checkoutRoot,
     generatedAt: (options.now ?? new Date()).toISOString(),
-    items: plan.drift.map((item) => ({ ...item, handled: Boolean(record.handled[item.fingerprint]) })),
+    items: drift.map((item) => ({ ...item, handled: Boolean(record.handled[item.fingerprint]) })),
     writeBackAllowlist: WRITE_BACK_ALLOWLIST,
   };
 }
@@ -45,7 +49,7 @@ function timestamp(now: Date): string {
   return now.toISOString().replace(/[-:.]/g, "").replace("T", "-").slice(0, 15);
 }
 
-async function markHandled(options: ReconcileOptions, items: readonly DriftItem[]): Promise<void> {
+async function markHandled(options: ReconcileOptions, items: readonly AnyDriftItem[]): Promise<void> {
   const home = requireHome(options.env);
   const record = await readDeployRecord(options.env, home);
   const at = (options.now ?? new Date()).toISOString();
@@ -59,7 +63,7 @@ async function confirm(terminal: Terminal, message: string, fallback: boolean): 
   return answer === "y" || answer === "yes";
 }
 
-async function offerSnooze(options: ReconcileOptions, items: readonly DriftItem[]): Promise<string> {
+async function offerSnooze(options: ReconcileOptions, items: readonly AnyDriftItem[]): Promise<string> {
   if (await confirm(options.terminal, "Snooze these drift items until they change again? [y/N]: ", false)) {
     await markHandled(options, items);
     return `Snoozed ${items.length} drift item(s)\n`;
@@ -88,6 +92,11 @@ async function scanForSecrets(options: ReconcileOptions, worktree: string): Prom
   if (result.exitCode !== 0) throw new Error(`gitleaks flagged the reconcile commits:\n${result.stdout}`);
 }
 
+/** A trailing slash allows a whole directory; anything else allows exactly that file. */
+function allowed(entry: string, path: string): boolean {
+  return entry.endsWith("/") ? path.startsWith(entry) : path === entry;
+}
+
 /**
  * Checks the agent's work mechanically before anything leaves the machine. The agent is
  * told the same rules, but this is the part that does not depend on it listening.
@@ -106,7 +115,7 @@ export async function guardWriteBack(options: ReconcileOptions, worktree: string
   )
     .split("\n")
     .filter(Boolean);
-  const strays = changed.filter((path) => !WRITE_BACK_ALLOWLIST.some((prefix) => path.startsWith(prefix)));
+  const strays = changed.filter((path) => !WRITE_BACK_ALLOWLIST.some((entry) => allowed(entry, path)));
   if (strays.length) {
     throw new Error(
       `reconcile commits touch paths outside ${WRITE_BACK_ALLOWLIST.join(", ")} (left at ${worktree}):\n${strays.join("\n")}`
@@ -126,7 +135,7 @@ async function removeWorktree(
   await git(options, canonical, ["branch", "-D", branch], "failed to delete branch");
 }
 
-function describe(items: readonly DriftItem[]): string {
+function describe(items: readonly AnyDriftItem[]): string {
   return items.map((item) => `  ${item.kind.padEnd(17)}${item.name}`).join("\n");
 }
 

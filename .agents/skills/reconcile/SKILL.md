@@ -1,6 +1,6 @@
 ---
 name: reconcile
-description: Absorb machine drift reported by `dot reconcile` into this dotfiles worktree. Use only when started by `dot reconcile` with a drift report path.
+description: Absorb machine drift (skills and Homebrew packages) reported by `dot reconcile` into this dotfiles worktree. Use only when started by `dot reconcile` with a drift report path.
 disable-model-invocation: true
 ---
 
@@ -24,6 +24,8 @@ managed and settles most judgement calls.
   your commits.
 - **Never edit vendored skill content.** Vendored skills change only through
   `skills/lock.json`.
+- **Never run `brew install` or `brew uninstall`.** You edit `packages/bundle`;
+  the user decides about the machine.
 - **Leave the worktree clean.** Commit or discard everything before exiting.
 
 ## Loop
@@ -34,7 +36,7 @@ managed and settles most judgement calls.
    `modified-locally` or `conflict` (`diff -ru <repo copy> <homePath>`).
 3. Apply the decision using the table below.
 4. When every item is decided, commit with the `mc-commit` conventions, scope
-   `skills`. One commit is fine. Put the per-item decisions in the body.
+   `skills` or `packages` (use the one that matches the changes). One commit is fine. Put the per-item decisions in the body.
 5. Tell the user which items you left as drift, and how to discard them
    (`dot drift restore NAME`). Then tell them to exit Pi.
 
@@ -47,6 +49,13 @@ managed and settles most judgement calls.
 | `modified-locally` (vendored) | not allowed; recommend discarding | `dot drift restore NAME` |
 | `deleted-locally` | remove `skills/local/NAME` or the lock entry | `dot drift restore NAME` |
 | `conflict` | show the diff and merge by hand into `skills/local/NAME` | `dot drift restore NAME` |
+
+Items with `domain: "brew"` are packages installed on the machine but not
+declared in `packages/bundle`. Check `package` (`formula`, `cask` or `tap`):
+
+| Kind | Absorb | Discard (tell the user; do not do it) |
+|---|---|---|
+| `installed-undeclared` | add `brew "NAME"`, `cask "NAME"` or `tap "NAME"` to `packages/bundle`, sorted among lines of the same type | `brew uninstall NAME` (add `--cask` for casks) |
 
 When copying a lock entry, keep only `source`, `sourceType`, `sourceUrl`,
 `skillPath` and `skillFolderHash`, and keep keys sorted by skill name.

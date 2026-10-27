@@ -64,6 +64,13 @@ function runner(agent: (cwd: string) => void, calls: string[]): ProcessRunner {
         return Promise.resolve({ exitCode: 0, stderr: "", stdout: "https://example.test/pr/1\n" });
       }
       if (command === "gitleaks") return Promise.reject(new Error("not installed"));
+      if (command === "brew") {
+        return Promise.resolve({
+          exitCode: 1,
+          stderr: "",
+          stdout: "Would uninstall formulae:\ntypst\nWould `brew cleanup`:\nWould remove: /tmp/cache\n",
+        });
+      }
       return bunProcessRunner.run(request);
     },
   };
@@ -119,6 +126,43 @@ describe("dot reconcile", () => {
     ).rejects.toThrow("outside skills/");
     expect(calls).toEqual(["pi"]);
     expect(run(["git", "branch", "--list", "reconcile/*"], origin)).toBe("");
+  });
+
+  test("absorbs an undeclared Homebrew package into packages/bundle only", async () => {
+    const { checkout, env, origin } = await fixture();
+    await write(join(checkout, "packages/bundle"), 'brew "fd"\n');
+    run(["git", "add", "."], checkout);
+    run([...commit, "bundle"], checkout);
+    run(["git", "push", "-q", "origin", "main"], checkout);
+    const addTypst = (cwd: string) => {
+      run(["sh", "-c", "printf 'brew \"typst\"\\n' >> packages/bundle"], cwd);
+      run(["git", "add", "."], cwd);
+      run([...commit, "chore(packages): add typst"], cwd);
+    };
+
+    const output = await reconcile({
+      checkoutRoot: checkout,
+      env,
+      processes: runner(addTypst, []),
+      terminal: terminal(["y"]),
+    });
+
+    expect(output).toContain("Opened https://example.test/pr/1");
+    const branch = run(["git", "branch", "--list", "reconcile/*"], origin).trim();
+    expect(run(["git", "show", `${branch}:packages/bundle`], origin)).toBe('brew "fd"\nbrew "typst"');
+  });
+
+  test("rejects a file that only shares the bundle's name prefix", async () => {
+    const { checkout, env } = await fixture();
+    const sneaky = (cwd: string) => {
+      run(["sh", "-c", "mkdir -p packages && echo x > packages/bundle-extra"], cwd);
+      run(["git", "add", "."], cwd);
+      run([...commit, "oops"], cwd);
+    };
+
+    await expect(
+      reconcile({ checkoutRoot: checkout, env, processes: runner(sneaky, []), terminal: terminal(["y"]) })
+    ).rejects.toThrow("outside skills/, packages/bundle");
   });
 
   test("offers to snooze when the agent commits nothing", async () => {

@@ -19,9 +19,9 @@ afterEach(async () => {
 });
 
 describe("DotApplication", () => {
-  test("shows help when invoked without a command", async () => {
+  test("shows help for the help command", async () => {
     const outcome = await application.execute({
-      argv: [],
+      argv: ["help"],
       cwd: "/tmp/checkout",
       env: {},
     });
@@ -32,6 +32,7 @@ describe("DotApplication", () => {
       stdout: `dot - manage this macOS development environment
 
 USAGE
+  dot                     Update, apply, then reconcile any drift
   dot COMMAND [OPTIONS]
   dot --help
   dot --version
@@ -55,15 +56,9 @@ COMMANDS
   });
 
   test("accepts help as a command or global option", async () => {
-    const defaultHelp = await application.execute({
-      argv: [],
-      cwd: "/tmp/checkout",
-      env: {},
-    });
+    const help = await application.execute({ argv: ["help"], cwd: "/tmp/checkout", env: {} });
 
-    for (const argv of [["help"], ["--help"]]) {
-      expect(await application.execute({ argv, cwd: "/tmp/checkout", env: {} })).toEqual(defaultHelp);
-    }
+    expect(await application.execute({ argv: ["--help"], cwd: "/tmp/checkout", env: {} })).toEqual(help);
   });
 
   test("reports the package version", async () => {

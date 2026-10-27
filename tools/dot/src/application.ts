@@ -14,6 +14,7 @@ import {
 import { bunProcessRunner, type ProcessRunner } from "./process";
 import { buildDriftReport, reconcile } from "./reconcile";
 import { restoreSkill } from "./skills";
+import { SyncFailure, sync } from "./sync";
 import { systemTerminal, type Terminal } from "./terminal";
 import { UpgradeFailure, upgrade } from "./upgrade";
 
@@ -73,7 +74,10 @@ function failureOutcome(error: unknown): CommandOutcome {
   return {
     exitCode: 1,
     stderr: `dot: ${message}\n`,
-    stdout: error instanceof ApplyFailure || error instanceof UpgradeFailure ? error.stdout : "",
+    stdout:
+      error instanceof ApplyFailure || error instanceof UpgradeFailure || error instanceof SyncFailure
+        ? error.stdout
+        : "",
   };
 }
 
@@ -83,6 +87,7 @@ function renderHelp(): string {
   return `dot - manage this macOS development environment
 
 USAGE
+  dot                     Update, apply, then reconcile any drift
   dot COMMAND [OPTIONS]
   dot --help
   dot --version
@@ -276,6 +281,21 @@ async function handleApplyUpdateUpgrade(
   }
 }
 
+async function handleSync(ctx: CommandContext): Promise<CommandOutcome> {
+  const { invocation, dependencies, processes, terminal } = ctx;
+  try {
+    const stdout = await sync({
+      checkoutRoot: dependencies.checkoutRoot,
+      env: invocation.env,
+      processes,
+      terminal,
+    });
+    return { exitCode: 0, stderr: "", stdout };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
 const SINGLE_WORD_HANDLERS: Readonly<Record<string, (ctx: CommandContext) => Promise<CommandOutcome>>> = {
   bun: handleBun,
   doctor: handleDoctor,
@@ -292,10 +312,7 @@ export function createApplication(dependencies: ApplicationDependencies): DotApp
   return {
     async execute(invocation) {
       const [command] = invocation.argv;
-      if (
-        invocation.argv.length === 0 ||
-        (invocation.argv.length === 1 && (command === "help" || command === "--help"))
-      ) {
+      if (invocation.argv.length === 1 && (command === "help" || command === "--help")) {
         return { exitCode: 0, stderr: "", stdout: renderHelp() };
       }
       if (invocation.argv.length === 1 && command === "--version") {
@@ -303,6 +320,7 @@ export function createApplication(dependencies: ApplicationDependencies): DotApp
       }
 
       const ctx: CommandContext = { dependencies, invocation, processes, terminal };
+      if (invocation.argv.length === 0) return handleSync(ctx);
       if (command === "apply" || command === "update" || command === "upgrade") {
         return handleApplyUpdateUpgrade(ctx, command);
       }

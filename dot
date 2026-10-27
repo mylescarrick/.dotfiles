@@ -156,9 +156,19 @@ fi
 PATH=$(dirname "$bun_path"):$PATH
 export PATH
 
-case ${1:-} in
-update|upgrade)
-  require_safe_canonical_checkout "$1" "" "false"
+# Bare `dot` refreshes the checkout like `update`, then applies and reconciles.
+case $# in
+  0) refresh=dot ;;
+  *)
+    case $1 in
+      update|upgrade) refresh=$1 ;;
+      *) refresh= ;;
+    esac
+    ;;
+esac
+
+if [ -n "$refresh" ]; then
+  require_safe_canonical_checkout "$refresh" "" "false"
 
   if ! git -C "$DOTFILES_DIR" fetch origin; then
     fail "failed to fetch origin"
@@ -180,7 +190,6 @@ update|upgrade)
 
     exec "$DOTFILES_DIR/dot" "$@"
   fi
-  ;;
-esac
+fi
 
 exec "$bun_path" "$DOTFILES_DIR/tools/dot/src/main.ts" "$@"

@@ -115,7 +115,12 @@ The `dot skills …` authoring commands are removed. Install skills however you
 like (`bunx skills add -g … -a pi claude-code`, or write one in
 `~/.agents/skills/`) and `dot reconcile` absorbs it.
 
-Target end state: bare `dot` = `update`, then `reconcile` if there is drift.
+Bare `dot` is the everyday command: the launcher fast-forwards canonical `main`
+(as `update` does), then `apply`, then `reconcile` if there is drift.
+Non-interactive runs print the drift summary and exit 0 without starting the
+agent. `dot help` replaces the old no-argument help, and `apply`, `update` and
+`upgrade` stay for the cheap or broader single steps. Bare `dot` takes no flags,
+so a stow conflict in a non-interactive run still needs `dot apply --yes`.
 
 ## Reconcile flow
 

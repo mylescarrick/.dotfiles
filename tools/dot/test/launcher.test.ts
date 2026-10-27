@@ -440,6 +440,32 @@ cp "$DOT_TEST_BUN_INSTALLER" "$4"
     }
   );
 
+  test("fast-forwards a clean canonical main before running bare dot", async () => {
+    const fixture = await makeFixture({ withGit: true });
+    const publishedHead = await publishChange(fixture);
+
+    const child = Bun.spawn([fixture.launcherLink], { env: fixture.env, stderr: "pipe", stdout: "pipe" });
+
+    expect(await child.exited).toBe(0);
+    expect(await run(["git", "rev-parse", "HEAD"], fixture.checkout)).toBe(publishedHead);
+    expect(await readFile(fixture.invocationLog, "utf8")).toBe(
+      `${join(fixture.checkout, "tools/dot/src/main.ts")}\n`
+    );
+  });
+
+  test("refuses bare dot from a noncanonical worktree", async () => {
+    const fixture = await makeFixture({ withGit: true });
+    const worktree = join(fixture.home, "feature-worktree");
+    await run(["git", "worktree", "add", "-b", "feature-worktree", worktree], fixture.checkout);
+
+    const child = Bun.spawn([join(worktree, "dot")], { env: fixture.env, stderr: "pipe", stdout: "pipe" });
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toBe(`dot: dot must run from the canonical checkout at ${fixture.checkout}\n`);
+    expect(await Bun.file(fixture.invocationLog).exists()).toBe(false);
+  });
+
   test("loads Bun application code from the fast-forwarded revision", async () => {
     const fixture = await makeFixture({ withGit: true });
     const contentLog = join(fixture.home, "main-content");

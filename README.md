@@ -54,6 +54,7 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 
 | Command | What it does |
 |---|---|
+| `dot` | Fast-forward canonical `main`, re-exec, apply, then offer to reconcile any drift |
 | `dot init` | Bootstrap a new machine, apply desired state, then diagnose it |
 | `dot apply [--yes]` | Reconcile the canonical checked-out state into the machine |
 | `dot update [--yes]` | Strictly fast-forward canonical `main`, re-exec, then apply |

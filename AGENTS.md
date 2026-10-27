@@ -69,6 +69,7 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 ```bash
 bun run lint          # Ultracite/Biome check across the checkout
 bun run format        # Apply safe lint + format fixes
+dot                   # Update → apply → reconcile drift (the everyday command)
 dot init              # Interactive bootstrap → apply → doctor
 dot apply [--yes]     # Reconcile canonical checked-out desired state
 dot update [--yes]    # Strict origin/main fast-forward → re-exec → apply

@@ -47,6 +47,7 @@ COMMANDS
   bun add/remove        Edit the global Bun package manifest
   drift                 Print skill drift as JSON
   drift restore NAME    Discard local drift for one skill
+  drift snooze          Hide current drift until it changes
   reconcile             Absorb drift into a PR via the Pi agent
   pi auth cloudflare    Configure private Pi Cloudflare auth
   pi auth exa           Configure private web-tools Exa search auth

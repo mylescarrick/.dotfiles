@@ -40,6 +40,10 @@ managed and settles most judgement calls.
 5. Tell the user which items you left as drift, and how to discard them
    (`dot drift restore NAME`). Then tell them to exit Pi.
 
+Never end a turn on a question and expect `dot` to carry on: if the user has not
+answered, the session is still waiting on them, and quitting Pi means "no
+commits". Ask, wait for the reply, then act.
+
 | Kind | Absorb | Discard (tell the user; do not do it) |
 |---|---|---|
 | `added-locally` | copy `homePath` to `skills/local/NAME` | `dot drift restore NAME` (removes it) |

@@ -49,7 +49,10 @@ function timestamp(now: Date): string {
   return now.toISOString().replace(/[-:.]/g, "").replace("T", "-").slice(0, 15);
 }
 
-async function markHandled(options: ReconcileOptions, items: readonly AnyDriftItem[]): Promise<void> {
+async function markHandled(
+  options: Omit<ReconcileOptions, "terminal">,
+  items: readonly AnyDriftItem[]
+): Promise<void> {
   const home = requireHome(options.env);
   const record = await readDeployRecord(options.env, home);
   const at = (options.now ?? new Date()).toISOString();
@@ -63,13 +66,18 @@ async function confirm(terminal: Terminal, message: string, fallback: boolean): 
   return answer === "y" || answer === "yes";
 }
 
-async function offerSnooze(options: ReconcileOptions, items: readonly AnyDriftItem[]): Promise<string> {
-  if (await confirm(options.terminal, "Snooze these drift items until they change again? [y/N]: ", false)) {
-    await markHandled(options, items);
-    return `Snoozed ${items.length} drift item(s)\n`;
-  }
-  return "Drift left in place\n";
+/**
+ * Hiding drift is its own command, never a follow-up prompt: a second yes/no right after the
+ * agent's own question reads as the answer to it, and "yes" here would mean the opposite.
+ */
+export async function snoozeDrift(options: Omit<ReconcileOptions, "terminal">): Promise<string> {
+  const fresh = (await buildDriftReport(options)).items.filter((item) => !item.handled);
+  if (fresh.length === 0) return "No drift to snooze\n";
+  await markHandled(options, fresh);
+  return `Snoozed ${fresh.length} drift item(s) until they change again:\n${describe(fresh)}\n`;
 }
+
+const SNOOZE_HINT = "Hide it until it changes again with 'dot drift snooze'.\n";
 
 async function git(options: ReconcileOptions, cwd: string, argv: readonly string[], failure: string) {
   const result = await options.processes.run({ argv: ["git", "-C", cwd, ...argv], cwd, env: options.env });
@@ -150,7 +158,7 @@ export async function reconcile(options: ReconcileOptions): Promise<string> {
 
   options.terminal.write(`Drift found:\n${describe(fresh)}\n`);
   if (!(await confirm(options.terminal, "Start the reconcile agent in a worktree? [Y/n]: ", true))) {
-    return offerSnooze(options, fresh);
+    return `Drift left in place. ${SNOOZE_HINT}`;
   }
 
   const canonical = await realpath(options.checkoutRoot);
@@ -184,7 +192,7 @@ export async function reconcile(options: ReconcileOptions): Promise<string> {
   const commits = await guardWriteBack(options, worktree);
   if (commits === 0) {
     await removeWorktree(options, canonical, worktree, branch);
-    return `Agent made no commits\n${await offerSnooze(options, fresh)}`;
+    return `Agent made no commits, so nothing changed. Run 'dot reconcile' to try again. ${SNOOZE_HINT}`;
   }
 
   await git(

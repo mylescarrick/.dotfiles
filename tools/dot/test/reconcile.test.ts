@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readDeployRecord } from "../src/deploy-record";
 import { bunProcessRunner, type ProcessRequest, type ProcessRunner } from "../src/process";
-import { reconcile } from "../src/reconcile";
+import { buildDriftReport, reconcile, snoozeDrift } from "../src/reconcile";
 import { applySkills } from "../src/skills";
 import type { Terminal } from "../src/terminal";
 
@@ -165,19 +165,34 @@ describe("dot reconcile", () => {
     ).rejects.toThrow("outside skills/, packages/bundle");
   });
 
-  test("offers to snooze when the agent commits nothing", async () => {
+  test("leaves drift in place when the agent commits nothing, and asks nothing more", async () => {
     const { checkout, env, root } = await fixture();
     const output = await reconcile({
       checkoutRoot: checkout,
       env,
       processes: runner(() => undefined, []),
-      terminal: terminal(["y", "y"]),
+      terminal: terminal(["y"]),
     });
 
-    expect(output).toContain("Snoozed 1 drift item(s)");
+    expect(output).toContain("Agent made no commits, so nothing changed.");
+    expect(output).toContain("dot drift snooze");
+    expect(
+      (await buildDriftReport({ checkoutRoot: checkout, env, processes: bunProcessRunner })).items[0]?.handled
+    ).toBe(false);
     expect(run(["git", "worktree", "list"], checkout).split("\n")).toHaveLength(1);
     const report = JSON.parse(await readFile(join(root, "state/dot/drift-report.json"), "utf8"));
     expect(report.items.map((item: { name: string }) => item.name)).toEqual(["gamma"]);
+  });
+
+  test("snoozes only on the explicit command, until the drift changes", async () => {
+    const { checkout, env, home } = await fixture();
+    const options = { checkoutRoot: checkout, env, processes: bunProcessRunner };
+
+    expect(await snoozeDrift(options)).toContain("Snoozed 1 drift item(s)");
+    expect(await snoozeDrift(options)).toBe("No drift to snooze\n");
+
+    await write(join(home, ".agents/skills/gamma/SKILL.md"), "# Gamma edited\n");
+    expect(await snoozeDrift(options)).toContain("Snoozed 1 drift item(s)");
   });
 
   test("only summarises drift when not attached to a terminal", async () => {

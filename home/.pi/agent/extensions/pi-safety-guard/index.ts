@@ -5,7 +5,7 @@ import {
   isToolCallEventType,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { checkEnvKeys, classifyBashCommand, isProtectedPath, resolveSafeEnvPath } from "./policy.ts";
+import { checkEnvKeys, isProtectedPath, resolveSafeEnvPath } from "./policy.ts";
 
 function allowKey(kind: string, value: string, cwd: string): string {
   return `${kind}:${cwd}:${value}`;
@@ -63,18 +63,6 @@ export default function safetyGuard(pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
-    if (isToolCallEventType("bash", event)) {
-      const risk = classifyBashCommand(event.input.command);
-      if (!risk) return;
-      return await confirmOrBlock(
-        "Safety guard: risky Bash command",
-        `${risk.label}: ${event.input.command}`,
-        allowKey("bash", event.input.command, ctx.cwd),
-        sessionAllows,
-        ctx
-      );
-    }
-
     if (
       !(
         isToolCallEventType("read", event) ||

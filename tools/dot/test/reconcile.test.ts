@@ -50,9 +50,14 @@ async function fixture() {
 }
 
 /** Real git; scripted stand-ins for the agent and GitHub. */
-function runner(agent: (cwd: string) => void, calls: string[]): ProcessRunner {
+interface OpenedPr {
+  body: string;
+  title: string;
+}
+
+function runner(agent: (cwd: string) => void, calls: string[], prs: OpenedPr[] = []): ProcessRunner {
   return {
-    run(request: ProcessRequest) {
+    async run(request: ProcessRequest) {
       const [command] = request.argv;
       if (command === "pi") {
         calls.push("pi");
@@ -61,7 +66,12 @@ function runner(agent: (cwd: string) => void, calls: string[]): ProcessRunner {
       }
       if (command === "gh") {
         calls.push("gh");
-        return Promise.resolve({ exitCode: 0, stderr: "", stdout: "https://example.test/pr/1\n" });
+        const argv = request.argv;
+        prs.push({
+          body: await readFile(argv[argv.indexOf("--body-file") + 1] as string, "utf8"),
+          title: argv[argv.indexOf("--title") + 1] as string,
+        });
+        return { exitCode: 0, stderr: "", stdout: "https://example.test/pr/1\n" };
       }
       if (command === "gitleaks") return Promise.reject(new Error("not installed"));
       if (command === "brew") {
@@ -110,6 +120,62 @@ describe("dot reconcile", () => {
     expect(
       await reconcile({ checkoutRoot: checkout, env, processes: runner(absorb, []), terminal: terminal([]) })
     ).toBe("No drift to reconcile\n");
+  });
+
+  test("opens a PR written by dot, not copied from the agent's commit", async () => {
+    const { checkout, env, home } = await fixture();
+    const prs: OpenedPr[] = [];
+    const absorb = (cwd: string) => {
+      run(["mkdir", "-p", "skills/local/gamma"], cwd);
+      run(["cp", join(home, ".agents/skills/gamma/SKILL.md"), "skills/local/gamma/SKILL.md"], cwd);
+      run(["git", "add", "."], cwd);
+      run([...commit, "chore(skills): add gamma\n\nDecision: add gamma."], cwd);
+    };
+
+    await reconcile({
+      checkoutRoot: checkout,
+      env,
+      processes: runner(absorb, [], prs),
+      terminal: terminal(["y"]),
+    });
+
+    expect(prs).toHaveLength(1);
+    expect(prs[0]?.title).toBe("chore(skills): add gamma");
+    expect(prs[0]?.body).toContain("- **Add the `gamma` skill.**");
+    expect(prs[0]?.body).toContain("## Test plan");
+    expect(prs[0]?.body).not.toContain("Decision:");
+  });
+
+  test("only stops asking about what the PR settles; a skipped item comes back", async () => {
+    const { checkout, env, root } = await fixture();
+    await write(join(checkout, "packages/bundle"), 'brew "fd"\n');
+    run(["git", "add", "."], checkout);
+    run([...commit, "bundle"], checkout);
+    run(["git", "push", "-q", "origin", "main"], checkout);
+    const addTypstOnly = (cwd: string) => {
+      run(["sh", "-c", "printf 'brew \"typst\"\\n' >> packages/bundle"], cwd);
+      run(["git", "add", "."], cwd);
+      run([...commit, "chore(packages): add typst"], cwd);
+    };
+
+    const output = await reconcile({
+      checkoutRoot: checkout,
+      env,
+      processes: runner(addTypstOnly, []),
+      terminal: terminal(["y"]),
+    });
+
+    expect(output).toContain("1 item(s) were not included and will be asked about again.");
+    const handled = JSON.parse(await readFile(join(root, "state/dot/deployed.json"), "utf8")).handled;
+    expect(Object.keys(handled)).toEqual(["installed-undeclared:formula:typst"]);
+    const again = await reconcile({
+      checkoutRoot: checkout,
+      env,
+      processes: runner(() => undefined, []),
+      terminal: { ...terminal([]), interactive: false },
+    });
+    expect(again).toContain("gamma");
+    expect(again).not.toContain("typst");
   });
 
   test("refuses to push commits outside the allowlist", async () => {

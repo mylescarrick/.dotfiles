@@ -1,16 +1,14 @@
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { type BrewDriftItem, inspectBrewDrift } from "./brew-drift";
+import { inspectBrewDrift } from "./brew-drift";
 import { readDeployRecord, stateDirectory, writeDeployRecord } from "./deploy-record";
 import type { ProcessRunner } from "./process";
-import type { DriftItem } from "./skill-drift";
+import { type AnyDriftItem, coveredItems, renderPullRequest } from "./reconcile-pr";
 import { inspectSkills } from "./skills";
 import type { Terminal } from "./terminal";
 
 /** The only paths a reconcile PR may touch. Anything else means the agent strayed. */
 export const WRITE_BACK_ALLOWLIST = ["skills/", "packages/bundle"] as const;
-
-type AnyDriftItem = BrewDriftItem | DriftItem;
 
 interface ReconcileOptions {
   readonly checkoutRoot: string;
@@ -202,6 +200,9 @@ export async function reconcile(options: ReconcileOptions): Promise<string> {
   await options.processes.run({
     argv: [
       "pi",
+      // Each reconcile runs in a new worktree, which Pi would otherwise ask to trust every time.
+      // The checkout is this repo at origin/main, which already holds the user's own config.
+      "--approve",
       "--skill",
       join(worktree, ".agents/skills/reconcile"),
       `Use the reconcile skill. The drift report is at ${reportPath}.`,
@@ -223,13 +224,41 @@ export async function reconcile(options: ReconcileOptions): Promise<string> {
     ["push", "--quiet", "-u", "origin", branch],
     `failed to push (left at ${worktree})`
   );
+  const covered = await coveredItems(worktree, fresh);
+  const subjects = (
+    await git(
+      options,
+      worktree,
+      ["log", "--reverse", "--format=%s", "origin/main..HEAD"],
+      "failed to read commits"
+    )
+  )
+    .split("\n")
+    .filter(Boolean);
+  const { body, title } = renderPullRequest(covered, subjects);
+  const bodyPath = join(stateDirectory(options.env, home), "pr-body.md");
+  await writeFile(bodyPath, body);
   const pr = await options.processes.run({
-    argv: ["gh", "pr", "create", "--fill", "--head", branch, "--base", "main"],
+    argv: [
+      "gh",
+      "pr",
+      "create",
+      "--title",
+      title,
+      "--body-file",
+      bodyPath,
+      "--head",
+      branch,
+      "--base",
+      "main",
+    ],
     cwd: worktree,
     env: options.env,
   });
   if (pr.exitCode !== 0) throw new Error(`failed to open PR (branch ${branch} pushed): ${pr.stderr.trim()}`);
-  await markHandled(options, fresh);
+  await markHandled(options, covered);
   await removeWorktree(options, canonical, worktree, branch);
-  return `Opened ${pr.stdout.trim()}\nDrift clears once it merges and 'dot update' runs\n`;
+  const left = fresh.length - covered.length;
+  const skipped = left > 0 ? `${left} item(s) were not included and will be asked about again.\n` : "";
+  return `Opened ${pr.stdout.trim()}\n${skipped}Drift clears once it merges and 'dot' runs\n`;
 }

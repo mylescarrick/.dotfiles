@@ -45,11 +45,13 @@ managed and settles most judgement calls.
    `skills` or `packages` (use the one that matches the changes). One commit is fine. Put the per-item decisions in the body.
 5. Say which items were added, skipped or ignored. If they want a skipped item
    gone from this Mac instead, give the discard command from the table. Then
-   tell them to exit Pi.
+   call the `reconcile_finish` tool. It ends the session so `dot` can push;
+   never ask the user to exit Pi. If the tool is missing, say "Exit Pi so dot
+   can finish." once.
 
 Never end a turn on a question and expect `dot` to carry on: if the user has not
-answered, the session is still waiting on them, and quitting Pi means "no
-commits". Ask, wait for the reply, then act.
+answered, the session is still waiting on them. Ask, wait for the reply, then
+act. Call `reconcile_finish` only after the final summary, never mid-conversation.
 
 "Absorb" in the tables below is what you do on **Add**. "Discard" is a separate
 fourth option the user can ask for; give the command, never run it.

@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { replaceFileAtomic } from "./atomic-file";
 import type { ProcessRunner } from "./process";
 
 export interface GlobalBunPackage {
@@ -154,58 +153,4 @@ export async function reconcileGlobalBunPackages(options: ReconcileOptions): Pro
     return `Installed ${toInstall.length} global Bun package(s)\n`;
   }
   return `Updated ${toUpdate.length} global Bun package(s)\n`;
-}
-
-export async function addGlobalBunPackage(options: {
-  readonly checkoutRoot: string;
-  readonly env: Readonly<Record<string, string | undefined>>;
-  readonly name: string;
-  readonly processes: ProcessRunner;
-}): Promise<string> {
-  const pkg = parseGlobalBunPackage(options.name);
-  if (!pkg) throw new Error("invalid global Bun package name");
-
-  const manifest = await readManifest(options.checkoutRoot);
-  if (manifest.some((existing) => existing.name === pkg.name)) {
-    throw new Error(`global Bun package '${pkg.name}' is already declared`);
-  }
-
-  const sorted = [...manifest, pkg].sort((a, b) => a.name.localeCompare(b.name));
-  await replaceFileAtomic(
-    manifestPath(options.checkoutRoot),
-    `${sorted.map(formatGlobalBunPackage).join("\n")}\n`
-  );
-
-  const result = await options.processes.run({
-    argv: ["bun", "add", "-g", formatGlobalBunPackage(pkg)],
-    cwd: options.checkoutRoot,
-    env: options.env,
-    output: "inherit",
-  });
-  if (result.exitCode !== 0) {
-    throw new Error(
-      `global Bun package installation failed; '${pkg.name}' remains declared for the next dot apply`
-    );
-  }
-  return `Added and installed global Bun package '${formatGlobalBunPackage(pkg)}'\n`;
-}
-
-export async function removeGlobalBunPackage(options: {
-  readonly checkoutRoot: string;
-  readonly name: string;
-}): Promise<string> {
-  const pkg = parseGlobalBunPackage(options.name);
-  if (!pkg) throw new Error("invalid global Bun package name");
-
-  const manifest = await readManifest(options.checkoutRoot);
-  const filtered = manifest.filter((existing) => existing.name !== pkg.name);
-  if (filtered.length === manifest.length) {
-    return `Global Bun package '${pkg.name}' is not declared\n`;
-  }
-
-  await replaceFileAtomic(
-    manifestPath(options.checkoutRoot),
-    `${filtered.map(formatGlobalBunPackage).join("\n")}\n`
-  );
-  return `Removed global Bun package '${pkg.name}' from the manifest\n`;
 }

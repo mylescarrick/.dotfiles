@@ -61,10 +61,6 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 | `dot update [--yes]` | Strictly fast-forward canonical `main`, re-exec, then apply |
 | `dot upgrade [--yes]` | Update, optionally upgrade Homebrew, reinstall any cask whose linked artifacts are missing, upgrade Bun itself, then update Pi and its packages |
 | `dot doctor` | Inspect repository-owned state without network access or repair |
-| `dot package add NAME [--cask]` | Record sorted Brewfile state, then install it |
-| `dot package remove NAME` | Remove desired Brewfile state without uninstalling |
-| `dot bun add NAME[@VERSION]` | Record sorted global Bun package state, then install it |
-| `dot bun remove NAME` | Remove desired global Bun package state without uninstalling |
 | `dot drift` | Print skill drift between `~` and the repo as JSON |
 | `dot drift ignore [NAME]` | Stop being asked about drift (all, or one item) |
 | `dot drift restore NAME` | Discard local drift by redeploying the repo version |
@@ -114,34 +110,26 @@ use `dot update` to refresh and publish it.
 
 ## Packages
 
-```bash
-dot package add ripgrep
-dot package add raycast --cask
-dot package remove ripgrep
-```
-
-Entries remain sorted within formula and cask groups. Addition records desired
-state before installation, so a failed install remains visible to `dot doctor`
-and is retried by `dot apply`. Removal only edits desired state; uninstall
-explicitly with Homebrew if desired.
-
-Manual Brewfile edits are also valid. `dot apply` checks them with Homebrew
-auto-update disabled and installs only missing declared state with
-`--no-upgrade`.
-
-## Global Bun packages
+Install with the tool you would normally use, then let `dot` record it:
 
 ```bash
-dot bun add wrangler@4.114.0
-dot bun add @earendil-works/pi-coding-agent@0.84.1
-dot bun remove wrangler
+brew install ripgrep        # or: brew install --cask raycast
+bun add -g wrangler
+pi install npm:some-extension
+dot                         # lists each as drift; the agent proposes the PR
 ```
 
-`packages/bun-global` tracks packages installed with `bun add -g`. Entries are
-kept sorted. Addition records the package (with an optional exact version)
-before installing, so a failed install remains visible to `dot doctor` and is
-retried by `dot apply`. Removal only edits desired state; uninstall explicitly
-with `bun remove -g NAME` if desired.
+| Tool | Tracked in |
+|---|---|
+| Homebrew | `packages/bundle` |
+| Global Bun packages | `packages/bun-global` (a bare name tracks latest; `name@1.2.3` pins) |
+| Pi packages | `config/pi/settings.defaults.json` |
+
+You can also edit those files directly in a worktree. `dot apply` installs only
+what is missing, with Homebrew auto-update disabled and `--no-upgrade`, and never
+removes anything. Removing a line from a tracked file does not uninstall the
+package: uninstall it yourself, or `dot` lists it as drift again and the agent
+recommends removing it.
 
 Third-party taps are declared with `tap` lines in `packages/bundle`, but
 Homebrew refuses to load casks from an untrusted tap, and trust is machine-local

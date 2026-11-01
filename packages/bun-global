@@ -1,4 +1,4 @@
-# Global Bun packages installed via `dot bun add -g NAME[@VERSION]` and `dot bun remove NAME`
+# Global Bun packages dot installs. Add one with `bun add -g NAME`, then run `dot` to record it.
 # Omit the version to always track the latest release.
 @biomejs/biome
 @earendil-works/pi-coding-agent

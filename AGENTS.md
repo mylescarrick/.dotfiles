@@ -32,8 +32,8 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 
 | Task | Location |
 |------|----------|
-| Add package | `dot package add <name>` or edit `packages/bundle` |
-| Add global Bun package | `dot bun add <name>[@version]` or edit `packages/bun-global` |
+| Add package | `brew install <name>`, then `dot` (or edit `packages/bundle`) |
+| Add global Bun package | `bun add -g <name>`, then `dot` (or edit `packages/bun-global`) |
 | Vendor/update agent skill | `bunx skills add -g <owner/repo> -s <skill> -a pi claude-code` / `bunx skills update -g -y`, then `dot reconcile` |
 | Add global/deployed skill | Author `~/.agents/skills/<name>/SKILL.md`, then `dot reconcile` (or add `skills/local/<name>/` in a worktree) |
 | Add repo-only maintenance skill | Author `.agents/skills/<name>/SKILL.md` |
@@ -76,8 +76,6 @@ dot apply [--yes]     # Reconcile canonical checked-out desired state
 dot update [--yes]    # Strict origin/main fast-forward → re-exec → apply
 dot upgrade [--yes]   # Update → optional Homebrew upgrade → stale cask repair → Bun self-upgrade → Pi update --all
 dot doctor            # Network-free repository-owned health report
-dot package add X     # Record + install formula (use --cask explicitly)
-dot package remove X  # Remove desired state only
 dot drift             # Skill drift between ~ and the repo, as JSON
 dot reconcile         # Absorb drift into a PR via the Pi reconcile agent
 dot pi auth cloudflare  # Configure private provider auth

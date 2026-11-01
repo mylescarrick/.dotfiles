@@ -3,10 +3,12 @@ import { join } from "node:path";
 import { inspectGlobalBunPackages } from "./bun-global";
 import { guardCanonicalCheckout } from "./checkout";
 import { inspectHome } from "./home-deploy";
+import { readOutdated } from "./outdated";
 import { inspectPackages } from "./packages";
 import { inspectPiSettings, planPiSettings } from "./pi";
 import { inspectPiAuth } from "./pi-auth";
 import type { ProcessRunner } from "./process";
+import { inspectOutdatedSchedule, judgeFreshness, launchdState } from "./schedule";
 import { inspectSkills } from "./skills";
 
 export interface DiagnosticReport {
@@ -170,6 +172,46 @@ async function checkSkills(options: DoctorOptions, home: string, log: DoctorLog)
   });
 }
 
+const SCHEDULE_FAILURES = {
+  "disable-incomplete":
+    "the background outdated job is switched off but still installed or running; run 'dot apply'",
+  "file-differs": "the background outdated job's file is out of date; run 'dot apply'",
+  missing: "the background outdated job is not installed; run 'dot apply'",
+  "not-loaded": "the background outdated job is installed but not loaded; run 'dot apply'",
+} as const;
+
+async function checkOutdatedSchedule(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
+  await log.guard("outdated-check", async () => {
+    const control = { ...options, home };
+    const status = await inspectOutdatedSchedule(control);
+    if (status === "not-applicable") return;
+    if (status === "disabled") {
+      log.info("outdated-check: background job is disabled ('dot outdated --enable' turns it on)");
+      return;
+    }
+    if (status !== "current") {
+      log.fail("outdated-check", SCHEDULE_FAILURES[status]);
+      return;
+    }
+    // Ask launchd first: if the job finishes between the two reads, the result file is then
+    // there to be found, rather than judged missing by a snapshot that predates it.
+    const { lastExit, running, runs } = await launchdState(control);
+    const report = await readOutdated(options.env, home);
+    const verdict = judgeFreshness({
+      checkedAt: report?.checkedAt,
+      lastExit,
+      now: new Date(),
+      running,
+      runs,
+    });
+    // The job exits 0 even when one source (brew while offline, say) could not be checked.
+    for (const problem of report?.errors ?? []) log.info(`outdated-check: could not check ${problem}`);
+    if (verdict.level === "ok") log.ok("outdated-check", verdict.message);
+    else if (verdict.level === "info") log.info(`outdated-check: ${verdict.message}`);
+    else log.fail("outdated-check", verdict.message);
+  });
+}
+
 async function checkSigningKeys(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
   const issues = await signingKeyIssues(options.checkoutRoot, home);
   if (issues.length === 0) {
@@ -192,6 +234,7 @@ export async function runDoctor(options: DoctorOptions): Promise<DiagnosticRepor
   await checkPiAuth(home, log);
   await checkPiSettings(options, home, log);
   await checkSkills(options, home, log);
+  await checkOutdatedSchedule(options, home, log);
   await checkSigningKeys(options, home, log);
 
   log.info("freshness: based on local origin/main; no network request was made");

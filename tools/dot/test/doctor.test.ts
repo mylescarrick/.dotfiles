@@ -191,3 +191,17 @@ describe("dot doctor", () => {
     });
   });
 });
+
+describe("dot doctor background job", () => {
+  test("says nothing on a machine that is not the login account, whether or not the job is switched off", async () => {
+    const state = await fixture();
+    const app = createApplication({ checkoutRoot: state.checkout });
+    const before = await app.execute({ argv: ["doctor"], cwd: state.checkout, env: state.env });
+    await app.execute({ argv: ["outdated", "--disable"], cwd: state.checkout, env: state.env });
+    const after = await app.execute({ argv: ["doctor"], cwd: state.checkout, env: state.env });
+
+    expect(before.stdout).not.toContain("outdated-check");
+    expect(after.stdout).not.toContain("outdated-check");
+    expect(after.exitCode).toBe(before.exitCode);
+  });
+});

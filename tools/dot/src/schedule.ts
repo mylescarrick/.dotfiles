@@ -1,4 +1,4 @@
-import { mkdir, readFile, realpath } from "node:fs/promises";
+import { mkdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import { userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { replaceFileAtomic } from "./atomic-file";
@@ -65,42 +65,135 @@ export function renderOutdatedPlist(options: {
 `;
 }
 
+interface ScheduleOptions {
+  readonly checkoutRoot: string;
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly home: string;
+  /** The account that owns the machine; defaults to the logged-in user. Tests pass their own. */
+  readonly loginHome?: string;
+  readonly platform?: NodeJS.Platform;
+  readonly processes: ProcessRunner;
+}
+
+export type ScheduleStatus =
+  | "current"
+  | "disabled"
+  | "file-differs"
+  | "missing"
+  | "not-applicable"
+  | "not-loaded";
+
 /** Only the real login account is scheduled; a test or a sandbox with its own HOME must never register a job. */
-async function isRealLoginHome(home: string): Promise<boolean> {
+async function isLoginHome(home: string, loginHome: string): Promise<boolean> {
   const [actual, login] = await Promise.all([
     realpath(home).catch(() => home),
-    realpath(userInfo().homedir).catch(() => userInfo().homedir),
+    realpath(loginHome).catch(() => loginHome),
   ]);
   return actual === login;
 }
 
-export async function ensureOutdatedSchedule(options: {
-  readonly checkoutRoot: string;
-  readonly env: Readonly<Record<string, string | undefined>>;
-  readonly home: string;
-  readonly processes: ProcessRunner;
-}): Promise<string> {
-  if (process.platform !== "darwin" || !(await isRealLoginHome(options.home))) return "";
+function disabledMarker(options: ScheduleOptions): string {
+  return join(stateDirectory(options.env, options.home), "outdated.disabled");
+}
 
-  const plistPath = join(options.home, "Library/LaunchAgents", `${OUTDATED_LABEL}.plist`);
-  const desired = renderOutdatedPlist({
+function plistPathFor(options: ScheduleOptions): string {
+  return join(options.home, "Library/LaunchAgents", `${OUTDATED_LABEL}.plist`);
+}
+
+function desiredPlist(options: ScheduleOptions): string {
+  return renderOutdatedPlist({
     checkoutRoot: options.checkoutRoot,
     home: options.home,
     logPath: join(stateDirectory(options.env, options.home), "outdated.log"),
   });
-  const current = await readFile(plistPath, "utf8").catch(() => undefined);
-  const domain = `gui/${process.getuid?.() ?? userInfo().uid}`;
-  const run = (argv: [string, ...string[]]) =>
-    options.processes.run({ argv, cwd: options.checkoutRoot, env: options.env });
+}
 
-  const loaded = (await run(["launchctl", "print", `${domain}/${OUTDATED_LABEL}`])).exitCode === 0;
-  if (current === desired && loaded) return "Background outdated check already scheduled\n";
+function domainFor(): string {
+  return `gui/${process.getuid?.() ?? userInfo().uid}`;
+}
 
+function launchctl(options: ScheduleOptions, argv: [string, ...string[]]) {
+  return options.processes.run({ argv, cwd: options.checkoutRoot, env: options.env });
+}
+
+async function isLoaded(options: ScheduleOptions): Promise<boolean> {
+  return (
+    (await launchctl(options, ["launchctl", "print", `${domainFor()}/${OUTDATED_LABEL}`])).exitCode === 0
+  );
+}
+
+async function applicable(options: ScheduleOptions): Promise<boolean> {
+  return (
+    (options.platform ?? process.platform) === "darwin" &&
+    (await isLoginHome(options.home, options.loginHome ?? userInfo().homedir))
+  );
+}
+
+/** One answer to "is the background job right?", shared by apply and doctor so they cannot disagree. */
+export async function inspectOutdatedSchedule(options: ScheduleOptions): Promise<ScheduleStatus> {
+  if (
+    await stat(disabledMarker(options)).then(
+      () => true,
+      () => false
+    )
+  )
+    return "disabled";
+  if (!(await applicable(options))) return "not-applicable";
+  const current = await readFile(plistPathFor(options), "utf8").catch(() => undefined);
+  if (current === undefined) return "missing";
+  if (current !== desiredPlist(options)) return "file-differs";
+  return (await isLoaded(options)) ? "current" : "not-loaded";
+}
+
+async function removeSchedule(options: ScheduleOptions): Promise<boolean> {
+  if (!(await applicable(options))) return false;
+  const plistPath = plistPathFor(options);
+  const present = await stat(plistPath).then(
+    () => true,
+    () => false
+  );
+  const loaded = await isLoaded(options);
+  if (loaded) await launchctl(options, ["launchctl", "bootout", `${domainFor()}/${OUTDATED_LABEL}`]);
+  await rm(plistPath, { force: true });
+  return present || loaded;
+}
+
+async function install(options: ScheduleOptions, status: ScheduleStatus): Promise<void> {
+  const plistPath = plistPathFor(options);
   await mkdir(dirname(plistPath), { recursive: true });
   await mkdir(stateDirectory(options.env, options.home), { recursive: true });
-  if (current !== desired) await replaceFileAtomic(plistPath, desired);
-  if (loaded) await run(["launchctl", "bootout", `${domain}/${OUTDATED_LABEL}`]);
-  const boot = await run(["launchctl", "bootstrap", domain, plistPath]);
+  if (status === "missing" || status === "file-differs")
+    await replaceFileAtomic(plistPath, desiredPlist(options));
+  // A job loaded from an old file must be unloaded first, or launchd keeps the old definition.
+  if (status === "file-differs" && (await isLoaded(options))) {
+    await launchctl(options, ["launchctl", "bootout", `${domainFor()}/${OUTDATED_LABEL}`]);
+  }
+  const boot = await launchctl(options, ["launchctl", "bootstrap", domainFor(), plistPath]);
   if (boot.exitCode !== 0) throw new Error(`launchctl bootstrap failed: ${boot.stderr.trim()}`);
+}
+
+export async function ensureOutdatedSchedule(options: ScheduleOptions): Promise<string> {
+  const status = await inspectOutdatedSchedule(options);
+  if (status === "not-applicable") return "";
+  if (status === "disabled") {
+    // Turning it off must stick even if the file or job outlived the marker.
+    return (await removeSchedule(options)) ? "Background outdated check removed (disabled)\n" : "";
+  }
+  if (status === "current") return "Background outdated check already scheduled\n";
+  await install(options, status);
   return "Background outdated check scheduled (every 6 hours)\n";
+}
+
+/** Turns the background check off and keeps it off: `dot apply` respects the marker. */
+export async function disableOutdatedSchedule(options: ScheduleOptions): Promise<string> {
+  await mkdir(stateDirectory(options.env, options.home), { recursive: true });
+  await replaceFileAtomic(disabledMarker(options), "disabled by `dot outdated --disable`\n");
+  const removed = await removeSchedule(options);
+  return `Background outdated check disabled${removed ? " and removed" : ""}. Turn it back on with 'dot outdated --enable'.\n`;
+}
+
+export async function enableOutdatedSchedule(options: ScheduleOptions): Promise<string> {
+  await rm(disabledMarker(options), { force: true });
+  const message = await ensureOutdatedSchedule(options);
+  return message || "Background outdated check enabled (nothing to schedule on this machine).\n";
 }

@@ -3,10 +3,12 @@ import { join } from "node:path";
 import { inspectGlobalBunPackages } from "./bun-global";
 import { guardCanonicalCheckout } from "./checkout";
 import { inspectHome } from "./home-deploy";
+import { readOutdated } from "./outdated";
 import { inspectPackages } from "./packages";
 import { inspectPiSettings, planPiSettings } from "./pi";
 import { inspectPiAuth } from "./pi-auth";
 import type { ProcessRunner } from "./process";
+import { inspectOutdatedSchedule } from "./schedule";
 import { inspectSkills } from "./skills";
 
 export interface DiagnosticReport {
@@ -170,6 +172,32 @@ async function checkSkills(options: DoctorOptions, home: string, log: DoctorLog)
   });
 }
 
+const SCHEDULE_FAILURES = {
+  "file-differs": "the background outdated job's file is out of date; run 'dot apply'",
+  missing: "the background outdated job is not installed; run 'dot apply'",
+  "not-loaded": "the background outdated job is installed but not loaded; run 'dot apply'",
+} as const;
+
+async function checkOutdatedSchedule(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
+  await log.guard("outdated-check", async () => {
+    const status = await inspectOutdatedSchedule({ ...options, home });
+    if (status === "not-applicable") return;
+    if (status === "disabled") {
+      log.info("outdated-check: background job is disabled ('dot outdated --enable' turns it on)");
+      return;
+    }
+    if (status !== "current") {
+      log.fail("outdated-check", SCHEDULE_FAILURES[status]);
+      return;
+    }
+    const report = await readOutdated(options.env, home);
+    const days = report ? (Date.now() - Date.parse(report.checkedAt)) / 86_400_000 : Number.POSITIVE_INFINITY;
+    if (days > 2)
+      log.fail("outdated-check", "the background job is loaded but has not produced a result in 2 days");
+    else log.ok("outdated-check", "background job is loaded and results are recent");
+  });
+}
+
 async function checkSigningKeys(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
   const issues = await signingKeyIssues(options.checkoutRoot, home);
   if (issues.length === 0) {
@@ -192,6 +220,7 @@ export async function runDoctor(options: DoctorOptions): Promise<DiagnosticRepor
   await checkPiAuth(home, log);
   await checkPiSettings(options, home, log);
   await checkSkills(options, home, log);
+  await checkOutdatedSchedule(options, home, log);
   await checkSigningKeys(options, home, log);
 
   log.info("freshness: based on local origin/main; no network request was made");

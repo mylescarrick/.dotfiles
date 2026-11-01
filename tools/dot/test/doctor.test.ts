@@ -191,3 +191,17 @@ describe("dot doctor", () => {
     });
   });
 });
+
+describe("dot doctor background job", () => {
+  test("says nothing on a machine where no job is scheduled, and notes when it is switched off", async () => {
+    const state = await fixture();
+    const app = createApplication({ checkoutRoot: state.checkout });
+    const quiet = await app.execute({ argv: ["doctor"], cwd: state.checkout, env: state.env });
+    expect(quiet.stdout).not.toContain("outdated-check");
+
+    await app.execute({ argv: ["outdated", "--disable"], cwd: state.checkout, env: state.env });
+    const off = await app.execute({ argv: ["doctor"], cwd: state.checkout, env: state.env });
+    expect(off.stdout).toContain("INFO  outdated-check: background job is disabled");
+    expect(off.exitCode).toBe(quiet.exitCode);
+  });
+});

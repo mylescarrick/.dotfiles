@@ -13,6 +13,7 @@ import {
 } from "./pi-auth";
 import { bunProcessRunner, type ProcessRunner } from "./process";
 import { buildDriftReport, ignoreDrift, reconcile } from "./reconcile";
+import { disableOutdatedSchedule, enableOutdatedSchedule } from "./schedule";
 import { restoreSkill } from "./skills";
 import { SyncFailure, sync } from "./sync";
 import { systemTerminal, type Terminal } from "./terminal";
@@ -53,7 +54,7 @@ const commands: readonly CommandDescription[] = [
   { summary: "Inspect managed state without changing it", usage: "doctor" },
   { summary: "Bootstrap a new machine, then apply", usage: "init" },
   {
-    summary: "Show outdated Homebrew, Bun and Pi packages (--refresh checks now)",
+    summary: "Show outdated packages (--refresh checks now; --disable/--enable the 6-hourly job)",
     usage: "outdated [--refresh]",
   },
   { summary: "Print skill drift as JSON", usage: "drift" },
@@ -147,13 +148,25 @@ async function handleDrift(ctx: CommandContext): Promise<CommandOutcome> {
 
 async function handleOutdated(ctx: CommandContext): Promise<CommandOutcome> {
   const { invocation, dependencies, processes } = ctx;
-  const refresh = invocation.argv[1] === "--refresh";
-  if (!(invocation.argv.length === 1 || (invocation.argv.length === 2 && refresh))) {
-    return { exitCode: 2, stderr: "dot: usage: dot outdated [--refresh]\n", stdout: "" };
+  const flag = invocation.argv[1];
+  const refresh = flag === "--refresh";
+  const known = flag === undefined || refresh || flag === "--disable" || flag === "--enable";
+  if (!(known && invocation.argv.length <= 2)) {
+    return {
+      exitCode: 2,
+      stderr: "dot: usage: dot outdated [--refresh | --disable | --enable]\n",
+      stdout: "",
+    };
   }
   try {
     const home = invocation.env.HOME;
     if (!home) throw new Error("HOME is required");
+    if (flag === "--disable" || flag === "--enable") {
+      const control = { checkoutRoot: dependencies.checkoutRoot, env: invocation.env, home, processes };
+      const stdout =
+        flag === "--disable" ? await disableOutdatedSchedule(control) : await enableOutdatedSchedule(control);
+      return { exitCode: 0, stderr: "", stdout };
+    }
     let report = await readOutdated(invocation.env, home);
     if (refresh) {
       report = await collectOutdated({

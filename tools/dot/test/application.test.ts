@@ -26,7 +26,7 @@ COMMANDS
   upgrade               Update, then upgrade Bun, Homebrew, and Pi (repairs stale casks)
   doctor                Inspect managed state without changing it
   init                  Bootstrap a new machine, then apply
-  outdated [--refresh]  Show outdated Homebrew, Bun and Pi packages (--refresh checks now)
+  outdated [--refresh]  Show outdated packages (--refresh checks now; --disable/--enable the 6-hourly job)
   drift                 Print skill drift as JSON
   drift restore NAME    Discard local drift for one skill
   drift ignore [NAME]   Stop asking about drift (all, or one NAME)

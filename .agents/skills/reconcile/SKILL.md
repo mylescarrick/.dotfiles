@@ -28,6 +28,10 @@ managed and settles most judgement calls.
   You edit the tracked files; the user decides about the machine.
 - **Leave the worktree clean.** Commit or discard everything before exiting.
 
+A guard blocks the forbidden actions above and tells you why. If a command is
+refused, do not look for another way round it: continue with the allowed steps and
+tell the user what they need to run.
+
 ## Loop
 
 1. Read the drift report JSON. Skip items with `handled: true`.

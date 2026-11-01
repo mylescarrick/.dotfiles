@@ -176,9 +176,17 @@ If the agent made no commits, `dot` says so and leaves the drift. Not asking aga
 
 ## Known gaps
 
-- **The agent has `bash`, so the guard can't stop it pushing itself.** The guard
-  runs on the path `dot` controls. Running Pi with a restricted toolset is the
-  follow-up.
+- **The agent's shell is restricted, not sandboxed.** While `dot reconcile` runs Pi it
+  sets `DOT_RECONCILE=1`, which switches on `.pi/extensions/reconcile-guard`. That
+  blocks `git push|remote|config`, `--no-verify`, `gh`, `sudo`, installs and removals
+  (`brew`, `bun/npm -g`, `pi`, `skills`), `dot apply|update|reconcile|drift restore`, and any
+  `rm`, `mv`, `cp`, `rsync`, `tee`, `ln`, `sed -i`, `git -C` or `>` redirect whose target is
+  outside the worktree (temp files are allowed); the `write` and `edit` tools get the same
+  path rule. A script the agent writes can still do anything, so `dot` also checks
+  afterwards that `main` did not move, the canonical checkout is untouched, and the branch
+  was not pushed early, on top of the path allowlist, clean tree and gitleaks. Without
+  `DOT_RECONCILE` the extension does nothing, so ordinary Pi sessions in this repo are
+  unaffected.
 - **`deleted-locally` never auto-restores.** Use `dot drift restore NAME` or let
   the agent drop it from the repo.
 - **Dotfile drift is per file, and noisy files will nag.** A file a tool rewrites

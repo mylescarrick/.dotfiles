@@ -188,6 +188,39 @@ function sentence(item: AnyDriftItem): string {
   return KIND_SENTENCES[item.kind] ?? item.kind;
 }
 
+/**
+ * The agent's own shell is not a sandbox, so check what it could have reached: it must not
+ * have moved `main`, touched the canonical checkout, or pushed the branch before dot did.
+ */
+async function assertAgentStayedInside(
+  options: ReconcileOptions,
+  where: { branch: string; canonical: string; mainBefore: string; worktree: string }
+): Promise<void> {
+  const mainNow = (
+    await git(options, where.canonical, ["rev-parse", "refs/heads/main"], "failed to read main")
+  ).trim();
+  if (mainNow !== where.mainBefore) {
+    throw new Error(`the agent moved main (worktree left at ${where.worktree}); nothing was pushed`);
+  }
+  const dirty = await git(options, where.canonical, ["status", "--porcelain"], "failed to inspect checkout");
+  if (dirty.trim()) {
+    throw new Error(
+      `the agent changed the canonical checkout (worktree left at ${where.worktree}); nothing was pushed`
+    );
+  }
+  const remote = await git(
+    options,
+    where.canonical,
+    ["ls-remote", "--heads", "origin", `refs/heads/${where.branch}`],
+    "failed to check the remote"
+  );
+  if (remote.trim()) {
+    throw new Error(
+      `the agent pushed ${where.branch} itself; review it before using it (worktree left at ${where.worktree})`
+    );
+  }
+}
+
 function describe(items: readonly AnyDriftItem[]): string {
   const width = Math.max(...items.map((item) => item.name.length));
   return items.map((item) => `  ${item.name.padEnd(width)}  ${sentence(item)}`).join("\n");
@@ -223,6 +256,9 @@ export async function reconcile(options: ReconcileOptions): Promise<string> {
   await mkdir(dirname(reportPath), { recursive: true });
   await writeFile(reportPath, `${JSON.stringify({ ...report, items: fresh, worktree }, null, 2)}\n`);
 
+  const mainBefore = (
+    await git(options, canonical, ["rev-parse", "refs/heads/main"], "failed to read main")
+  ).trim();
   await options.processes.run({
     argv: [
       "pi",
@@ -234,10 +270,12 @@ export async function reconcile(options: ReconcileOptions): Promise<string> {
       `Use the reconcile skill. The drift report is at ${reportPath}.`,
     ],
     cwd: worktree,
-    env: options.env,
+    // Switches on the reconcile-guard extension, which is inert in any other Pi session.
+    env: { ...options.env, DOT_RECONCILE: "1" },
     output: "inherit",
   });
 
+  await assertAgentStayedInside(options, { branch, canonical, mainBefore, worktree });
   const commits = await guardWriteBack(options, worktree);
   if (commits === 0) {
     await removeWorktree(options, canonical, worktree, branch);

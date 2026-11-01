@@ -10,8 +10,9 @@ import {
   rename,
   rm,
   stat,
+  symlink,
 } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { type DeployRecord, readDeployRecord, stateDirectory, writeDeployRecord } from "./deploy-record";
 import type { ProcessRunner } from "./process";
 import { type Decision, decide, isLegacyLink, legacyRoots } from "./skill-drift";
@@ -158,25 +159,74 @@ const NEVER_WALK = new Set([".cache", ".git", "build", "coverage", "dist", "logs
  * committed). Git collapses an untracked folder into one entry, so walk into it, but never
  * into dependency trees: those are large and never linked from ~.
  */
+async function moveLinkedTarget(path: string, roots: readonly string[]): Promise<boolean> {
+  if (!isLegacyLink(path, await readlink(path), roots)) return false;
+  // The target may already be gone (an earlier step moved it); a dead link is not ours to move.
+  const target = await realpath(path).catch(() => undefined);
+  if (!target) return false;
+  await rm(path);
+  await movePath(target, path);
+  return true;
+}
+
 async function moveUntrackedLinks(options: HomeOptions, roots: readonly string[]): Promise<number> {
   let moved = 0;
   async function visit(rel: string, depth: number): Promise<void> {
+    if (NEVER_WALK.has(rel.split("/").at(-1) as string)) return;
     const path = join(options.home, rel);
     const metadata = await lstatOrUndefined(path);
-    if (!metadata) return;
-    if (metadata.isSymbolicLink()) {
-      if (!isLegacyLink(path, await readlink(path), roots)) return;
-      const target = await realpath(path);
-      await rm(path);
-      await movePath(target, path);
-      moved += 1;
-    } else if (metadata.isDirectory() && depth < 8) {
+    if (metadata?.isSymbolicLink()) {
+      if (await moveLinkedTarget(path, roots)) moved += 1;
+    } else if (metadata?.isDirectory() && depth < 8) {
       const names = await readdir(join(options.checkoutRoot, "home", rel)).catch(() => [] as string[]);
-      for (const name of names) if (!NEVER_WALK.has(name)) await visit(`${rel}/${name}`, depth + 1);
+      for (const name of names) await visit(`${rel}/${name}`, depth + 1);
     }
   }
   for (const rel of await untrackedEntries(options)) await visit(rel, 0);
   return moved;
+}
+
+/**
+ * Bun's workspace install links each local extension into ~/.pi/node_modules, and those links
+ * were made through stow, so they point into the checkout. Re-point them at the copies in ~.
+ * A link whose copy does not exist in ~ is left alone: bun install will rebuild it.
+ */
+async function workspaceLinkPaths(base: string): Promise<string[]> {
+  const names = await readdir(base).catch(() => [] as string[]);
+  const paths = names.filter((name) => !name.startsWith("@")).map((name) => join(base, name));
+  for (const scope of names.filter((name) => name.startsWith("@"))) {
+    for (const name of await readdir(join(base, scope)).catch(() => [] as string[])) {
+      paths.push(join(base, scope, name));
+    }
+  }
+  return paths;
+}
+
+async function repointOne(link: string, home: string, roots: readonly string[]): Promise<boolean> {
+  const metadata = await lstatOrUndefined(link);
+  if (!metadata?.isSymbolicLink()) return false;
+  const target = await readlink(link);
+  if (!isLegacyLink(link, target, roots)) return false;
+  const resolved = resolve(dirname(link), target);
+  const root = roots.find((candidate) => resolved === candidate || resolved.startsWith(`${candidate}/`));
+  if (!root) return false;
+  const replacement = join(home, relative(root, resolved));
+  if (!(await lstatOrUndefined(replacement))) {
+    // A link into the checkout at something that no longer exists anywhere is just debris.
+    if (!(await lstatOrUndefined(resolved))) await rm(link);
+    return false;
+  }
+  await rm(link);
+  await symlink(relative(dirname(link), replacement), link);
+  return true;
+}
+
+async function repointWorkspaceLinks(options: HomeOptions, roots: readonly string[]): Promise<number> {
+  let repointed = 0;
+  for (const link of await workspaceLinkPaths(join(options.home, ".pi/node_modules"))) {
+    if (await repointOne(link, options.home, roots)) repointed += 1;
+  }
+  return repointed;
 }
 
 /** First-run migration: no link from ~ into the checkout survives, and nothing local is lost. */
@@ -351,6 +401,8 @@ export async function deployHome(
     stamp: (options.now ?? new Date()).toISOString().replaceAll(":", "-"),
   };
   for (const item of plan.items) await deployItem(item, options, state);
+  // After the copies exist: a workspace link can only be re-pointed at something that is there.
+  state.counts.linksReplaced += await repointWorkspaceLinks(options, roots);
   await writeDeployRecord(options.env, options.home, record);
 
   const { counts } = state;

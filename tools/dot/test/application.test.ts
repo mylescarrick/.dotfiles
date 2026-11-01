@@ -45,6 +45,7 @@ COMMANDS
   init                  Bootstrap a new machine, then apply
   package add/remove    Edit the Brewfile
   bun add/remove        Edit the global Bun package manifest
+  outdated [--refresh]  Show outdated Homebrew, Bun and Pi packages (--refresh checks now)
   drift                 Print skill drift as JSON
   drift restore NAME    Discard local drift for one skill
   drift ignore [NAME]   Stop asking about drift (all, or one NAME)

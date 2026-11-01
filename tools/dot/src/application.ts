@@ -4,6 +4,7 @@ import { ApplyFailure, apply } from "./apply";
 import { addGlobalBunPackage, removeGlobalBunPackage } from "./bun-global";
 import { runDoctor } from "./diagnostics";
 import { initialize } from "./init";
+import { collectOutdated, describeOutdated, readOutdated, writeOutdated } from "./outdated";
 import { addPackage, removePackage } from "./package-authoring";
 import {
   configureCloudflareAuth,
@@ -54,6 +55,10 @@ const commands: readonly CommandDescription[] = [
   { summary: "Bootstrap a new machine, then apply", usage: "init" },
   { summary: "Edit the Brewfile", usage: "package add/remove" },
   { summary: "Edit the global Bun package manifest", usage: "bun add/remove" },
+  {
+    summary: "Show outdated Homebrew, Bun and Pi packages (--refresh checks now)",
+    usage: "outdated [--refresh]",
+  },
   { summary: "Print skill drift as JSON", usage: "drift" },
   { summary: "Discard local drift for one skill", usage: "drift restore NAME" },
   { summary: "Stop asking about drift (all, or one NAME)", usage: "drift ignore [NAME]" },
@@ -135,6 +140,32 @@ async function handleDrift(ctx: CommandContext): Promise<CommandOutcome> {
       return { exitCode: 0, stderr: "", stdout: await ignoreDrift(options, invocation.argv.slice(2)) };
     const report = await buildDriftReport(options);
     return { exitCode: 0, stderr: "", stdout: `${JSON.stringify(report, null, 2)}\n` };
+  } catch (error) {
+    return failureOutcome(error);
+  }
+}
+
+async function handleOutdated(ctx: CommandContext): Promise<CommandOutcome> {
+  const { invocation, dependencies, processes } = ctx;
+  const refresh = invocation.argv[1] === "--refresh";
+  if (!(invocation.argv.length === 1 || (invocation.argv.length === 2 && refresh))) {
+    return { exitCode: 2, stderr: "dot: usage: dot outdated [--refresh]\n", stdout: "" };
+  }
+  try {
+    const home = invocation.env.HOME;
+    if (!home) throw new Error("HOME is required");
+    let report = await readOutdated(invocation.env, home);
+    if (refresh) {
+      report = await collectOutdated({
+        checkoutRoot: dependencies.checkoutRoot,
+        env: invocation.env,
+        home,
+        previous: report,
+        processes,
+      });
+      await writeOutdated(invocation.env, home, report);
+    }
+    return { exitCode: 0, stderr: "", stdout: describeOutdated(report) };
   } catch (error) {
     return failureOutcome(error);
   }
@@ -305,6 +336,7 @@ const SINGLE_WORD_HANDLERS: Readonly<Record<string, (ctx: CommandContext) => Pro
   doctor: handleDoctor,
   drift: handleDrift,
   init: handleInit,
+  outdated: handleOutdated,
   package: handlePackage,
   pi: handlePi,
   reconcile: handleReconcile,

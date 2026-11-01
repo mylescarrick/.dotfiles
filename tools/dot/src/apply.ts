@@ -6,6 +6,7 @@ import { applyPiSettings, planPiSettings } from "./pi";
 import { reconcilePiDependencies } from "./pi-dependencies";
 import { reconcilePiPackages } from "./pi-packages";
 import type { ProcessRunner } from "./process";
+import { ensureOutdatedSchedule } from "./schedule";
 import { applySkills, prepareSkillDirectories } from "./skills";
 import { applyStowPlan, planStow } from "./stow";
 import type { Terminal } from "./terminal";
@@ -88,6 +89,14 @@ export async function apply(options: {
       home,
       processes: options.processes,
     });
+
+    stage = "background outdated check";
+    try {
+      progress += await ensureOutdatedSchedule({ ...options, home });
+    } catch (error) {
+      // A missing convenience must not fail the apply that already converged the machine.
+      progress += `Background outdated check not scheduled: ${error instanceof Error ? error.message : String(error)}\n`;
+    }
     return progress;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

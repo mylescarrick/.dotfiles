@@ -7,6 +7,8 @@ export interface DeployRecord {
   entries: Record<string, { hash: string }>;
   /** Drift fingerprints already sent to a PR or ignored, with when that happened. */
   handled: Record<string, string>;
+  /** When bare `dot` last offered to upgrade, accepted or not, so it asks weekly rather than every run. */
+  upgradeOfferedAt?: string;
 }
 
 export function stateDirectory(env: Readonly<Record<string, string | undefined>>, home: string): string {
@@ -30,7 +32,11 @@ export async function readDeployRecord(
       version?: number;
     };
     if (parsed.version !== 1) throw new Error(`unsupported deploy record version: ${parsed.version}`);
-    return { entries: parsed.entries ?? {}, handled: parsed.handled ?? {} };
+    return {
+      entries: parsed.entries ?? {},
+      handled: parsed.handled ?? {},
+      upgradeOfferedAt: parsed.upgradeOfferedAt,
+    };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { entries: {}, handled: {} };
     throw error;
@@ -44,6 +50,11 @@ export async function writeDeployRecord(
 ): Promise<void> {
   const path = recordPath(env, home);
   await mkdir(dirname(path), { recursive: true });
-  const payload = { entries: record.entries, handled: record.handled, version: 1 };
+  const payload = {
+    entries: record.entries,
+    handled: record.handled,
+    upgradeOfferedAt: record.upgradeOfferedAt,
+    version: 1,
+  };
   await replaceFileAtomic(path, `${JSON.stringify(payload, null, 2)}\n`);
 }

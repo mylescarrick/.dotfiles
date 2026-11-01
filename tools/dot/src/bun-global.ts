@@ -59,7 +59,7 @@ function formatGlobalBunPackage(pkg: GlobalBunPackage): string {
   return pkg.version ? `${pkg.name}@${pkg.version}` : pkg.name;
 }
 
-async function readManifest(checkoutRoot: string): Promise<GlobalBunPackage[]> {
+export async function readManifest(checkoutRoot: string): Promise<GlobalBunPackage[]> {
   let text: string;
   try {
     text = await readFile(manifestPath(checkoutRoot), "utf8");
@@ -73,7 +73,7 @@ async function readManifest(checkoutRoot: string): Promise<GlobalBunPackage[]> {
     .filter((pkg): pkg is GlobalBunPackage => pkg !== undefined);
 }
 
-async function listInstalledGlobal(options: ReconcileOptions): Promise<Map<string, string>> {
+export async function listInstalledGlobal(options: ReconcileOptions): Promise<Map<string, string>> {
   const result = await options.processes.run({
     argv: ["bun", "pm", "ls", "-g"],
     cwd: options.checkoutRoot,

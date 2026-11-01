@@ -96,14 +96,19 @@ export async function upgrade(options: UpgradeOptions): Promise<string> {
     });
   }
 
-  let progress = await apply({
+  const progress = await apply({
     acceptTracked: options.acceptAll,
     checkoutRoot: options.checkoutRoot,
     env: options.env,
     processes: options.processes,
     terminal: options.terminal,
   });
+  return runUpgrades(options, progress);
+}
 
+/** The upgrade stages on their own, for callers that have already applied. */
+export async function runUpgrades(options: UpgradeOptions, applied: string): Promise<string> {
+  let progress = applied;
   progress += await upgradeHomebrew(options, progress);
 
   progress += await runStage(progress, "cask repair", () =>

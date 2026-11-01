@@ -116,6 +116,14 @@ The `dot skills …` authoring commands are removed. Install skills however you
 like (`bunx skills add -g … -a pi claude-code`, or write one in
 `~/.agents/skills/`) and `dot reconcile` absorbs it.
 
+Outdated packages: a launchd job (`dev.dotfiles.outdated`, every 6 hours, written by
+`dot apply` for the real login account only) runs `dot outdated --refresh`, which does
+`brew update` then `brew outdated`, and compares Bun globals and Pi packages against the
+npm registry. Results go to `~/.local/state/dot/outdated.json`, so bare `dot` lists them
+instantly. Each source is checked on its own; one failing keeps its previous result and
+is reported. Bare `dot` asks about upgrading at most once a week (`upgradeOfferedAt` in
+the deploy record); `dot upgrade` stays for forcing it.
+
 Bare `dot` is the everyday command: the launcher fast-forwards canonical `main`
 (as `update` does), then `apply`, then `reconcile` if there is drift.
 Non-interactive runs print the drift summary and exit 0 without starting the

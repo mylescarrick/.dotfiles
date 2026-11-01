@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import packageMetadata from "../package.json";
 import { ApplyFailure, apply } from "./apply";
 import { runDoctor } from "./diagnostics";
+import { restoreFile } from "./home-deploy";
 import { initialize } from "./init";
 import { collectOutdated, describeOutdated, readOutdated, writeOutdated } from "./outdated";
 import {
@@ -130,7 +131,10 @@ async function handleDrift(ctx: CommandContext): Promise<CommandOutcome> {
     if (restoring) {
       const home = invocation.env.HOME;
       if (!home) throw new Error("HOME is required");
-      return { exitCode: 0, stderr: "", stdout: await restoreSkill({ ...options, home, name: name! }) };
+      // Files are named by their path (".zshrc", ".config/git/config"); skill names never start with a dot or hold a slash.
+      const isFile = name!.startsWith(".") || name!.includes("/");
+      const restore = isFile ? restoreFile : restoreSkill;
+      return { exitCode: 0, stderr: "", stdout: await restore({ ...options, home, name: name! }) };
     }
     if (ignoring)
       return { exitCode: 0, stderr: "", stdout: await ignoreDrift(options, invocation.argv.slice(2)) };

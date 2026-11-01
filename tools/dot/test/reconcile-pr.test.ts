@@ -2,8 +2,10 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { FileDriftItem } from "../src/home-deploy";
 import type { PackageDriftItem } from "../src/package-drift";
 import { coveredItems, renderPullRequest } from "../src/reconcile-pr";
+import { hashFile } from "../src/tree-hash";
 
 const temporaryDirectories: string[] = [];
 
@@ -76,5 +78,53 @@ describe("which package items a branch settles", () => {
     expect(body).toContain("- **Declare `handmade-tool` as a global Bun package.**");
     expect(body).toContain("- **Declare the Pi package `npm:handmade-ext`.**");
     expect(body).toContain("`config/pi/settings.defaults.json`");
+  });
+});
+
+describe("which dotfile items a branch settles", () => {
+  test("a file is settled when the repo copy now matches this Mac's, or is gone for a deletion", async () => {
+    const worktree = await branch({ "home/.zshrc": "export A=mine\n" });
+    const hash = await hashFile(join(worktree, "home/.zshrc"));
+    const file = (name: string, kind: FileDriftItem["kind"], currentHash?: string): FileDriftItem => ({
+      currentHash,
+      domain: "file",
+      fingerprint: `${kind}:file:${name}`,
+      homePath: `/home/${name}`,
+      kind,
+      name,
+      repoPath: `home/${name}`,
+    });
+
+    const covered = await coveredItems(worktree, [
+      file(".zshrc", "modified-locally", hash),
+      file(".zprofile", "modified-locally", hash),
+      file(".config/gone", "deleted-locally"),
+      file(".zshrc", "deleted-locally"),
+    ]);
+
+    expect(covered.map((entry) => `${entry.kind}:${entry.name}`)).toEqual([
+      "modified-locally:.zshrc",
+      "deleted-locally:.config/gone",
+    ]);
+  });
+
+  test("the PR names the file and where it landed", () => {
+    const { body } = renderPullRequest(
+      [
+        {
+          currentHash: "x",
+          domain: "file",
+          fingerprint: "f",
+          homePath: "/h/.zshrc",
+          kind: "modified-locally",
+          name: ".zshrc",
+          repoPath: "home/.zshrc",
+        },
+      ],
+      ["chore(home): take zshrc edits"]
+    );
+
+    expect(body).toContain("- **Take this Mac's version of `~/.zshrc`.**");
+    expect(body).toContain("`home/.zshrc`");
   });
 });

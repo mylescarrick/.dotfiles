@@ -1,6 +1,7 @@
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { readDeployRecord, stateDirectory, writeDeployRecord } from "./deploy-record";
+import { inspectHome } from "./home-deploy";
 import { inspectPackageDrift } from "./package-drift";
 import type { ProcessRunner } from "./process";
 import { type AnyDriftItem, coveredItems, renderPullRequest } from "./reconcile-pr";
@@ -13,6 +14,7 @@ export const WRITE_BACK_ALLOWLIST = [
   "packages/bundle",
   "packages/bun-global",
   "config/pi/settings.defaults.json",
+  "home/",
 ] as const;
 
 interface ReconcileOptions {
@@ -39,7 +41,11 @@ export async function buildDriftReport(options: Omit<ReconcileOptions, "terminal
   const home = requireHome(options.env);
   const { plan } = await inspectSkills({ ...options, home, network: true });
   const record = await readDeployRecord(options.env, home);
-  const drift: AnyDriftItem[] = [...plan.drift, ...(await inspectPackageDrift({ ...options, home }))];
+  const drift: AnyDriftItem[] = [
+    ...plan.drift,
+    ...(await inspectHome({ ...options, home })).drift,
+    ...(await inspectPackageDrift({ ...options, home })),
+  ];
   return {
     checkout: options.checkoutRoot,
     generatedAt: (options.now ?? new Date()).toISOString(),
@@ -170,7 +176,14 @@ const KIND_SENTENCES: Readonly<Record<string, string>> = {
   "vendored-updated": "skill updated on this Mac, repo has the old version",
 };
 
+const FILE_SENTENCES: Readonly<Record<string, string>> = {
+  conflict: "dotfile changed on this Mac and in the repo",
+  "deleted-locally": "dotfile deleted on this Mac, still in the repo",
+  "modified-locally": "dotfile edited on this Mac",
+};
+
 function sentence(item: AnyDriftItem): string {
+  if (item.domain === "file") return FILE_SENTENCES[item.kind] ?? item.kind;
   if (item.domain !== "skill") return UNDECLARED_SENTENCES[item.domain];
   return KIND_SENTENCES[item.kind] ?? item.kind;
 }

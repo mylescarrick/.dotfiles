@@ -69,7 +69,9 @@ describe("bare dot", () => {
     });
 
     expect(outcome.exitCode).toBe(0);
-    expect(outcome.stdout).toContain("Dotfiles stowed\n");
+    expect(outcome.stdout).toContain(
+      "Dotfiles deployed (1 installed, 0 updated, 0 link(s) replaced, 0 removed)\n"
+    );
     expect(outcome.stdout).toContain("1 skill drift item(s); run 'dot reconcile'\n");
     expect(outcome.stdout).toContain("1 drift item(s); run 'dot reconcile' in a terminal:\n");
     expect(outcome.stdout).toContain("handmade  new skill on this Mac, not in the repo");

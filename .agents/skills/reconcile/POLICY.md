@@ -17,6 +17,15 @@ How this Mac should be managed. Edit this file to change the agent's defaults.
   credentials, tenant IDs or customer data must not be committed. Recommend
   leaving it, and say why.
 
+## Dotfiles
+
+- **An edit to a managed dotfile is usually deliberate.** Default to absorbing it.
+- **Secrets never enter the repo.** A token, API key or password inline in a shell file,
+  git config or any other dotfile means: do not copy that file. Say which line, and
+  suggest `secrets.zsh`.
+- **Tool-managed files nag.** If a file changes every time a tool runs (a lock or
+  session file), recommend untracking it from `home/` instead of absorbing each change.
+
 ## Homebrew packages
 
 - **Declared means wanted on every machine.** Absorb a formula or cask the user

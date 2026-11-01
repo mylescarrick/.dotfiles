@@ -1,6 +1,6 @@
 # Copy deployment and agent reconcile
 
-Status: spike. Skills deploy by copy; Homebrew drift is reported too. The rest of `home/` is still stowed.
+Status: implemented. Skills and everything under `home/` deploy by copy; Homebrew, Bun and Pi package drift is reported too. Stow is gone.
 
 ## Problem
 
@@ -57,6 +57,23 @@ skills instead of fetching them.
 This matches what `skills add -g -a pi claude-code` produces, so the skills CLI
 and `dot` agree on layout. Keeping the global lock populated means
 `skills update -g` works normally, and its edits surface as drift.
+
+## Dotfiles (`home/`)
+
+Every tracked file under `home/` is copied to the same path in `~` and recorded by hash
+(`.zshrc`, `.config/git/config`), using the same three-way rule as skills at file
+granularity. `git ls-files home` defines the set, so untracked and ignored files are never
+touched. Executable bit is kept; a new `~/.ssh` is created `0700`.
+
+- **First-run migration** replaces stow's links. A link to a tracked file becomes a real
+  copy (same content, so no drift). A folded directory link becomes a real directory:
+  content with tracked files is copied, content only this Mac has (herdr's
+  `session.json`, an untracked extension) is *moved* out of the checkout. A link that
+  leaves the checkout is refused.
+- **`dot apply --yes`** replaces a file that differs from the repo, after copying the old
+  one to `~/.local/state/dot/backups/<time>/`. Without it, such files stay as drift.
+- Drift kinds are `modified-locally`, `conflict` and `deleted-locally`. `dot drift restore
+  PATH` redeploys one file (with a backup).
 
 ## Deploy record
 
@@ -164,13 +181,15 @@ If the agent made no commits, `dot` says so and leaves the drift. Not asking aga
   follow-up.
 - **`deleted-locally` never auto-restores.** Use `dot drift restore NAME` or let
   the agent drop it from the repo.
-- **Stow still folds directories.** `~/.config/herdr`, `ghostty` and `ripgrep`
-  are single links into the checkout today, which is why herdr's
-  `session.json` has to be gitignored. Skills deploy refuses to write through
-  a folded path. Adding `stow --no-folding` fixes the rest but unfolds every
-  folded directory, so it ships as its own change.
-- **Only skills move to copy deployment.** The rest of `home/` is next, using
-  the same record and rules.
+- **Dotfile drift is per file, and noisy files will nag.** A file a tool rewrites
+  often (herdr's `.plugins.lock`) shows as drift whenever its content changes, because
+  the fingerprint includes the hash. Untrack such files rather than ignoring them.
+- **A dotfile can hold secrets.** The agent copies `~/<file>` into `home/<file>` when
+  absorbing it, so it must read the file first and refuse inline tokens (the policy
+  says to move them to the gitignored `secrets.zsh`). gitleaks and the PR review are
+  the backstop.
+- **Links dropped from the repo are not swept.** Old stow links to files since deleted
+  from `home/` are left dangling; there is no list of them to prune.
 - **Package drift is report-only.** Packages installed but undeclared are absorbed
   into the tracked file for their tool: Homebrew (read from `brew bundle cleanup`, a
   dry run) into `packages/bundle`, global Bun packages into `packages/bun-global`, and

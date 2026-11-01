@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApplication } from "../src/application";
+import { writeDeployRecord } from "../src/deploy-record";
 import { bunProcessRunner, type ProcessRequest, type ProcessRunner } from "../src/process";
+import { hashFile } from "../src/tree-hash";
 
 const temporaryDirectories: string[] = [];
 
@@ -42,7 +44,12 @@ async function fixture(): Promise<{
   await run(["git", "commit", "-m", "fixture"], checkout);
   const head = await run(["git", "rev-parse", "HEAD"], checkout);
   await run(["git", "update-ref", "refs/remotes/origin/main", head], checkout);
-  await symlink(join(checkout, "home/.managed"), join(home, ".managed"));
+  // A deployed copy plus the record dot keeps of it, as a previous `dot apply` would leave.
+  await copyFile(join(checkout, "home/.managed"), join(home, ".managed"));
+  await writeDeployRecord({ HOME: home }, home, {
+    entries: { ".managed": { hash: await hashFile(join(home, ".managed")) } },
+    handled: {},
+  });
   await mkdir(join(home, ".pi/agent"), { recursive: true });
   await writeFile(join(home, ".pi/agent/settings.json"), '{\n  "theme": "dark",\n  "packages": []\n}\n', {
     mode: 0o600,
@@ -94,13 +101,19 @@ describe("dot doctor", () => {
         expect(argv.slice(1, 3)).toEqual(["bundle", "check"]);
         continue;
       }
-      expect(["bun --version", "stow --version"]).toContain(argv.join(" "));
+      expect(argv.join(" ")).toBe("bun --version");
     }
   });
 
   test("reports independent managed-state drift and exits one", async () => {
     const state = await fixture();
-    await rm(join(state.home, ".managed"));
+    // The repo moved on since the last deploy and the Mac's copy is untouched: apply has work to do.
+    const old = join(state.home, ".managed");
+    await writeFile(old, "previous\n");
+    await writeDeployRecord({ HOME: state.home }, state.home, {
+      entries: { ".managed": { hash: await hashFile(old) } },
+      handled: {},
+    });
     await chmod(join(state.home, ".pi/agent/settings.json"), 0o644);
 
     const outcome = await createApplication({ checkoutRoot: state.checkout }).execute({
@@ -111,7 +124,9 @@ describe("dot doctor", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.stderr).toBe("");
-    expect(outcome.stdout).toContain("FAIL  dotfiles: 1 managed path(s) drifted");
+    expect(outcome.stdout).toContain(
+      "FAIL  dotfiles: 1 dotfile(s) are out of date or still linked into the checkout; run 'dot apply'"
+    );
     expect(outcome.stdout).toContain("FAIL  pi-settings: Pi runtime settings mode is not 0600");
     expect(outcome.stdout).toContain("2 actionable issue(s)");
   });

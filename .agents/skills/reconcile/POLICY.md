@@ -27,6 +27,15 @@ How this Mac should be managed. Edit this file to change the agent's defaults.
 - **Casks need admin to install.** Mention it when absorbing one, since every
   other machine will need elevation to converge.
 
+## Bun and Pi packages
+
+- **Same rule as Homebrew.** A global Bun package or Pi package installed on purpose
+  belongs in the repo; a package pulled in to try something does not.
+- **Pi packages run code inside the agent.** Before absorbing one, say who publishes it
+  and when it was last updated, so the user is choosing with that in front of them.
+- **A package the repo used to declare is a removal, not a new install.** Recommend
+  uninstalling it, never re-adding it.
+
 ## Skill quality bar
 
 Before absorbing a new local skill, check it against

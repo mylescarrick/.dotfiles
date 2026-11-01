@@ -147,7 +147,7 @@ so a stow conflict in a non-interactive run still needs `dot apply --yes`.
    that `dot` loads with `-e`, which ends the session so nobody has to quit Pi.
 6. After Pi exits, `dot` checks the agent's commits **mechanically**:
    - the worktree is clean
-   - every changed path is on the allowlist (`skills/`, `packages/bundle`)
+   - every changed path is on the allowlist (`skills/`, `packages/bundle`, `packages/bun-global`, `config/pi/settings.defaults.json`)
    - `gitleaks` passes, if installed
 7. Push, then open the PR with a title and body `dot` writes itself from the items
    the branch actually settles (read from `skills/lock.json`, `skills/local/` and
@@ -171,8 +171,11 @@ If the agent made no commits, `dot` says so and leaves the drift. Not asking aga
   folded directory, so it ships as its own change.
 - **Only skills move to copy deployment.** The rest of `home/` is next, using
   the same record and rules.
-- **Package drift is report-only.** Homebrew packages installed but undeclared
-  are read from `brew bundle cleanup` (a dry run) and absorbed into
-  `packages/bundle`; there is no deploy record because `brew bundle` already
-  converges declared state. Bun globals and Pi packages had no drift on the
-  first machine inspected, so they are not covered yet.
+- **Package drift is report-only.** Packages installed but undeclared are absorbed
+  into the tracked file for their tool: Homebrew (read from `brew bundle cleanup`, a
+  dry run) into `packages/bundle`, global Bun packages into `packages/bun-global`, and
+  Pi packages into `config/pi/settings.defaults.json`. There is no deploy record,
+  because each tool already converges declared state. `dot apply` no longer deletes
+  Pi packages installed by hand: it lists tracked packages first and keeps the rest,
+  so they surface as drift instead of vanishing. A package the repo once declared
+  looks the same as a new one, so the agent checks `git log -S` before re-adding.

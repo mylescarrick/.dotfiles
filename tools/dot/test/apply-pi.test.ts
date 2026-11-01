@@ -290,7 +290,7 @@ describe("dot apply Pi settings", () => {
     expect(await Bun.file(join(fixture.home, ".pi/agent/settings.json")).exists()).toBe(false);
   });
 
-  test("preserves runtime preferences while tracked packages win", async () => {
+  test("preserves runtime preferences and keeps hand-installed packages after the tracked ones", async () => {
     const fixture = await makeFixture();
     const settingsPath = join(fixture.home, ".pi/agent/settings.json");
     await mkdir(join(fixture.home, ".pi/agent"), { recursive: true });
@@ -320,7 +320,7 @@ describe("dot apply Pi settings", () => {
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
       defaultModel: "claude-opus-4-8",
       defaultProvider: "claude-code-provider",
-      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
+      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools", "runtime-owned-package"],
       theme: "custom",
       unknownRuntimeKey: true,
     });
@@ -500,7 +500,7 @@ describe("dot apply Pi settings", () => {
     expect(await readFile(oldPath, "utf8")).toBe(oldBytes);
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
       defaultProvider: "github-copilot",
-      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools"],
+      packages: ["npm:pi-claude-bridge", "npm:@mobrienv/pi-tidy-tools", "old"],
     });
   });
 });

@@ -1,10 +1,10 @@
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import type { BrewDriftItem } from "./brew-drift";
+import type { PackageDriftItem } from "./package-drift";
 import type { DriftItem } from "./skill-drift";
 import { hashDirectory } from "./tree-hash";
 
-export type AnyDriftItem = BrewDriftItem | DriftItem;
+export type AnyDriftItem = DriftItem | PackageDriftItem;
 
 const BREW_KEYWORD = { cask: "cask", formula: "brew", tap: "tap" } as const;
 
@@ -36,6 +36,27 @@ async function skillIsCovered(worktree: string, item: DriftItem): Promise<boolea
   }
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function packageIsCovered(worktree: string, item: PackageDriftItem, bundle: string): Promise<boolean> {
+  const name = escapeRegex(item.name);
+  if (item.domain === "brew") {
+    const keyword = BREW_KEYWORD[item.package as keyof typeof BREW_KEYWORD];
+    return new RegExp(`^\\s*${keyword}\\s+"${name}"`, "m").test(bundle);
+  }
+  if (item.domain === "bun") {
+    return new RegExp(`^\\s*${name}(@\\S+)?\\s*$`, "m").test(
+      await readOrEmpty(join(worktree, item.repoPath))
+    );
+  }
+  const defaults = JSON.parse((await readOrEmpty(join(worktree, item.repoPath))) || "{}") as {
+    packages?: unknown[];
+  };
+  return (defaults.packages ?? []).includes(item.name);
+}
+
 /**
  * Which reported items the agent's commits actually settle, read from the branch itself.
  * Items the user skipped are not covered, so they are asked about again next time.
@@ -47,22 +68,33 @@ export async function coveredItems<T extends AnyDriftItem>(
   const bundle = await readOrEmpty(join(worktree, "packages/bundle"));
   const covered: T[] = [];
   for (const item of items) {
-    if (item.domain === "brew") {
-      const name = item.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      if (new RegExp(`^\\s*${BREW_KEYWORD[item.package]}\\s+"${name}"`, "m").test(bundle)) covered.push(item);
-    } else if (await skillIsCovered(worktree, item)) {
+    if (
+      item.domain === "skill"
+        ? await skillIsCovered(worktree, item)
+        : await packageIsCovered(worktree, item, bundle)
+    ) {
       covered.push(item);
     }
   }
   return covered;
 }
 
-function bullet(item: AnyDriftItem): string {
+function packageBullet(item: PackageDriftItem): string {
   const name = `\`${item.name}\``;
-  if (item.domain === "brew") {
-    const caution = item.package === "cask" ? " Casks need admin rights to install." : "";
-    return `**Declare ${name} in the Brewfile.** It is installed with Homebrew on this Mac but missing from \`packages/bundle\`, so other machines would not get it.${caution}`;
+  const so = "so other machines would not get it.";
+  if (item.domain === "bun") {
+    return `**Declare ${name} as a global Bun package.** It is installed on this Mac but missing from \`packages/bun-global\`, ${so}`;
   }
+  if (item.domain === "pi") {
+    return `**Declare the Pi package ${name}.** It is installed in Pi on this Mac but missing from \`config/pi/settings.defaults.json\`, ${so}`;
+  }
+  const caution = item.package === "cask" ? " Casks need admin rights to install." : "";
+  return `**Declare ${name} in the Brewfile.** It is installed with Homebrew on this Mac but missing from \`packages/bundle\`, ${so}${caution}`;
+}
+
+function bullet(item: AnyDriftItem): string {
+  if (item.domain !== "skill") return packageBullet(item);
+  const name = `\`${item.name}\``;
   const pin = (item.globalLockEntry ? item.globalLockEntry.skillFolderHash : "").slice(0, 7);
   switch (item.kind) {
     case "added-locally":
@@ -95,7 +127,7 @@ Opened by \`dot reconcile\`, from differences between this Mac and the repo.
 
 ## Test plan
 
-- [ ] The diff only touches \`skills/\` and \`packages/bundle\`
+- [ ] The diff only touches \`skills/\`, \`packages/\` and \`config/pi/settings.defaults.json\`
 - [ ] After merging, \`dot\` on this Mac no longer reports ${covered.length === 1 ? "this item" : "these items"} as drift
 `;
   return { body, title };

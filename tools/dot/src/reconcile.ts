@@ -1,14 +1,19 @@
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { inspectBrewDrift } from "./brew-drift";
 import { readDeployRecord, stateDirectory, writeDeployRecord } from "./deploy-record";
+import { inspectPackageDrift } from "./package-drift";
 import type { ProcessRunner } from "./process";
 import { type AnyDriftItem, coveredItems, renderPullRequest } from "./reconcile-pr";
 import { inspectSkills } from "./skills";
 import type { Terminal } from "./terminal";
 
 /** The only paths a reconcile PR may touch. Anything else means the agent strayed. */
-export const WRITE_BACK_ALLOWLIST = ["skills/", "packages/bundle"] as const;
+export const WRITE_BACK_ALLOWLIST = [
+  "skills/",
+  "packages/bundle",
+  "packages/bun-global",
+  "config/pi/settings.defaults.json",
+] as const;
 
 interface ReconcileOptions {
   readonly checkoutRoot: string;
@@ -34,7 +39,7 @@ export async function buildDriftReport(options: Omit<ReconcileOptions, "terminal
   const home = requireHome(options.env);
   const { plan } = await inspectSkills({ ...options, home, network: true });
   const record = await readDeployRecord(options.env, home);
-  const drift: AnyDriftItem[] = [...plan.drift, ...(await inspectBrewDrift(options))];
+  const drift: AnyDriftItem[] = [...plan.drift, ...(await inspectPackageDrift({ ...options, home }))];
   return {
     checkout: options.checkoutRoot,
     generatedAt: (options.now ?? new Date()).toISOString(),
@@ -150,21 +155,29 @@ async function removeWorktree(
   await git(options, canonical, ["branch", "-D", branch], "failed to delete branch");
 }
 
+const UNDECLARED_SENTENCES = {
+  brew: "installed with Homebrew, not in your Brewfile",
+  bun: "installed globally with Bun, not in packages/bun-global",
+  pi: "installed in Pi, not in the tracked Pi settings",
+} as const;
+
 const KIND_SENTENCES: Readonly<Record<string, string>> = {
   "added-locally": "new skill on this Mac, not in the repo",
   conflict: "skill changed on this Mac and in the repo",
   "deleted-locally": "skill deleted on this Mac, still in the repo",
-  "installed-undeclared": "installed with Homebrew, not in your Brewfile",
   "modified-locally": "skill edited on this Mac",
   "vendored-added": "skill installed with the skills CLI, not in the repo",
   "vendored-updated": "skill updated on this Mac, repo has the old version",
 };
 
+function sentence(item: AnyDriftItem): string {
+  if (item.domain !== "skill") return UNDECLARED_SENTENCES[item.domain];
+  return KIND_SENTENCES[item.kind] ?? item.kind;
+}
+
 function describe(items: readonly AnyDriftItem[]): string {
   const width = Math.max(...items.map((item) => item.name.length));
-  return items
-    .map((item) => `  ${item.name.padEnd(width)}  ${KIND_SENTENCES[item.kind] ?? item.kind}`)
-    .join("\n");
+  return items.map((item) => `  ${item.name.padEnd(width)}  ${sentence(item)}`).join("\n");
 }
 
 export async function reconcile(options: ReconcileOptions): Promise<string> {

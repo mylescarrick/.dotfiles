@@ -133,10 +133,33 @@ function launchctl(options: ScheduleOptions, argv: [string, ...string[]]) {
   return options.processes.run({ argv, cwd: options.checkoutRoot, env: options.env });
 }
 
+export interface LaunchdState {
+  /** The exit code of the most recent finished run, when launchd has one. */
+  readonly lastExit?: number;
+  readonly loaded: boolean;
+  readonly running?: boolean;
+  readonly runs?: number;
+}
+
+/** Reads what launchd itself recorded about the job: whether it is running, how often it ran, how the last run ended. */
+export function parseLaunchdPrint(stdout: string): Omit<LaunchdState, "loaded"> {
+  const runs = stdout.match(/^\s*runs = (\d+)/m)?.[1];
+  const exit = stdout.match(/^\s*last exit code = (-?\d+)/m)?.[1];
+  const state = stdout.match(/^\s*state = ([a-z ]+)$/m)?.[1];
+  return {
+    lastExit: exit === undefined ? undefined : Number(exit),
+    running: state === undefined ? undefined : state === "running",
+    runs: runs === undefined ? undefined : Number(runs),
+  };
+}
+
+export async function launchdState(options: ScheduleOptions): Promise<LaunchdState> {
+  const result = await launchctl(options, ["launchctl", "print", `${domainFor()}/${OUTDATED_LABEL}`]);
+  return result.exitCode === 0 ? { loaded: true, ...parseLaunchdPrint(result.stdout) } : { loaded: false };
+}
+
 async function isLoaded(options: ScheduleOptions): Promise<boolean> {
-  return (
-    (await launchctl(options, ["launchctl", "print", `${domainFor()}/${OUTDATED_LABEL}`])).exitCode === 0
-  );
+  return (await launchdState(options)).loaded;
 }
 
 async function applicable(options: ScheduleOptions): Promise<boolean> {
@@ -234,36 +257,40 @@ export interface Freshness {
 }
 
 /**
- * Whether the job's results are recent enough to trust. A job that has just been installed has
- * no result yet (its first run is asynchronous), and a Mac that slept for days has not had a
- * chance to run it, so neither is a failure until it has been going wrong for a while.
+ * Whether the background job is doing its work. The clock alone cannot tell a sleeping Mac from
+ * a broken job, so this leans on what launchd recorded: a failed last run, or runs that wrote
+ * nothing, are real failures; a result that is merely old is only noted, since the job runs
+ * while the Mac is awake and a long sleep looks identical to a stall.
  */
-export function judgeFreshness(input: { checkedAt?: string; installedAt?: Date; now: Date }): Freshness {
+export function judgeFreshness(input: {
+  checkedAt?: string;
+  lastExit?: number;
+  now: Date;
+  running?: boolean;
+  runs?: number;
+}): Freshness {
+  const ran = (input.runs ?? 0) >= 1;
+  if (ran && input.lastExit !== undefined && input.lastExit !== 0) {
+    return {
+      level: "fail",
+      message: `the last background run failed (exit ${input.lastExit}); see outdated.log`,
+    };
+  }
   if (!input.checkedAt) {
-    const installedFor = input.installedAt
-      ? input.now.getTime() - input.installedAt.getTime()
-      : Number.POSITIVE_INFINITY;
-    return installedFor < DAY_MS
-      ? { level: "info", message: "background job is installed; its first result has not arrived yet" }
-      : {
+    if (input.running) return { level: "info", message: "background job is running its first check" };
+    return ran
+      ? {
           level: "fail",
-          message: "background job has been installed over a day with no result; check outdated.log",
-        };
+          message: `the background job has run ${input.runs} time(s) but wrote no result; see outdated.log`,
+        }
+      : { level: "info", message: "background job is installed and has not run yet" };
   }
   const days = (input.now.getTime() - Date.parse(input.checkedAt)) / DAY_MS;
-  if (days > 7) return { level: "fail", message: "background job has not produced a result in over a week" };
-  if (days > 2)
+  if (days > 2) {
     return {
       level: "info",
       message: `last background result is ${Math.floor(days)} days old; it refreshes while the Mac is awake`,
     };
+  }
   return { level: "ok", message: "background job is loaded and results are recent" };
-}
-
-/** When the job's file was last written, as the age of the installation. */
-export async function scheduleInstalledAt(options: ScheduleOptions): Promise<Date | undefined> {
-  return stat(plistPathFor(options)).then(
-    (metadata) => metadata.mtime,
-    () => undefined
-  );
 }

@@ -8,7 +8,7 @@ import { inspectPackages } from "./packages";
 import { inspectPiSettings, planPiSettings } from "./pi";
 import { inspectPiAuth } from "./pi-auth";
 import type { ProcessRunner } from "./process";
-import { inspectOutdatedSchedule, judgeFreshness, scheduleInstalledAt } from "./schedule";
+import { inspectOutdatedSchedule, judgeFreshness, launchdState } from "./schedule";
 import { inspectSkills } from "./skills";
 
 export interface DiagnosticReport {
@@ -194,10 +194,13 @@ async function checkOutdatedSchedule(options: DoctorOptions, home: string, log: 
       return;
     }
     const report = await readOutdated(options.env, home);
+    const { lastExit, running, runs } = await launchdState(control);
     const verdict = judgeFreshness({
       checkedAt: report?.checkedAt,
-      installedAt: await scheduleInstalledAt(control),
+      lastExit,
       now: new Date(),
+      running,
+      runs,
     });
     if (verdict.level === "ok") log.ok("outdated-check", verdict.message);
     else if (verdict.level === "info") log.info(`outdated-check: ${verdict.message}`);

@@ -10,6 +10,7 @@ import {
   ensureOutdatedSchedule,
   inspectOutdatedSchedule,
   judgeFreshness,
+  launchdState,
 } from "../src/schedule";
 
 const temporaryDirectories: string[] = [];
@@ -24,7 +25,10 @@ afterEach(async () => {
  */
 class FakeLaunchd implements ProcessRunner {
   failBootout = false as boolean;
+  lastExit = "0" as string;
   loaded = false as boolean;
+  running = false as boolean;
+  runs = 1;
   readonly calls: string[] = [];
   private readonly domain = `gui/${process.getuid?.() ?? 0}`;
 
@@ -43,7 +47,12 @@ class FakeLaunchd implements ProcessRunner {
       else if (this.loaded) exitCode = 5;
       else this.loaded = true;
     }
-    return Promise.resolve({ exitCode, stderr: exitCode ? "launchctl: refused" : "", stdout: "" });
+    // The same top-level lines real `launchctl print` shows (state first, nested "active" states after).
+    const stdout =
+      verb === "print" && exitCode === 0
+        ? `${service} = {\n\tstate = ${this.running ? "running" : "not running"}\n\truns = ${this.runs}\n\tlast exit code = ${this.lastExit}\n\t\tstate = active\n}\n`
+        : "";
+    return Promise.resolve({ exitCode, stderr: exitCode ? "launchctl: refused" : "", stdout });
   }
 }
 
@@ -167,23 +176,43 @@ describe("recovering from half-finished states", () => {
   });
 });
 
-describe("judging whether results are recent enough to trust", () => {
+describe("reading what launchd recorded", () => {
+  test("takes the top-level state, run count and last exit code from launchctl print", async () => {
+    const { launchd, options } = await fixture();
+    await ensureOutdatedSchedule(options);
+    launchd.runs = 4;
+    launchd.lastExit = "78";
+
+    expect(await launchdState(options)).toEqual({ lastExit: 78, loaded: true, running: false, runs: 4 });
+
+    launchd.running = true;
+    launchd.lastExit = "(never exited)";
+    expect(await launchdState(options)).toMatchObject({ lastExit: undefined, running: true });
+  });
+});
+
+describe("judging whether the background job is doing its work", () => {
   const now = new Date("2026-11-02T12:00:00.000Z");
-  const ago = (hours: number) => new Date(now.getTime() - hours * 3_600_000);
+  const ago = (hours: number) => new Date(now.getTime() - hours * 3_600_000).toISOString();
 
-  test("a job installed minutes ago has no result yet, and that is not a failure", () => {
-    expect(judgeFreshness({ installedAt: ago(0.1), now }).level).toBe("info");
+  test("a job that is running its first check, or has not run yet, is not a failure", () => {
+    expect(judgeFreshness({ now, running: true, runs: 1 }).level).toBe("info");
+    expect(judgeFreshness({ now, runs: 0 }).level).toBe("info");
+    expect(judgeFreshness({ now }).level).toBe("info");
   });
 
-  test("no result a day after installing, or no record of installing at all, is a failure", () => {
-    expect(judgeFreshness({ installedAt: ago(30), now }).level).toBe("fail");
-    expect(judgeFreshness({ now }).level).toBe("fail");
+  test("runs that wrote nothing, or a last run that failed, are failures", () => {
+    expect(judgeFreshness({ lastExit: 0, now, runs: 3 })).toMatchObject({ level: "fail" });
+    expect(judgeFreshness({ checkedAt: ago(1), lastExit: 127, now, runs: 3 })).toMatchObject({
+      level: "fail",
+      message: "the last background run failed (exit 127); see outdated.log",
+    });
   });
 
-  test("results are fine for two days, noted until a week, and a failure after that", () => {
-    expect(judgeFreshness({ checkedAt: ago(24).toISOString(), now }).level).toBe("ok");
-    expect(judgeFreshness({ checkedAt: ago(72).toISOString(), now }).level).toBe("info");
-    expect(judgeFreshness({ checkedAt: ago(24 * 8).toISOString(), now }).level).toBe("fail");
+  test("an old result after a clean last run is only noted, however long the Mac slept", () => {
+    expect(judgeFreshness({ checkedAt: ago(24), lastExit: 0, now, runs: 9 }).level).toBe("ok");
+    expect(judgeFreshness({ checkedAt: ago(72), lastExit: 0, now, runs: 9 }).level).toBe("info");
+    expect(judgeFreshness({ checkedAt: ago(24 * 30), lastExit: 0, now, runs: 9 }).level).toBe("info");
   });
 });
 

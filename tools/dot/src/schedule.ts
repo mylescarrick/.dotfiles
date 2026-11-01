@@ -17,6 +17,8 @@ export function renderOutdatedPlist(options: {
   readonly checkoutRoot: string;
   readonly home: string;
   readonly logPath: string;
+  /** The state directory in force when this was installed; the job must write where doctor reads. */
+  readonly stateHome?: string;
 }): string {
   const path = [
     join(options.home, ".bun/bin"),
@@ -46,7 +48,13 @@ export function renderOutdatedPlist(options: {
     <key>HOME</key>
     ${text(options.home)}
     <key>PATH</key>
-    ${text(path)}
+    ${text(path)}${
+      options.stateHome
+        ? `
+    <key>XDG_STATE_HOME</key>
+    ${text(options.stateHome)}`
+        : ""
+    }
   </dict>
   <key>StartInterval</key>
   <integer>${INTERVAL_SECONDS}</integer>
@@ -77,6 +85,7 @@ interface ScheduleOptions {
 
 export type ScheduleStatus =
   | "current"
+  | "disable-incomplete"
   | "disabled"
   | "file-differs"
   | "missing"
@@ -92,6 +101,13 @@ async function isLoginHome(home: string, loginHome: string): Promise<boolean> {
   return actual === login;
 }
 
+async function exists(path: string): Promise<boolean> {
+  return stat(path).then(
+    () => true,
+    () => false
+  );
+}
+
 function disabledMarker(options: ScheduleOptions): string {
   return join(stateDirectory(options.env, options.home), "outdated.disabled");
 }
@@ -105,6 +121,7 @@ function desiredPlist(options: ScheduleOptions): string {
     checkoutRoot: options.checkoutRoot,
     home: options.home,
     logPath: join(stateDirectory(options.env, options.home), "outdated.log"),
+    stateHome: options.env.XDG_STATE_HOME || undefined,
   });
 }
 
@@ -131,43 +148,52 @@ async function applicable(options: ScheduleOptions): Promise<boolean> {
 
 /** One answer to "is the background job right?", shared by apply and doctor so they cannot disagree. */
 export async function inspectOutdatedSchedule(options: ScheduleOptions): Promise<ScheduleStatus> {
+  if (!(await applicable(options))) return "not-applicable";
   if (
     await stat(disabledMarker(options)).then(
       () => true,
       () => false
     )
-  )
-    return "disabled";
-  if (!(await applicable(options))) return "not-applicable";
+  ) {
+    // The marker says off; a file or a loaded job that outlived it means turning it off did not finish.
+    const lingering = (await exists(plistPathFor(options))) || (await isLoaded(options));
+    return lingering ? "disable-incomplete" : "disabled";
+  }
   const current = await readFile(plistPathFor(options), "utf8").catch(() => undefined);
-  if (current === undefined) return "missing";
+  if (current === undefined) return (await isLoaded(options)) ? "file-differs" : "missing";
   if (current !== desiredPlist(options)) return "file-differs";
   return (await isLoaded(options)) ? "current" : "not-loaded";
+}
+
+/** Unloads the job if launchd has it, and fails loudly if it is still there afterwards. */
+async function unload(options: ScheduleOptions): Promise<void> {
+  if (!(await isLoaded(options))) return;
+  const result = await launchctl(options, ["launchctl", "bootout", `${domainFor()}/${OUTDATED_LABEL}`]);
+  // bootout can report an error for a job that is in fact gone, so the check is whether it is still loaded.
+  if (result.exitCode !== 0 && (await isLoaded(options))) {
+    throw new Error(`launchctl bootout failed and the job is still running: ${result.stderr.trim()}`);
+  }
 }
 
 async function removeSchedule(options: ScheduleOptions): Promise<boolean> {
   if (!(await applicable(options))) return false;
   const plistPath = plistPathFor(options);
-  const present = await stat(plistPath).then(
-    () => true,
-    () => false
-  );
-  const loaded = await isLoaded(options);
-  if (loaded) await launchctl(options, ["launchctl", "bootout", `${domainFor()}/${OUTDATED_LABEL}`]);
+  const present = await exists(plistPath);
+  const wasLoaded = await isLoaded(options);
+  await unload(options);
   await rm(plistPath, { force: true });
-  return present || loaded;
+  return present || wasLoaded;
 }
 
 async function install(options: ScheduleOptions, status: ScheduleStatus): Promise<void> {
   const plistPath = plistPathFor(options);
   await mkdir(dirname(plistPath), { recursive: true });
   await mkdir(stateDirectory(options.env, options.home), { recursive: true });
+  // Unload first, always: a job registered from an old or deleted file would otherwise make
+  // bootstrap fail, or leave the old definition running behind a new file.
+  await unload(options);
   if (status === "missing" || status === "file-differs")
     await replaceFileAtomic(plistPath, desiredPlist(options));
-  // A job loaded from an old file must be unloaded first, or launchd keeps the old definition.
-  if (status === "file-differs" && (await isLoaded(options))) {
-    await launchctl(options, ["launchctl", "bootout", `${domainFor()}/${OUTDATED_LABEL}`]);
-  }
   const boot = await launchctl(options, ["launchctl", "bootstrap", domainFor(), plistPath]);
   if (boot.exitCode !== 0) throw new Error(`launchctl bootstrap failed: ${boot.stderr.trim()}`);
 }
@@ -175,9 +201,11 @@ async function install(options: ScheduleOptions, status: ScheduleStatus): Promis
 export async function ensureOutdatedSchedule(options: ScheduleOptions): Promise<string> {
   const status = await inspectOutdatedSchedule(options);
   if (status === "not-applicable") return "";
-  if (status === "disabled") {
+  if (status === "disabled") return "";
+  if (status === "disable-incomplete") {
     // Turning it off must stick even if the file or job outlived the marker.
-    return (await removeSchedule(options)) ? "Background outdated check removed (disabled)\n" : "";
+    await removeSchedule(options);
+    return "Background outdated check removed (disabled)\n";
   }
   if (status === "current") return "Background outdated check already scheduled\n";
   await install(options, status);
@@ -196,4 +224,46 @@ export async function enableOutdatedSchedule(options: ScheduleOptions): Promise<
   await rm(disabledMarker(options), { force: true });
   const message = await ensureOutdatedSchedule(options);
   return message || "Background outdated check enabled (nothing to schedule on this machine).\n";
+}
+
+const DAY_MS = 86_400_000;
+
+export interface Freshness {
+  readonly level: "fail" | "info" | "ok";
+  readonly message: string;
+}
+
+/**
+ * Whether the job's results are recent enough to trust. A job that has just been installed has
+ * no result yet (its first run is asynchronous), and a Mac that slept for days has not had a
+ * chance to run it, so neither is a failure until it has been going wrong for a while.
+ */
+export function judgeFreshness(input: { checkedAt?: string; installedAt?: Date; now: Date }): Freshness {
+  if (!input.checkedAt) {
+    const installedFor = input.installedAt
+      ? input.now.getTime() - input.installedAt.getTime()
+      : Number.POSITIVE_INFINITY;
+    return installedFor < DAY_MS
+      ? { level: "info", message: "background job is installed; its first result has not arrived yet" }
+      : {
+          level: "fail",
+          message: "background job has been installed over a day with no result; check outdated.log",
+        };
+  }
+  const days = (input.now.getTime() - Date.parse(input.checkedAt)) / DAY_MS;
+  if (days > 7) return { level: "fail", message: "background job has not produced a result in over a week" };
+  if (days > 2)
+    return {
+      level: "info",
+      message: `last background result is ${Math.floor(days)} days old; it refreshes while the Mac is awake`,
+    };
+  return { level: "ok", message: "background job is loaded and results are recent" };
+}
+
+/** When the job's file was last written, as the age of the installation. */
+export async function scheduleInstalledAt(options: ScheduleOptions): Promise<Date | undefined> {
+  return stat(plistPathFor(options)).then(
+    (metadata) => metadata.mtime,
+    () => undefined
+  );
 }

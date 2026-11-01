@@ -8,7 +8,7 @@ import { inspectPackages } from "./packages";
 import { inspectPiSettings, planPiSettings } from "./pi";
 import { inspectPiAuth } from "./pi-auth";
 import type { ProcessRunner } from "./process";
-import { inspectOutdatedSchedule } from "./schedule";
+import { inspectOutdatedSchedule, judgeFreshness, scheduleInstalledAt } from "./schedule";
 import { inspectSkills } from "./skills";
 
 export interface DiagnosticReport {
@@ -173,6 +173,8 @@ async function checkSkills(options: DoctorOptions, home: string, log: DoctorLog)
 }
 
 const SCHEDULE_FAILURES = {
+  "disable-incomplete":
+    "the background outdated job is switched off but still installed or running; run 'dot apply'",
   "file-differs": "the background outdated job's file is out of date; run 'dot apply'",
   missing: "the background outdated job is not installed; run 'dot apply'",
   "not-loaded": "the background outdated job is installed but not loaded; run 'dot apply'",
@@ -180,7 +182,8 @@ const SCHEDULE_FAILURES = {
 
 async function checkOutdatedSchedule(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
   await log.guard("outdated-check", async () => {
-    const status = await inspectOutdatedSchedule({ ...options, home });
+    const control = { ...options, home };
+    const status = await inspectOutdatedSchedule(control);
     if (status === "not-applicable") return;
     if (status === "disabled") {
       log.info("outdated-check: background job is disabled ('dot outdated --enable' turns it on)");
@@ -191,10 +194,14 @@ async function checkOutdatedSchedule(options: DoctorOptions, home: string, log: 
       return;
     }
     const report = await readOutdated(options.env, home);
-    const days = report ? (Date.now() - Date.parse(report.checkedAt)) / 86_400_000 : Number.POSITIVE_INFINITY;
-    if (days > 2)
-      log.fail("outdated-check", "the background job is loaded but has not produced a result in 2 days");
-    else log.ok("outdated-check", "background job is loaded and results are recent");
+    const verdict = judgeFreshness({
+      checkedAt: report?.checkedAt,
+      installedAt: await scheduleInstalledAt(control),
+      now: new Date(),
+    });
+    if (verdict.level === "ok") log.ok("outdated-check", verdict.message);
+    else if (verdict.level === "info") log.info(`outdated-check: ${verdict.message}`);
+    else log.fail("outdated-check", verdict.message);
   });
 }
 

@@ -9,6 +9,7 @@ import {
   enableOutdatedSchedule,
   ensureOutdatedSchedule,
   inspectOutdatedSchedule,
+  judgeFreshness,
 } from "../src/schedule";
 
 const temporaryDirectories: string[] = [];
@@ -17,18 +18,32 @@ afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })));
 });
 
-/** A launchd that only remembers whether the job is loaded, and what it was asked to do. */
+/**
+ * A launchd that is as strict as the real one about what the tests could get wrong: it checks
+ * the service target, rejects registering a job that is already loaded, and can refuse to unload.
+ */
 class FakeLaunchd implements ProcessRunner {
-  loaded = false;
+  failBootout = false as boolean;
+  loaded = false as boolean;
   readonly calls: string[] = [];
+  private readonly domain = `gui/${process.getuid?.() ?? 0}`;
 
   run(request: ProcessRequest) {
-    const [, verb] = request.argv;
+    const [, verb, target] = request.argv;
     this.calls.push(verb as string);
-    if (verb === "bootstrap") this.loaded = true;
-    if (verb === "bootout") this.loaded = false;
-    const ok = verb !== "print" || this.loaded;
-    return Promise.resolve({ exitCode: ok ? 0 : 1, stderr: "", stdout: "" });
+    const service = `${this.domain}/dev.dotfiles.outdated`;
+    let exitCode = 0;
+    if (verb === "print") exitCode = target === service && this.loaded ? 0 : 113;
+    else if (verb === "bootout") {
+      if (target !== service) exitCode = 113;
+      else if (this.failBootout) exitCode = 5;
+      else this.loaded = false;
+    } else if (verb === "bootstrap") {
+      if (target !== this.domain) exitCode = 125;
+      else if (this.loaded) exitCode = 5;
+      else this.loaded = true;
+    }
+    return Promise.resolve({ exitCode, stderr: exitCode ? "launchctl: refused" : "", stdout: "" });
   }
 }
 
@@ -63,7 +78,12 @@ describe("background outdated job state", () => {
     expect(await ensureOutdatedSchedule(options)).toBe(
       "Background outdated check scheduled (every 6 hours)\n"
     );
-    expect(await readFile(plist, "utf8")).toContain("<string>--refresh</string>");
+    const written = await readFile(plist, "utf8");
+    expect(written).toContain("<string>--refresh</string>");
+    // The job must write where doctor reads, even when the shell sets a custom state directory.
+    expect(written).toContain(
+      `<key>XDG_STATE_HOME</key>\n    <string>${options.env.XDG_STATE_HOME}</string>`
+    );
     expect(launchd.calls.filter((verb) => verb === "bootstrap")).toHaveLength(1);
 
     expect(await inspectOutdatedSchedule(options)).toBe("current");
@@ -98,6 +118,75 @@ describe("background outdated job state", () => {
   });
 });
 
+describe("recovering from half-finished states", () => {
+  test("a job still loaded after its file was deleted is unloaded before it is installed again", async () => {
+    const { launchd, options, plist } = await fixture();
+    await ensureOutdatedSchedule(options);
+    await rm(plist);
+    launchd.calls.length = 0;
+
+    expect(await inspectOutdatedSchedule(options)).toBe("file-differs");
+    await ensureOutdatedSchedule(options);
+
+    expect(launchd.calls.indexOf("bootout")).toBeGreaterThanOrEqual(0);
+    expect(launchd.calls.indexOf("bootout")).toBeLessThan(launchd.calls.indexOf("bootstrap"));
+    expect(await readFile(plist, "utf8")).toContain("dev.dotfiles.outdated");
+    expect(await inspectOutdatedSchedule(options)).toBe("current");
+  });
+
+  test("an unload that fails is reported and leaves the old file alone, so the install can be retried", async () => {
+    const { launchd, options, plist } = await fixture();
+    await ensureOutdatedSchedule(options);
+    await writeFile(plist, "<plist>old</plist>\n");
+    launchd.failBootout = true;
+
+    await expect(ensureOutdatedSchedule(options)).rejects.toThrow(
+      "bootout failed and the job is still running"
+    );
+    expect(await readFile(plist, "utf8")).toBe("<plist>old</plist>\n");
+
+    launchd.failBootout = false;
+    await ensureOutdatedSchedule(options);
+    expect(await inspectOutdatedSchedule(options)).toBe("current");
+  });
+
+  test("disabling while launchd refuses to unload is not reported as done, and stays visible until apply fixes it", async () => {
+    const { launchd, marker, options, plist } = await fixture();
+    await ensureOutdatedSchedule(options);
+    launchd.failBootout = true;
+
+    await expect(disableOutdatedSchedule(options)).rejects.toThrow("still running");
+    expect(await exists(marker)).toBe(true);
+    expect(await exists(plist)).toBe(true);
+    expect(await inspectOutdatedSchedule(options)).toBe("disable-incomplete");
+
+    launchd.failBootout = false;
+    expect(await ensureOutdatedSchedule(options)).toContain("removed (disabled)");
+    expect(await inspectOutdatedSchedule(options)).toBe("disabled");
+    expect(launchd.loaded).toBe(false);
+  });
+});
+
+describe("judging whether results are recent enough to trust", () => {
+  const now = new Date("2026-11-02T12:00:00.000Z");
+  const ago = (hours: number) => new Date(now.getTime() - hours * 3_600_000);
+
+  test("a job installed minutes ago has no result yet, and that is not a failure", () => {
+    expect(judgeFreshness({ installedAt: ago(0.1), now }).level).toBe("info");
+  });
+
+  test("no result a day after installing, or no record of installing at all, is a failure", () => {
+    expect(judgeFreshness({ installedAt: ago(30), now }).level).toBe("fail");
+    expect(judgeFreshness({ now }).level).toBe("fail");
+  });
+
+  test("results are fine for two days, noted until a week, and a failure after that", () => {
+    expect(judgeFreshness({ checkedAt: ago(24).toISOString(), now }).level).toBe("ok");
+    expect(judgeFreshness({ checkedAt: ago(72).toISOString(), now }).level).toBe("info");
+    expect(judgeFreshness({ checkedAt: ago(24 * 8).toISOString(), now }).level).toBe("fail");
+  });
+});
+
 describe("turning the background job off and on", () => {
   test("disable removes the job and apply keeps it off; enable brings it back", async () => {
     const { launchd, marker, options, plist } = await fixture();
@@ -129,7 +218,7 @@ describe("turning the background job off and on", () => {
     expect(launchd.loaded).toBe(false);
   });
 
-  test("on a machine that is not the login account, disable only records the choice", async () => {
+  test("on a machine that is not the login account, disable only records the choice and nothing is reported", async () => {
     const { home, launchd, marker, options } = await fixture();
     const sandboxed = { ...options, loginHome: join(home, "someone-else") };
 
@@ -138,7 +227,7 @@ describe("turning the background job off and on", () => {
     );
     expect(await exists(marker)).toBe(true);
     expect(launchd.calls).toEqual([]);
-    expect(await inspectOutdatedSchedule(sandboxed)).toBe("disabled");
+    expect(await inspectOutdatedSchedule(sandboxed)).toBe("not-applicable");
   });
 
   test("the command exposes both switches and rejects anything else", async () => {

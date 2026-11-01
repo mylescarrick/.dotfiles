@@ -6,13 +6,14 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  realpath,
   rm,
   stat,
   symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { readDeployRecord } from "../src/deploy-record";
 import { deployHome, inspectHome, restoreFile } from "../src/home-deploy";
 import { bunProcessRunner } from "../src/process";
@@ -188,6 +189,48 @@ describe("first-run migration from stow", () => {
     expect((await lstat(moved)).isSymbolicLink()).toBe(false);
     expect(await readFile(moved, "utf8")).toBe("export TOKEN=x\n");
     expect(await exists(join(checkout, "home/.oh-my-zsh/custom/secrets.zsh"))).toBe(false);
+  });
+
+  test("a dead link inside ~/.pi/node_modules is cleaned up without stopping the migration, and dependency trees are not walked", async () => {
+    const { checkout, home, options } = await fixture();
+    await write(join(checkout, "home/.pi/node_modules/pkg/index.js"), "x\n");
+    await mkdir(join(home, ".pi/node_modules"), { recursive: true });
+    const dead = join(home, ".pi/node_modules/dead");
+    const inTree = join(home, ".pi/node_modules/pkg");
+    await symlink(join(checkout, "home/.pi/agent/extensions/gone"), dead);
+    await symlink(join(checkout, "home/.pi/node_modules/pkg"), inTree);
+
+    await deploy(options);
+
+    expect(await exists(dead)).toBe(false);
+    expect((await lstat(inTree)).isSymbolicLink()).toBe(true);
+    expect(await exists(join(checkout, "home/.pi/node_modules/pkg/index.js"))).toBe(true);
+  });
+
+  test("re-points bun workspace links into the checkout at the copies in ~", async () => {
+    const { checkout, home, options } = await fixture({
+      ".pi/agent/extensions/other/index.ts": "export {}\n",
+      ".pi/agent/extensions/save-md/index.ts": "export {}\n",
+    });
+    await mkdir(join(home, ".pi/node_modules/@scope"), { recursive: true });
+    const plain = join(home, ".pi/node_modules/pi-save-md");
+    const scoped = join(home, ".pi/node_modules/@scope/other");
+    const missing = join(home, ".pi/node_modules/not-copied");
+    const debris = join(home, ".pi/node_modules/long-gone");
+    await write(join(checkout, "home/.pi/agent/extensions/only-in-checkout/index.ts"), "x\n");
+    const into = (rel: string) => relative(join(plain, ".."), join(checkout, "home", rel));
+    await symlink(into(".pi/agent/extensions/save-md"), plain);
+    await symlink(relative(join(scoped, ".."), join(checkout, "home/.pi/agent/extensions/other")), scoped);
+    await symlink(into(".pi/agent/extensions/only-in-checkout"), missing);
+    await symlink(into(".pi/agent/extensions/absent"), debris);
+
+    await deploy(options);
+
+    expect(await realpath(plain)).toBe(await realpath(join(home, ".pi/agent/extensions/save-md")));
+    expect(await realpath(scoped)).toBe(await realpath(join(home, ".pi/agent/extensions/other")));
+    expect(await readFile(join(plain, "index.ts"), "utf8")).toBe("export {}\n");
+    expect((await lstat(missing)).isSymbolicLink()).toBe(true);
+    expect(await exists(debris)).toBe(false);
   });
 
   test("refuses to write through a link that leaves the checkout", async () => {

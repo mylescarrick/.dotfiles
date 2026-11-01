@@ -1,5 +1,10 @@
 {
   "mcpServers": {
+    "cloudflare": {
+      "url": "https://mcp.cloudflare.com/mcp",
+      "description": "Cloudflare API (Workers, R2, Zero Trust, DNS and more) plus Cloudflare developer docs",
+      "exposure": "deferred"
+    },
     "atlassian": {
       "url": "https://mcp.atlassian.com/v1/mcp/authv2",
       "description": "Search and manage Jira issues and Confluence pages",

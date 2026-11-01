@@ -201,6 +201,12 @@ describe("judging whether the background job is doing its work", () => {
     expect(judgeFreshness({ now }).level).toBe("info");
   });
 
+  test("a run in progress is not counted as a finished run, so only a finished empty run fails", () => {
+    expect(judgeFreshness({ now, running: true, runs: 1 }).level).toBe("info");
+    expect(judgeFreshness({ lastExit: 0, now, running: true, runs: 2 })).toMatchObject({ level: "fail" });
+    expect(judgeFreshness({ lastExit: 0, now, runs: 1 })).toMatchObject({ level: "fail" });
+  });
+
   test("runs that wrote nothing, or a last run that failed, are failures", () => {
     expect(judgeFreshness({ lastExit: 0, now, runs: 3 })).toMatchObject({ level: "fail" });
     expect(judgeFreshness({ checkedAt: ago(1), lastExit: 127, now, runs: 3 })).toMatchObject({

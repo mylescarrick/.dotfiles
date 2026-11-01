@@ -269,7 +269,10 @@ export function judgeFreshness(input: {
   running?: boolean;
   runs?: number;
 }): Freshness {
-  const ran = (input.runs ?? 0) >= 1;
+  // A run still in progress has not finished, so it is not evidence of anything yet. If launchd
+  // counts it, subtracting it is right; if not, this errs towards fewer false alarms.
+  const completed = Math.max(0, (input.runs ?? 0) - (input.running ? 1 : 0));
+  const ran = completed >= 1;
   if (ran && input.lastExit !== undefined && input.lastExit !== 0) {
     return {
       level: "fail",
@@ -277,12 +280,14 @@ export function judgeFreshness(input: {
     };
   }
   if (!input.checkedAt) {
-    if (input.running) return { level: "info", message: "background job is running its first check" };
-    return ran
-      ? {
-          level: "fail",
-          message: `the background job has run ${input.runs} time(s) but wrote no result; see outdated.log`,
-        }
+    if (ran) {
+      return {
+        level: "fail",
+        message: `the background job has finished ${completed} run(s) but wrote no result; see outdated.log`,
+      };
+    }
+    return input.running
+      ? { level: "info", message: "background job is running its first check" }
       : { level: "info", message: "background job is installed and has not run yet" };
   }
   const days = (input.now.getTime() - Date.parse(input.checkedAt)) / DAY_MS;

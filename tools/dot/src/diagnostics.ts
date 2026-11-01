@@ -193,8 +193,10 @@ async function checkOutdatedSchedule(options: DoctorOptions, home: string, log: 
       log.fail("outdated-check", SCHEDULE_FAILURES[status]);
       return;
     }
-    const report = await readOutdated(options.env, home);
+    // Ask launchd first: if the job finishes between the two reads, the result file is then
+    // there to be found, rather than judged missing by a snapshot that predates it.
     const { lastExit, running, runs } = await launchdState(control);
+    const report = await readOutdated(options.env, home);
     const verdict = judgeFreshness({
       checkedAt: report?.checkedAt,
       lastExit,
@@ -202,6 +204,8 @@ async function checkOutdatedSchedule(options: DoctorOptions, home: string, log: 
       running,
       runs,
     });
+    // The job exits 0 even when one source (brew while offline, say) could not be checked.
+    for (const problem of report?.errors ?? []) log.info(`outdated-check: could not check ${problem}`);
     if (verdict.level === "ok") log.ok("outdated-check", verdict.message);
     else if (verdict.level === "info") log.info(`outdated-check: ${verdict.message}`);
     else log.fail("outdated-check", verdict.message);

@@ -178,6 +178,56 @@ describe("dot reconcile", () => {
     expect(again).not.toContain("typst");
   });
 
+  test.each([
+    {
+      expected: "pushed reconcile/",
+      misbehave: (cwd: string) => {
+        const branch = run(["git", "branch", "--show-current"], cwd);
+        run(["git", "push", "-q", "origin", `HEAD:refs/heads/${branch}`], cwd);
+      },
+      name: "pushing the branch itself",
+    },
+    {
+      expected: "moved main",
+      misbehave: (cwd: string) => {
+        run(["git", "update-ref", "refs/heads/main", run(["git", "rev-parse", "HEAD"], cwd)], cwd);
+      },
+      name: "moving main",
+    },
+  ])("stops, and pushes nothing, when the agent is caught $name", async ({ misbehave, expected }) => {
+    const { checkout, env } = await fixture();
+    const act = (cwd: string) => {
+      run(["sh", "-c", "mkdir -p skills/local/gamma && echo x > skills/local/gamma/SKILL.md"], cwd);
+      run(["git", "add", "."], cwd);
+      run([...commit, "chore(skills): add gamma"], cwd);
+      misbehave(cwd);
+    };
+    const calls: string[] = [];
+
+    await expect(
+      reconcile({ checkoutRoot: checkout, env, processes: runner(act, calls), terminal: terminal(["y"]) })
+    ).rejects.toThrow(expected);
+    expect(calls).not.toContain("gh");
+  });
+
+  test("starts the agent with the guard switched on", async () => {
+    const { checkout, env } = await fixture();
+    let seen: string | undefined;
+    const processes: ProcessRunner = {
+      run(request) {
+        if (request.argv[0] === "pi") {
+          seen = request.env.DOT_RECONCILE;
+          return Promise.resolve({ exitCode: 0, stderr: "", stdout: "" });
+        }
+        return bunProcessRunner.run(request);
+      },
+    };
+
+    await reconcile({ checkoutRoot: checkout, env, processes, terminal: terminal(["y"]) });
+
+    expect(seen).toBe("1");
+  });
+
   test("refuses to push commits outside the allowlist", async () => {
     const { checkout, env, origin } = await fixture();
     const calls: string[] = [];

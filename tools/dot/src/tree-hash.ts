@@ -1,5 +1,5 @@
 import { createHash, type Hash } from "node:crypto";
-import { lstat, readdir, readFile, readlink } from "node:fs/promises";
+import { lstat, readdir, readFile, readlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 export type Observed =
@@ -41,6 +41,16 @@ export async function hashDirectory(root: string): Promise<string> {
     }
   }
   await visit(root, "");
+  return `sha256:${hash.digest("hex")}`;
+}
+
+/** Hash of one file by content and executable bit, in the same form hashDirectory produces. */
+export async function hashFile(path: string): Promise<string> {
+  // stat, not lstat: through a link this is the target's mode, which is what a copy would carry.
+  const executable = ((await stat(path)).mode & 0o111) !== 0;
+  const hash = createHash("sha256");
+  hash.update(`${executable ? "x" : "-"}\0`);
+  hash.update(await readFile(path));
   return `sha256:${hash.digest("hex")}`;
 }
 

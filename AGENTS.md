@@ -1,6 +1,6 @@
 # DOTFILES
 
-macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
+macOS dev env via copy-deploy (`dot`). Zsh (oh-my-zsh) + Git + pi.
 
 ## STRUCTURE
 
@@ -8,18 +8,18 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 .dotfiles/
 ├── dot                 # POSIX launcher: bootstrap/update prelude → Bun CLI
 ├── tools/dot/           # Bun/TypeScript application and tests
-├── home/.config/       # Stowed to ~/.config/
+├── home/.config/       # Copied to ~/.config/
 │   ├── git/            # Conditional work config
 │   ├── ghostty/        # Terminal
 │   ├── starship.toml   # Prompt (2s timeout for Vite+)
 │   └── ripgrep/        # rg config
-├── home/.zshrc, .zprofile  # Stowed to ~
-├── home/.oh-my-zsh/custom/ # Custom zsh functions/aliases (stowed into ~/.oh-my-zsh/custom/)
+├── home/.zshrc, .zprofile  # Copied to ~
+├── home/.oh-my-zsh/custom/ # Custom zsh functions/aliases (copied into ~/.oh-my-zsh/custom/)
 ├── .agents/skills/     # Repo-local skills for maintaining this checkout only
 ├── .pi/                # Repo-local Pi resources for this checkout only
 ├── home/.pi/           # Pi agent workspace (AGENTS.md)
 │   ├── agent/extensions/ # TypeScript extensions
-├── skills/             # Shared skills, copied (not stowed) to ~/.agents/skills/
+├── skills/             # Shared skills, copied to ~/.agents/skills/
 │   ├── lock.json       # Vendored: pinned git tree hashes, contents fetched
 │   ├── external.json   # Installed by other tools; linked only
 │   └── local/<name>/   # Hand-authored
@@ -50,19 +50,19 @@ macOS dev env via GNU Stow. Zsh (oh-my-zsh) + Git + pi.
 
 ## CONVENTIONS
 
-- Stow layout: `home/` mirrors `~`, stow creates symlinks
+- Copy layout: `home/` mirrors `~`; `dot` copies each tracked file (nothing in `~` links into the checkout) and records a hash per file, so an edit made in `~` shows up as drift and `dot reconcile` absorbs it into a PR. Design: `docs/design/copy-deploy-and-reconcile.md`
 - Zsh: oh-my-zsh; custom functions/aliases live in `home/.oh-my-zsh/custom/*.zsh`, loaded after plugins — check plugin aliases/functions before adding new ones (oh-my-zsh's `git` plugin already covers most git shorthand: `git_main_branch`, `git_current_branch`, `gbda`/`gbds`, `grename`, `gdv`, etc.)
 - Agent skills: sources live in `skills/` (`local/` hand-authored, `lock.json` vendored by git tree hash, `external.json` installed by other tools). `dot apply` **copies** them into `~/.agents/skills/` and gives Pi and Claude Code relative links, matching the `skills` CLI layout — nothing in `~` links into the checkout, so tool writes never dirty `main`. Change skills in `~` (raw `bunx skills add -g … -a pi claude-code` / `skills update -g` are fine now) and run `dot reconcile` to absorb the drift into a PR. Never edit vendored content; it changes only via `skills/lock.json`. Pi-only skills live under `home/.pi/packages/*/skills/`, not shared `~/.agents/skills/`. Design: `docs/design/copy-deploy-and-reconcile.md`
-- Repo-local agent resources: maintenance guidance/tools that only make sense while editing this checkout live at repo root (`.agents/skills/<name>/SKILL.md`, `.pi/skills/<name>/SKILL.md`, `.pi/extensions/<name>/index.ts`). Do not put repo-maintenance-only resources under `home/`; canonical `dot apply` publishes `home/*` resources to real `~` paths.
+- Repo-local agent resources: maintenance guidance/tools that only make sense while editing this checkout live at repo root (`.agents/skills/<name>/SKILL.md`, `.pi/skills/<name>/SKILL.md`, `.pi/extensions/<name>/index.ts`). Do not put repo-maintenance-only resources under `home/`; canonical `dot apply` copies `home/*` resources to real `~` paths.
 - Pi extensions/packages: TypeScript, npm workspaces under `home/.pi/`; generic reusable local Pi packages live in `home/.pi/packages/` before publishing; published Pi packages live in `config/pi/settings.defaults.json`
-- Lint/format: Ultracite (Biome preset) is configured once at the repo root and covers both `tools/dot` and `home/.pi` TypeScript. The root `package.json` is tooling-only — it is not stowed and is not a workspace root for the nested Bun workspaces. Rules marked `"warn"` in `biome.jsonc` are a pre-existing backlog, not permanent exemptions; `"off"` marks deliberate disagreements with the preset.
+- Lint/format: Ultracite (Biome preset) is configured once at the repo root and covers both `tools/dot` and `home/.pi` TypeScript. The root `package.json` is tooling-only — it is not deployed and is not a workspace root for the nested Bun workspaces. Rules marked `"warn"` in `biome.jsonc` are a pre-existing backlog, not permanent exemptions; `"off"` marks deliberate disagreements with the preset.
 
 ## ANTI-PATTERNS
 
-- Edit `~/.config/*`, `~/.zshrc`, `~/.oh-my-zsh/custom/*` directly (changes lost on stow)
+- Edit the checkout's `home/` directly on `main` (it only fast-forwards; make changes in a worktree, or edit `~` and let `dot reconcile` absorb them)
 - Hardcode paths (use `$DOTFILES_DIR`, `$HOME`)
-- Nested git repos in stowed dirs (creates symlink issues)
-- node_modules in stowed dirs (pi extensions exception — gitignored)
+- Nested git repos under `home/` (their files would be deployed as tracked content)
+- node_modules under `home/` (pi extensions exception — gitignored, never deployed)
 
 ## COMMANDS
 

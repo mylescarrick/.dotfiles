@@ -1,10 +1,11 @@
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
+import type { FileDriftItem } from "./home-deploy";
 import type { PackageDriftItem } from "./package-drift";
 import type { DriftItem } from "./skill-drift";
-import { hashDirectory } from "./tree-hash";
+import { hashDirectory, hashFile } from "./tree-hash";
 
-export type AnyDriftItem = DriftItem | PackageDriftItem;
+export type AnyDriftItem = DriftItem | FileDriftItem | PackageDriftItem;
 
 const BREW_KEYWORD = { cask: "cask", formula: "brew", tap: "tap" } as const;
 
@@ -34,6 +35,18 @@ async function skillIsCovered(worktree: string, item: DriftItem): Promise<boolea
     default:
       return (await exists(local)) && (await hashDirectory(local)) === item.currentHash;
   }
+}
+
+async function fileIsCovered(worktree: string, item: FileDriftItem): Promise<boolean> {
+  const path = join(worktree, item.repoPath);
+  if (item.kind === "deleted-locally") return !(await exists(path));
+  return (await exists(path)) && (await hashFile(path)) === item.currentHash;
+}
+
+function fileBullet(item: FileDriftItem): string {
+  const name = `\`~/${item.name}\``;
+  if (item.kind === "deleted-locally") return `**Remove ${name} from the repo.** It was deleted on this Mac.`;
+  return `**Take this Mac's version of ${name}.** It was changed here, so \`${item.repoPath}\` now matches it.`;
 }
 
 function escapeRegex(value: string): string {
@@ -68,13 +81,11 @@ export async function coveredItems<T extends AnyDriftItem>(
   const bundle = await readOrEmpty(join(worktree, "packages/bundle"));
   const covered: T[] = [];
   for (const item of items) {
-    if (
-      item.domain === "skill"
-        ? await skillIsCovered(worktree, item)
-        : await packageIsCovered(worktree, item, bundle)
-    ) {
-      covered.push(item);
-    }
+    let settled: boolean;
+    if (item.domain === "skill") settled = await skillIsCovered(worktree, item);
+    else if (item.domain === "file") settled = await fileIsCovered(worktree, item);
+    else settled = await packageIsCovered(worktree, item, bundle);
+    if (settled) covered.push(item);
   }
   return covered;
 }
@@ -93,6 +104,7 @@ function packageBullet(item: PackageDriftItem): string {
 }
 
 function bullet(item: AnyDriftItem): string {
+  if (item.domain === "file") return fileBullet(item);
   if (item.domain !== "skill") return packageBullet(item);
   const name = `\`${item.name}\``;
   const pin = (item.globalLockEntry ? item.globalLockEntry.skillFolderHash : "").slice(0, 7);
@@ -127,7 +139,7 @@ Opened by \`dot reconcile\`, from differences between this Mac and the repo.
 
 ## Test plan
 
-- [ ] The diff only touches \`skills/\`, \`packages/\` and \`config/pi/settings.defaults.json\`
+- [ ] The diff only touches \`skills/\`, \`packages/\`, \`home/\` and \`config/pi/settings.defaults.json\`
 - [ ] After merging, \`dot\` on this Mac no longer reports ${covered.length === 1 ? "this item" : "these items"} as drift
 `;
   return { body, title };

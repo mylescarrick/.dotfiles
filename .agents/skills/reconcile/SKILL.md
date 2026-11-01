@@ -1,6 +1,6 @@
 ---
 name: reconcile
-description: Absorb machine drift (skills, Homebrew, Bun and Pi packages) reported by `dot reconcile` into this dotfiles worktree. Use only when started by `dot reconcile` with a drift report path.
+description: Absorb machine drift (skills, dotfiles, Homebrew, Bun and Pi packages) reported by `dot reconcile` into this dotfiles worktree. Use only when started by `dot reconcile` with a drift report path.
 disable-model-invocation: true
 ---
 
@@ -65,6 +65,19 @@ fourth option the user can ask for; give the command, never run it.
 | `modified-locally` (vendored) | not allowed; recommend discarding | `dot drift restore NAME` |
 | `deleted-locally` | remove `skills/local/NAME` or the lock entry | `dot drift restore NAME` |
 | `conflict` | show the diff and merge by hand into `skills/local/NAME` | `dot drift restore NAME` |
+
+Items with `domain: "file"` are dotfiles whose copy in `~` no longer matches the repo.
+`name` is the path under `~` (`.zshrc`), `homePath` the live file, `repoPath` the file
+under `home/`:
+
+| Kind | Absorb | Discard (tell the user; do not do it) |
+|---|---|---|
+| `modified-locally`, `conflict` | read `homePath` first (see the secrets rule), then copy it over `repoPath`; for a conflict show `diff -u repoPath homePath` and merge by hand | `dot drift restore NAME` (keeps a backup) |
+| `deleted-locally` | `git rm repoPath` | `dot drift restore NAME` |
+
+**Never copy a dotfile that holds a secret.** Read it first. If it has a token, key or
+password inline, do not copy it; tell the user to move that line to the gitignored
+`~/.oh-my-zsh/custom/secrets.zsh`, then absorb the rest.
 
 Items with a `domain` of `brew`, `bun` or `pi` are packages installed on the
 machine but declared nowhere tracked. All have kind `installed-undeclared`:

@@ -152,7 +152,9 @@ describe("dot apply Pi settings", () => {
     });
 
     expect(outcome.exitCode).toBe(1);
-    expect(outcome.stdout).toContain("Dotfiles stowed\n");
+    expect(outcome.stdout).toContain(
+      "Dotfiles deployed (1 installed, 0 updated, 0 link(s) replaced, 0 removed)\n"
+    );
     expect(outcome.stdout).toEndWith("FAILED Homebrew package upgrade: Homebrew package upgrade failed\n");
     expect(outcome.stderr).toBe("dot: Homebrew package upgrade failed\n");
   });
@@ -315,7 +317,7 @@ describe("dot apply Pi settings", () => {
       exitCode: 0,
       stderr: "",
       stdout:
-        "Packages already current\nDotfiles stowed\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Packages already current\nDotfiles deployed (1 installed, 0 updated, 0 link(s) replaced, 0 removed)\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
       defaultModel: "claude-opus-4-8",
@@ -341,7 +343,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Packages already current\nDotfiles stowed\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Packages already current\nDotfiles deployed (1 installed, 0 updated, 0 link(s) replaced, 0 removed)\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     const first = await lstat(settingsPath);
 
@@ -354,7 +356,7 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Packages already current\nDotfiles stowed\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings already current\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Packages already current\nDotfiles deployed (0 installed, 0 updated, 0 link(s) replaced, 0 removed)\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings already current\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     const second = await lstat(settingsPath);
     expect(second.ino).toBe(first.ino);
@@ -370,40 +372,9 @@ describe("dot apply Pi settings", () => {
     ).toMatchObject({
       exitCode: 0,
       stdout:
-        "Packages already current\nDotfiles stowed\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
+        "Packages already current\nDotfiles deployed (0 installed, 0 updated, 0 link(s) replaced, 0 removed)\nSkills deployed (0 installed, 0 updated, 0 removed)\nPi settings synced\nPi dependency workspace not tracked (skipped)\nPi packages already current\n",
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
-  });
-
-  test("preserves runtime changes made during an interactive stow decision", async () => {
-    const fixture = await makeFixture();
-    const settingsPath = join(fixture.home, ".pi/agent/settings.json");
-    await mkdir(join(fixture.home, ".pi/agent"), { recursive: true });
-    await writeFile(settingsPath, '{"defaultProvider":"before","packages":[]}\n');
-    await writeFile(join(fixture.home, ".dot-apply-fixture"), "live conflict\n");
-    let prompted = false;
-    const terminal: Terminal = {
-      interactive: true,
-      async prompt() {
-        prompted = true;
-        await writeFile(settingsPath, '{"defaultProvider":"changed-during-prompt","packages":[]}\n');
-        return "u";
-      },
-      write() {
-        /* test double: discard output */
-      },
-    };
-
-    const outcome = await createApplication({
-      checkoutRoot: fixture.checkout,
-      terminal,
-    }).execute({ argv: ["apply"], cwd: fixture.checkout, env: fixture.env });
-
-    expect(outcome.exitCode).toBe(0);
-    expect(prompted).toBe(true);
-    expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
-      defaultProvider: "changed-during-prompt",
-    });
   });
 
   test("preserves invalid runtime JSON and fails before replacement", async () => {

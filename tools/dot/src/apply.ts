@@ -1,6 +1,7 @@
 import { reconcileGlobalBunPackages } from "./bun-global";
 import { guardCanonicalCheckout } from "./checkout";
 import { applyClaudeSettings, planClaudeSettings } from "./claude";
+import { deployHome } from "./home-deploy";
 import { reconcilePackages } from "./packages";
 import { applyPiSettings, planPiSettings } from "./pi";
 import { reconcilePiDependencies } from "./pi-dependencies";
@@ -8,7 +9,6 @@ import { reconcilePiPackages } from "./pi-packages";
 import type { ProcessRunner } from "./process";
 import { ensureOutdatedSchedule } from "./schedule";
 import { applySkills, prepareSkillDirectories } from "./skills";
-import { applyStowPlan, planStow } from "./stow";
 import type { Terminal } from "./terminal";
 
 export class ApplyFailure extends Error {
@@ -45,17 +45,14 @@ export async function apply(options: {
     stage = "skill directory preparation";
     await prepareSkillDirectories({ checkoutRoot: options.checkoutRoot, home });
 
-    stage = "Stow conflict preflight";
-    const stowPlan = await planStow({ ...options, home });
-
     stage = "package reconciliation";
     progress += await reconcilePackages(options);
 
     stage = "global Bun package reconciliation";
     progress += await reconcileGlobalBunPackages(options);
 
-    stage = "dotfile publication";
-    progress += await applyStowPlan(stowPlan);
+    stage = "dotfile deployment";
+    progress += await deployHome({ ...options, home });
 
     stage = "skill deployment";
     progress += await applySkills({ ...options, home });

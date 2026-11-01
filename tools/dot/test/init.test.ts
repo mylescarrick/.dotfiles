@@ -168,7 +168,7 @@ describe("dot init", () => {
       expect(outcome.stderr).toBe("");
       expect(outcome.stdout).toContain("Homebrew already installed\noh-my-zsh already installed\n");
       expect(outcome.stdout).toContain(
-        "Packages already current\nGlobal Bun packages already current\nDotfiles stowed\n"
+        "Packages already current\nGlobal Bun packages already current\nDotfiles deployed (1 installed, 0 updated, 0 link(s) replaced, 0 removed)\n"
       );
       expect(outcome.stdout).toContain("OK    checkout:");
       expect(outcome.stdout).toContain("OK    bun-global:");
@@ -191,7 +191,9 @@ describe("dot init", () => {
     expect(outcome).toMatchObject({ exitCode: 0, stderr: "" });
     expect(outcome.stdout).toContain("Homebrew installed\noh-my-zsh installed\n");
     expect(outcome.stdout).toContain("Installed 2 global Bun package(s)\n");
-    expect(outcome.stdout).toContain("Dotfiles stowed\n");
+    expect(outcome.stdout).toContain(
+      "Dotfiles deployed (1 installed, 0 updated, 0 link(s) replaced, 0 removed)\n"
+    );
     expect(outcome.stdout).toContain("0 actionable issues\n");
   });
 

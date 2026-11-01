@@ -2,7 +2,7 @@
 
 Personal macOS development environment managed by `dot`.
 
-GNU Stow publishes tracked files into `$HOME`, Homebrew manages packages, and
+`dot` copies tracked files into `$HOME`, Homebrew manages packages, and
 Bun runs the TypeScript CLI. The repository also configures Zsh, Git identities,
 Pi, Claude Code, and a shared agent-skills library.
 
@@ -61,15 +61,15 @@ git -C ~/.dotfiles merge --ff-only refs/remotes/origin/main
 | `dot update [--yes]` | Strictly fast-forward canonical `main`, re-exec, then apply |
 | `dot upgrade [--yes]` | Update, optionally upgrade Homebrew, reinstall any cask whose linked artifacts are missing, upgrade Bun itself, then update Pi and its packages |
 | `dot doctor` | Inspect repository-owned state without network access or repair |
-| `dot drift` | Print skill drift between `~` and the repo as JSON |
+| `dot drift` | Print drift between this Mac and the repo (skills, dotfiles, packages) as JSON |
 | `dot drift ignore [NAME]` | Stop being asked about drift (all, or one item) |
-| `dot drift restore NAME` | Discard local drift by redeploying the repo version |
+| `dot drift restore NAME` | Discard local drift by redeploying the repo version (a dotfile is named by its path, e.g. `.zshrc`; the old copy is backed up) |
 | `dot reconcile` | Absorb drift into a PR through the Pi reconcile agent |
 | `dot pi auth cloudflare [OPTIONS]` | Configure private Pi Cloudflare auth |
 | `dot help` / `dot --version` | Show command or version information |
 
 `apply` validates the canonical checkout, copies skills into place, installs only
-missing Brewfile and global Bun package state, safely stows `home/`,
+missing Brewfile and global Bun package state, copies `home/` into place,
 synchronizes private Pi settings, and runs `bun install` in `~/.pi` only when
 workspace state has drifted. It does not run broad upgrades such as
 `brew upgrade` or `pi update --all`.
@@ -77,13 +77,14 @@ workspace state has drifted. It does not run broad upgrades such as
 `upgrade` first performs the same strict refresh and reconciliation as `update`.
 It then prompts before running `brew update` and `brew upgrade`, and always runs
 `pi update --all` so both Pi itself and its configured packages are current.
-Pass `--yes` to accept the Homebrew upgrade and any tracked Stow conflicts;
-noninteractive use requires that flag. It does not upgrade unrelated global Bun
+Pass `--yes` to accept the Homebrew upgrade and to replace dotfiles that differ
+from the repo (the old copy is backed up first); noninteractive use requires that flag. It does not upgrade unrelated global Bun
 packages.
 
-Without `--yes`, an interactive Stow conflict offers use/keep/diff/abort.
-Noninteractive conflicts fail before mutation. `--yes` backs up conflicting live
-files before tracked state wins; it never bypasses checkout safety.
+Without `--yes`, a dotfile that differs from the repo is left alone and listed
+as drift for `dot reconcile`. `--yes` backs the live file up under
+`~/.local/state/dot/backups/` before the repo version replaces it; it never
+bypasses checkout safety.
 
 ## Repository structure
 
@@ -92,7 +93,7 @@ files before tracked state wins; it never bypasses checkout safety.
 ├── dot                     # Small POSIX launcher/bootstrap
 ├── tools/dot/               # Bun/TypeScript application and tests
 ├── config/pi/               # Tracked defaults for private Pi runtime state
-├── home/                    # Stowed to ~ (mirrors the home directory)
+├── home/                    # Copied to ~ (mirrors the home directory)
 │   ├── .config/git/         # Personal/work Git identity split
 │   ├── .pi/                 # Pi workspace
 │   ├── .oh-my-zsh/custom/   # Custom Zsh aliases and functions
@@ -104,9 +105,10 @@ files before tracked state wins; it never bypasses checkout safety.
 └── AGENTS.md
 ```
 
-Edit tracked files under `home/`, not their live `$HOME` symlinks, then publish
-them from canonical `main` with `dot apply`. After merging a worktree change,
-use `dot update` to refresh and publish it.
+Files under `home/` are copied into `$HOME`, not linked, so a tool that rewrites
+`~/.config/foo` cannot dirty `main`. Edit the live file and run `dot` to have the
+agent absorb it into a PR, or edit `home/` in a worktree. After merging, `dot`
+refreshes and publishes it.
 
 ## Packages
 
@@ -197,7 +199,7 @@ so both harnesses stay in sync.
 
 ## Pi private runtime state
 
-`~/.pi/agent/settings.json` is a private regular file rather than a Stow link.
+`~/.pi/agent/settings.json` is a private regular file synced from tracked defaults.
 `dot apply`, `dot update`, and `dot init` merge tracked defaults from
 `config/pi/settings.defaults.json`, preserving runtime preferences while letting
 the repository own package sources. Writes are atomic and mode `0600`.
@@ -264,7 +266,7 @@ bun run --cwd tools/dot check
 ```
 
 The suite uses temporary homes, real local Git repositories/bare remotes, and
-GNU Stow sandboxes. It does not call public Git remotes, package registries,
+copied-home sandboxes. It does not call public Git remotes, package registries,
 SSH agents, or real installers by default.
 
 ## Troubleshooting
@@ -276,12 +278,13 @@ on `main`, free of unfinished Git operations, and not ahead/diverged from
 **Package installation failed** — the package remains declared. Correct the
 Homebrew problem, then run `dot apply`.
 
-**Stow conflict** — rerun interactively to choose, or use `dot apply --yes` to
-back up the live file under `backups/stow-conflicts/` before tracked state wins.
-Backups remain available if GNU Stow later fails.
+**A dotfile differs from the repo** — `dot` keeps your copy and lists it as drift.
+Run `dot reconcile` to absorb it into a PR, or `dot drift restore PATH` (for
+example `.zshrc`) to put the repo version back; the old copy is saved under
+`~/.local/state/dot/backups/`.
 
-**Broken or drifted managed links** — `dot doctor` reports them; `dot apply`
-reconciles fixable managed state.
+**Out-of-date dotfiles** — `dot doctor` reports them; `dot apply` reconciles
+fixable managed state.
 
 **`command not found: dot`** — `source ~/.zshrc`, or ensure
 `$HOME/.dotfiles` is on `PATH`; `.zprofile` in this repository configures it.

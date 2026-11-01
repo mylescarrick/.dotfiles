@@ -2,12 +2,12 @@ import { lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectGlobalBunPackages } from "./bun-global";
 import { guardCanonicalCheckout } from "./checkout";
+import { inspectHome } from "./home-deploy";
 import { inspectPackages } from "./packages";
 import { inspectPiSettings, planPiSettings } from "./pi";
 import { inspectPiAuth } from "./pi-auth";
 import type { ProcessRunner } from "./process";
 import { inspectSkills } from "./skills";
-import { inspectStow } from "./stow";
 
 export interface DiagnosticReport {
   readonly healthy: boolean;
@@ -90,7 +90,7 @@ async function checkCheckout(options: DoctorOptions, home: string, log: DoctorLo
 
 async function checkTools(options: DoctorOptions, log: DoctorLog): Promise<Set<string>> {
   const available = new Set<string>();
-  for (const tool of ["bun", "git", "brew", "stow", "pi", "frog"] as const) {
+  for (const tool of ["bun", "git", "brew", "pi", "frog"] as const) {
     try {
       const result = await options.processes.run({
         argv: [tool, "--version"],
@@ -123,11 +123,19 @@ async function checkGlobalBunPackages(options: DoctorOptions, log: DoctorLog): P
   });
 }
 
-async function checkStowedDotfiles(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
+async function checkDeployedDotfiles(options: DoctorOptions, home: string, log: DoctorLog): Promise<void> {
   await log.guard("dotfiles", async () => {
-    const drift = await inspectStow({ checkoutRoot: options.checkoutRoot, home });
-    if (drift === 0) log.ok("dotfiles", "managed paths are linked to tracked state");
-    else log.fail("dotfiles", `${drift} managed path(s) drifted; run 'dot apply'`);
+    const plan = await inspectHome({ ...options, home });
+    const stale = plan.items.filter((item) => ["install", "remove", "update"].includes(item.decision.action));
+    const outOfDate = stale.length + plan.pendingMigration;
+    if (outOfDate > 0)
+      log.fail(
+        "dotfiles",
+        `${outOfDate} dotfile(s) are out of date or still linked into the checkout; run 'dot apply'`
+      );
+    else log.ok("dotfiles", `${plan.items.length} dotfile(s) deployed`);
+    if (plan.drift.length > 0)
+      log.info(`dotfiles: ${plan.drift.length} file(s) differ from the repo; run 'dot reconcile'`);
   });
 }
 
@@ -180,7 +188,7 @@ export async function runDoctor(options: DoctorOptions): Promise<DiagnosticRepor
   const available = await checkTools(options, log);
   if (available.has("brew")) await checkDeclaredPackages(options, log);
   await checkGlobalBunPackages(options, log);
-  await checkStowedDotfiles(options, home, log);
+  await checkDeployedDotfiles(options, home, log);
   await checkPiAuth(home, log);
   await checkPiSettings(options, home, log);
   await checkSkills(options, home, log);

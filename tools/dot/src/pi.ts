@@ -52,6 +52,23 @@ export async function inspectPiSettings(home: string): Promise<string[]> {
   return issues;
 }
 
+function trackedThenLocal(tracked: unknown, runtime: unknown): unknown[] {
+  const first = Array.isArray(tracked) ? tracked : [];
+  const extras = (Array.isArray(runtime) ? runtime : []).filter((source) => !first.includes(source));
+  return [...first, ...extras];
+}
+
+/** Package sources in the private runtime settings that the tracked defaults do not list. */
+export function localPiPackages(
+  defaults: Record<string, unknown>,
+  runtime: Record<string, unknown>
+): string[] {
+  const tracked = Array.isArray(defaults.packages) ? defaults.packages : [];
+  return (Array.isArray(runtime.packages) ? runtime.packages : []).filter(
+    (source): source is string => typeof source === "string" && !tracked.includes(source)
+  );
+}
+
 export interface PiSettingsPlan {
   readonly changed: boolean;
   readonly desired: string;
@@ -77,7 +94,10 @@ export async function planPiSettings(options: {
 
   const current = await readRuntime(settingsPath);
   const merged = { ...defaults, ...current };
-  if (Object.hasOwn(defaults, "packages")) merged.packages = defaults.packages;
+  // Tracked packages lead; anything installed by hand stays, so apply never deletes a local change.
+  // dot reconcile reports those extras as drift.
+  if (Object.hasOwn(defaults, "packages"))
+    merged.packages = trackedThenLocal(defaults.packages, current.packages);
   const desired = `${JSON.stringify(merged, null, 2)}\n`;
 
   return {

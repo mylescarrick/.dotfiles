@@ -1,6 +1,6 @@
 ---
 name: reconcile
-description: Absorb machine drift (skills and Homebrew packages) reported by `dot reconcile` into this dotfiles worktree. Use only when started by `dot reconcile` with a drift report path.
+description: Absorb machine drift (skills, Homebrew, Bun and Pi packages) reported by `dot reconcile` into this dotfiles worktree. Use only when started by `dot reconcile` with a drift report path.
 disable-model-invocation: true
 ---
 
@@ -24,8 +24,8 @@ managed and settles most judgement calls.
   your commits.
 - **Never edit vendored skill content.** Vendored skills change only through
   `skills/lock.json`.
-- **Never run `brew install` or `brew uninstall`.** You edit `packages/bundle`;
-  the user decides about the machine.
+- **Never install or uninstall packages** (`brew`, `bun add -g`, `pi install`, `pi remove`).
+  You edit the tracked files; the user decides about the machine.
 - **Leave the worktree clean.** Commit or discard everything before exiting.
 
 ## Loop
@@ -66,12 +66,18 @@ fourth option the user can ask for; give the command, never run it.
 | `deleted-locally` | remove `skills/local/NAME` or the lock entry | `dot drift restore NAME` |
 | `conflict` | show the diff and merge by hand into `skills/local/NAME` | `dot drift restore NAME` |
 
-Items with `domain: "brew"` are packages installed on the machine but not
-declared in `packages/bundle`. Check `package` (`formula`, `cask` or `tap`):
+Items with a `domain` of `brew`, `bun` or `pi` are packages installed on the
+machine but declared nowhere tracked. All have kind `installed-undeclared`:
 
-| Kind | Absorb | Discard (tell the user; do not do it) |
+| Domain | Absorb (edit `repoPath`) | Discard (tell the user; do not do it) |
 |---|---|---|
-| `installed-undeclared` | add `brew "NAME"`, `cask "NAME"` or `tap "NAME"` to `packages/bundle`, sorted among lines of the same type | `brew uninstall NAME` (add `--cask` for casks) |
+| `brew` | add `brew "NAME"`, `cask "NAME"` or `tap "NAME"` to `packages/bundle` (see `package`), sorted among lines of the same type | `brew uninstall NAME` (add `--cask` for casks) |
+| `bun` | add `NAME` on its own line to `packages/bun-global`, sorted; leave the version off to track latest | `bun remove -g NAME` |
+| `pi` | add the source (`npm:NAME`) to the `packages` array in `config/pi/settings.defaults.json`, keeping the existing order | `pi remove SOURCE` |
+
+**Before adding any package, check the history.** If the repo once declared it, the
+user probably removed it on purpose, so recommend discarding instead:
+`git log -S'NAME' --oneline -- <repoPath>`.
 
 When copying a lock entry, keep only `source`, `sourceType`, `sourceUrl`,
 `skillPath` and `skillFolderHash`, and keep keys sorted by skill name.

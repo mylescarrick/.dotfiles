@@ -1,11 +1,9 @@
 import { resolve } from "node:path";
 import packageMetadata from "../package.json";
 import { ApplyFailure, apply } from "./apply";
-import { addGlobalBunPackage, removeGlobalBunPackage } from "./bun-global";
 import { runDoctor } from "./diagnostics";
 import { initialize } from "./init";
 import { collectOutdated, describeOutdated, readOutdated, writeOutdated } from "./outdated";
-import { addPackage, removePackage } from "./package-authoring";
 import {
   configureCloudflareAuth,
   configureExaAuth,
@@ -53,8 +51,6 @@ const commands: readonly CommandDescription[] = [
   { summary: "Update, then upgrade Bun, Homebrew, and Pi (repairs stale casks)", usage: "upgrade" },
   { summary: "Inspect managed state without changing it", usage: "doctor" },
   { summary: "Bootstrap a new machine, then apply", usage: "init" },
-  { summary: "Edit the Brewfile", usage: "package add/remove" },
-  { summary: "Edit the global Bun package manifest", usage: "bun add/remove" },
   {
     summary: "Show outdated Homebrew, Bun and Pi packages (--refresh checks now)",
     usage: "outdated [--refresh]",
@@ -221,65 +217,6 @@ async function handlePi(ctx: CommandContext): Promise<CommandOutcome> {
   }
 }
 
-async function handlePackage(ctx: CommandContext): Promise<CommandOutcome> {
-  const { invocation, dependencies, processes } = ctx;
-  const [, action, name, option] = invocation.argv;
-  const validAdd =
-    action === "add" &&
-    Boolean(name) &&
-    (invocation.argv.length === 3 || (invocation.argv.length === 4 && option === "--cask"));
-  const validRemove = action === "remove" && Boolean(name) && invocation.argv.length === 3;
-  if (!(validAdd || validRemove)) {
-    return {
-      exitCode: 2,
-      stderr: "dot: usage: dot package add NAME [--cask] | dot package remove NAME\n",
-      stdout: "",
-    };
-  }
-  try {
-    const stdout = validAdd
-      ? await addPackage({
-          cask: option === "--cask",
-          checkoutRoot: dependencies.checkoutRoot,
-          env: invocation.env,
-          name: name!,
-          processes,
-        })
-      : await removePackage({ checkoutRoot: dependencies.checkoutRoot, name: name! });
-    return { exitCode: 0, stderr: "", stdout };
-  } catch (error) {
-    return failureOutcome(error);
-  }
-}
-
-async function handleBun(ctx: CommandContext): Promise<CommandOutcome> {
-  const { invocation, dependencies, processes } = ctx;
-  const action = invocation.argv[1];
-  const name = invocation.argv[2];
-  const validAdd = action === "add" && Boolean(name) && invocation.argv.length === 3;
-  const validRemove = action === "remove" && Boolean(name) && invocation.argv.length === 3;
-  if (!(validAdd || validRemove)) {
-    return {
-      exitCode: 2,
-      stderr: "dot: usage: dot bun add NAME[@VERSION] | dot bun remove NAME\n",
-      stdout: "",
-    };
-  }
-  try {
-    const stdout = validAdd
-      ? await addGlobalBunPackage({
-          checkoutRoot: dependencies.checkoutRoot,
-          env: invocation.env,
-          name: name!,
-          processes,
-        })
-      : await removeGlobalBunPackage({ checkoutRoot: dependencies.checkoutRoot, name: name! });
-    return { exitCode: 0, stderr: "", stdout };
-  } catch (error) {
-    return failureOutcome(error);
-  }
-}
-
 async function handleDoctor(ctx: CommandContext): Promise<CommandOutcome> {
   if (ctx.invocation.argv.length !== 1) {
     return { exitCode: 2, stderr: "dot: usage: dot doctor\n", stdout: "" };
@@ -332,12 +269,10 @@ async function handleSync(ctx: CommandContext): Promise<CommandOutcome> {
 }
 
 const SINGLE_WORD_HANDLERS: Readonly<Record<string, (ctx: CommandContext) => Promise<CommandOutcome>>> = {
-  bun: handleBun,
   doctor: handleDoctor,
   drift: handleDrift,
   init: handleInit,
   outdated: handleOutdated,
-  package: handlePackage,
   pi: handlePi,
   reconcile: handleReconcile,
 };

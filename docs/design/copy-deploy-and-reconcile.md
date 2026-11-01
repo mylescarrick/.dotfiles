@@ -112,7 +112,7 @@ absent, so the first run migrates them without prompting.
 | `dot drift restore NAME` | overwrites `~` with the repo version, or removes a skill the repo lacks (discards drift) |
 | `dot reconcile` | drift → ask → worktree → Pi agent → guard → push → PR |
 
-The `dot skills …` authoring commands are removed. Install skills however you
+The `dot skills …`, `dot package add/remove` and `dot bun add/remove` authoring commands are removed. Install skills however you
 like (`bunx skills add -g … -a pi claude-code`, or write one in
 `~/.agents/skills/`) and `dot reconcile` absorbs it.
 

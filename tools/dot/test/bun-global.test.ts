@@ -1,13 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  addGlobalBunPackage,
   inspectGlobalBunPackages,
   parseGlobalBunPackage,
   reconcileGlobalBunPackages,
-  removeGlobalBunPackage,
 } from "../src/bun-global";
 import type { ProcessRequest, ProcessResult, ProcessRunner } from "../src/process";
 
@@ -173,77 +171,5 @@ describe("reconcile global Bun packages", () => {
     );
     expect(processes.requests[0]!.argv).toEqual(["bun", "pm", "ls", "-g"]);
     expect(processes.requests[1]!.argv).toEqual(["bun", "update", "-g", "--latest", "frog"]);
-  });
-});
-
-describe("author global Bun packages", () => {
-  test("add records a sorted package before installing", async () => {
-    const checkout = await checkoutFixture("frog@1.1.0\nwrangler@4.114.0\n");
-    const processes = new RecordingProcesses([{ exitCode: 0, stderr: "", stdout: "" }]);
-
-    const stdout = await addGlobalBunPackage({
-      checkoutRoot: checkout,
-      env: {},
-      name: "cloudflared@0.7.1",
-      processes,
-    });
-
-    expect(stdout).toBe("Added and installed global Bun package 'cloudflared@0.7.1'\n");
-    expect(await readFile(join(checkout, "packages/bun-global"), "utf8")).toBe(
-      "cloudflared@0.7.1\nfrog@1.1.0\nwrangler@4.114.0\n"
-    );
-    expect(processes.requests[0]!.argv).toEqual(["bun", "add", "-g", "cloudflared@0.7.1"]);
-  });
-
-  test("add keeps failed installation declared for a later apply", async () => {
-    const checkout = await checkoutFixture("frog@1.1.0\n");
-    const processes = new RecordingProcesses([{ exitCode: 1, stderr: "failed", stdout: "" }]);
-
-    await expect(
-      addGlobalBunPackage({
-        checkoutRoot: checkout,
-        env: {},
-        name: "cloudflared@0.7.1",
-        processes,
-      })
-    ).rejects.toThrow("remains declared for the next dot apply");
-    expect(await readFile(join(checkout, "packages/bun-global"), "utf8")).toContain("cloudflared@0.7.1");
-  });
-
-  test("add rejects an already-declared package", async () => {
-    const checkout = await checkoutFixture("frog@1.1.0\n");
-    const processes = new RecordingProcesses([]);
-
-    await expect(
-      addGlobalBunPackage({ checkoutRoot: checkout, env: {}, name: "frog@2.0.0", processes })
-    ).rejects.toThrow("global Bun package 'frog' is already declared");
-  });
-
-  test("remove edits the manifest without uninstalling", async () => {
-    const checkout = await checkoutFixture("frog@1.1.0\nwrangler@4.114.0\n");
-    const processes = new RecordingProcesses([]);
-
-    const stdout = await removeGlobalBunPackage({ checkoutRoot: checkout, name: "frog" });
-
-    expect(stdout).toBe("Removed global Bun package 'frog' from the manifest\n");
-    expect(await readFile(join(checkout, "packages/bun-global"), "utf8")).toBe("wrangler@4.114.0\n");
-    expect(processes.requests).toHaveLength(0);
-  });
-
-  test("remove ignores version when matching by name", async () => {
-    const checkout = await checkoutFixture("frog@1.1.0\n");
-
-    const stdout = await removeGlobalBunPackage({ checkoutRoot: checkout, name: "frog@9.9.9" });
-
-    expect(stdout).toBe("Removed global Bun package 'frog' from the manifest\n");
-    expect(await readFile(join(checkout, "packages/bun-global"), "utf8")).toBe("\n");
-  });
-
-  test("remove reports a package that is not declared", async () => {
-    const checkout = await checkoutFixture("frog@1.1.0\n");
-
-    const stdout = await removeGlobalBunPackage({ checkoutRoot: checkout, name: "missing" });
-
-    expect(stdout).toBe("Global Bun package 'missing' is not declared\n");
   });
 });

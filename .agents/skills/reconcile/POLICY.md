@@ -7,8 +7,21 @@ How this Mac should be managed. Edit this file to change the agent's defaults.
 - **Something installed on purpose belongs in the repo.** If the user installed
   a skill by hand, the default is to absorb it.
 - **Vendored skills track upstream.** A `skills update -g` result is absorbed.
-  Local edits to vendored skill content are discarded; the fix goes upstream
-  or into a local overlay skill (see `harness-routing`).
+  For app-managed sources that are explicitly listed below, an update may be
+  absorbed when the current skill exactly matches a tree at its configured
+  upstream path. Update only `skillFolderHash` in `skills/lock.json` to that
+  verified upstream tree. If it does not match, do not bless it as upstream;
+  explain the mismatch and let the user choose another path.
+  Other vendored skill edits are not absorbed; the fix goes upstream or into a
+  local overlay skill (see `harness-routing`).
+
+### App-managed vendored sources
+
+- `https://github.com/stablyai/orca.git` owns and auto-updates `orca-cli` and
+  `orchestration`. On **Add**, verify each changed skill against its own
+  `skillPath` at the source's current upstream revision. If it matches, update
+  that skill's lock hash and absorb it. Never copy the home directory into the
+  repo or treat a non-matching edit as an upstream update.
 - **Local skills are owned here.** Edits made in `~/.agents/skills` are
   absorbed, since editing in place is the normal way to change them now.
 - **Experiments stay out.** Names starting with `tmp-`, `test-` or `scratch-`

@@ -22,8 +22,11 @@ managed and settles most judgement calls.
   to this worktree.
 - **Never push, open PRs, or run `dot apply`.** `dot` does that after checking
   your commits.
-- **Never edit vendored skill content.** Vendored skills change only through
-  `skills/lock.json`.
+- Vendored skill content is normally immutable here. The exception is an
+  explicitly app-managed source listed in POLICY.md: verify the live content
+  against its configured upstream `skillPath`, then update only its
+  `skillFolderHash` in `skills/lock.json`. Never copy an unverified home
+  directory into the repo.
 - **Never install or uninstall packages** (`brew`, `bun add -g`, `pi install`, `pi remove`).
   You edit the tracked files; the user decides about the machine.
 - **Leave the worktree clean.** Commit or discard everything before exiting.
@@ -66,7 +69,8 @@ fourth option the user can ask for; give the command, never run it.
 | `vendored-added` | add `globalLockEntry` to `skills/lock.json` | `dot drift restore NAME` (removes it) |
 | `vendored-updated` | replace the entry in `skills/lock.json` with `globalLockEntry` | `dot drift restore NAME` |
 | `modified-locally` (local) | copy `homePath` over `skills/local/NAME` | `dot drift restore NAME` |
-| `modified-locally` (vendored) | not allowed; recommend discarding | `dot drift restore NAME` |
+| `modified-locally` (vendored, app-managed source listed in POLICY.md) | verify the live skill exactly matches its configured upstream path; update only `skillFolderHash` in `skills/lock.json` to the verified upstream tree | `dot drift restore NAME` |
+| `modified-locally` (other vendored) | not allowed; recommend discarding | `dot drift restore NAME` |
 | `deleted-locally` | remove `skills/local/NAME` or the lock entry | `dot drift restore NAME` |
 | `conflict` | show the diff and merge by hand into `skills/local/NAME` | `dot drift restore NAME` |
 
@@ -97,7 +101,12 @@ user probably removed it on purpose, so recommend discarding instead:
 `git log -S'NAME' --oneline -- <repoPath>`.
 
 When copying a lock entry, keep only `source`, `sourceType`, `sourceUrl`,
-`skillPath` and `skillFolderHash`, and keep keys sorted by skill name.
+`skillPath` and `skillFolderHash`, and keep keys sorted by skill name. For an
+app-managed update, fetch or inspect the configured source, compare the complete
+live skill directory with the directory at `skillPath`, and use that directory's
+git tree ID as the new hash. Confirm the source URL and path match POLICY.md;
+if the content does not match exactly or cannot be verified, do not update the
+lock as if it were upstream. Explain the mismatch and ask how to proceed.
 
 Copy directories with `rsync -a --delete <homePath>/ skills/local/NAME/`.
 

@@ -97,7 +97,7 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/stablyai/orca.git",
       "skillPath": "skills/orchestration/SKILL.md",
-      "skillFolderHash": "b0cd1d58b0c317cf7c3726fef7e6b1197c405246"
+      "skillFolderHash": "503493f3a3942a80590e80345e5dc07ac328978b"
     },
     "prototype": {
       "source": "mattpocock/skills",

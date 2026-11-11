@@ -148,8 +148,64 @@ describe("reconcilePiPackages", () => {
     await fixture.cleanup();
   });
 
-  test("ignores non-npm sources", async () => {
-    const fixture = await makeFixture(["git:github.com/foo/bar", "../packages/foo"]);
+  test("installs a declared Git package when Pi lists it without an installed path", async () => {
+    const source = "git:github.com/example/pi-plugin";
+    const fixture = await makeFixture([source]);
+    const requests: ProcessRequest[] = [];
+    const runner: ProcessRunner = {
+      async run(request) {
+        requests.push(request);
+        if (request.argv[1] === "list") {
+          return { exitCode: 0, stderr: "", stdout: `User packages:\n  ${source}\n` };
+        }
+        return { exitCode: 0, stderr: "", stdout: "" };
+      },
+    };
+
+    const result = await reconcilePiPackages({
+      checkoutRoot: fixture.checkout,
+      env: {},
+      home: fixture.home,
+      processes: runner,
+    });
+
+    expect(result).toBe("Pi packages installed\n");
+    expect(requests.map((request) => request.argv)).toEqual([
+      ["pi", "list"],
+      ["pi", "install", source],
+    ]);
+    await fixture.cleanup();
+  });
+
+  test("does not reinstall a Git package that Pi lists with its installed path", async () => {
+    const source = "git:github.com/example/pi-plugin";
+    const fixture = await makeFixture([source]);
+    const runner: ProcessRunner = {
+      async run(request) {
+        if (request.argv[1] === "list") {
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: `User packages:\n  ${source}\n    /tmp/installed-plugin\n`,
+          };
+        }
+        return { exitCode: 0, stderr: "", stdout: "" };
+      },
+    };
+
+    const result = await reconcilePiPackages({
+      checkoutRoot: fixture.checkout,
+      env: {},
+      home: fixture.home,
+      processes: runner,
+    });
+
+    expect(result).toBe("Pi packages already current\n");
+    await fixture.cleanup();
+  });
+
+  test("ignores unsupported local package sources", async () => {
+    const fixture = await makeFixture(["../packages/foo"]);
     const runner = new RecordingRunner();
 
     const result = await reconcilePiPackages({

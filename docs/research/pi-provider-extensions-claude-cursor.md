@@ -1,9 +1,8 @@
 # Pi Provider Extensions for Claude and Cursor Subscriptions
 
-> **Superseded for Claude:** this research predates the switch to `npm:pi-claude-bridge`. The active default
-> is now the Agent SDK-based bridge. Its README says Pi tools execute through Pi's TUI and Pi skills plus
-> selected extension context are forwarded; not all extension injection routes are supported. See
-> https://github.com/elidickinson/pi-claude-bridge#compatibility-with-other-extensions.
+> **Superseded for Claude:** this research predates the active `git:github.com/dmmulroy/pi-claude-cli`
+> default. See the [current provider notes](../pi-agent-capabilities.md#6-model-defaults) and the
+> [plugin README](https://github.com/dmmulroy/pi-claude-cli).
 
 Research question: *What are the best Pi provider extensions for using Claude and Cursor subscriptions (not API keys) directly in Pi?*
 
@@ -11,7 +10,7 @@ Research question: *What are the best Pi provider extensions for using Claude an
 
 For subscription-only access in the Pi coding-agent harness (`@earendil-works/pi-coding-agent`), the current best options are:
 
-- **Claude:** `npm:pi-claude-code-provider` (current default in this repo, documented public protocol).
+- **Claude at the time of this research:** `npm:pi-claude-code-provider` (documented public protocol).
 - **Cursor:** `npm:@rahularya01/pi-cursor` offers the most mature native Pi integration, though it is an unofficial reverse-engineered client. If you want to stay on Cursor's officially supported surface, use `npm:@akepka/pi-cursor-cli-provider` or `npm:@netandreus/pi-cursor-provider`, both of which shell out to the Cursor Agent CLI.
 
 Avoid `npm:pi-cursor-sdk` if your goal is to bill against a Cursor subscription; it requires a Cursor SDK API key.
@@ -79,7 +78,7 @@ Trade-offs of the CLI approach:
 
 ## Recommendation for `config/pi/settings.defaults.json`
 
-The current defaults use `npm:pi-claude-code-provider` for Claude and `npm:@rahularya01/pi-cursor` for Cursor:
+At the time of this research, defaults used `npm:pi-claude-code-provider` for Claude and `npm:@rahularya01/pi-cursor` for Cursor:
 
 ```json
 {

@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { parseJsonObject } from "./json";
 import type { ProcessRunner } from "./process";
 
@@ -20,17 +20,37 @@ export function parseNpmPackageName(source: string): string | undefined {
   return versionAt === -1 ? rest : rest.slice(0, versionAt);
 }
 
-export async function reconcilePiPackages(options: {
+interface PiPackageOptions {
   readonly checkoutRoot: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly home: string;
   readonly processes: ProcessRunner;
-}): Promise<string> {
+}
+
+async function missingGitPackages(options: PiPackageOptions, sources: readonly string[]): Promise<string[]> {
+  if (sources.length === 0) return [];
+  const listed = await options.processes.run({
+    argv: ["pi", "list"],
+    cwd: options.home,
+    env: options.env,
+  });
+  if (listed.exitCode !== 0) throw new Error("failed to inspect installed Pi packages");
+
+  const lines = listed.stdout.split("\n").map((line) => line.trim());
+  return sources.filter((source) => {
+    const index = lines.indexOf(source);
+    const path = index < 0 ? undefined : lines[index + 1];
+    return !(path && isAbsolute(path));
+  });
+}
+
+export async function reconcilePiPackages(options: PiPackageOptions): Promise<string> {
   const settingsPath = join(options.checkoutRoot, "config/pi/settings.defaults.json");
   const settings = parseJsonObject(await readFile(settingsPath, "utf8"), "Tracked Pi settings defaults");
   const desired = Array.isArray(settings.packages)
     ? settings.packages.filter(
-        (source): source is string => typeof source === "string" && source.startsWith("npm:")
+        (source): source is string =>
+          typeof source === "string" && (source.startsWith("npm:") || source.startsWith("git:"))
       )
     : [];
 
@@ -56,6 +76,12 @@ export async function reconcilePiPackages(options: {
     const name = parseNpmPackageName(source);
     return name !== undefined && !installed.has(name);
   });
+
+  const missingGit = await missingGitPackages(
+    options,
+    desired.filter((source) => source.startsWith("git:"))
+  );
+  missing.push(...missingGit);
 
   if (missing.length === 0) {
     return "Pi packages already current\n";
